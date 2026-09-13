@@ -12,11 +12,24 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 ## Current implementation
 
-`Export_Game_Library.sh` is the **v1.3** auditor. Important v1.3 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, and an audit integrity verdict with `SAFE TO PREVIEW` / `DO NOT APPLY` recommendations.
+`Export_Game_Library.sh` is the **v1.3** auditor. Important v1.3 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
 
-The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner: actual MiSTer console testing showed overlapping output and invalid elapsed-time display. Separator strings beginning with `-` must be printed through a safe format such as `printf '%s\n'` rather than used directly as a `printf` format string.
+The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner.
 
 `Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Apply is blocked when the audit says `DO NOT APPLY`, when integrity is not `PASS`, or when the exporter/database has changed since the audit was generated.
+
+## Final-target collision safety — Issue #7
+
+Collision blocking is based on the final proposal after DAT identity is applied, not solely on the filename-parsed fallback proposal.
+
+For every pre-DAT collision group, the exporter records whether each row received authoritative exact/normalized DAT identity and its final target filename. After all rows have been processed, the group is classified as:
+
+- **resolved canonical DAT variants** when every row is authoritative and all final canonical targets are unique;
+- **blocking collisions** when any row is unmatched/unsupported, two rows resolve to the same final target, or the group otherwise remains ambiguous.
+
+Only blocking collision rows contribute to `COLLISIONS`, `collision-review-required`, and `DO NOT APPLY`. Resolved canonical variants are reported separately and do not by themselves block Preview. The updater's own duplicate/existing-target validation remains an independent safety layer.
+
+Do not use filename-derived associative-array arithmetic for this logic. Issue #7 stores collision evidence in a temporary TSV and evaluates it with `awk`, preserving the Issue #6 apostrophe-bearing canonical-name regression.
 
 ## Hash database
 
@@ -26,9 +39,7 @@ The current MiSTer-aware TSV schema is authoritative. SQLite has been discussed,
 
 ## Documentation synchronization
 
-Documentation is part of the implementation workflow. Whenever a change materially changes runtime behavior, update `README.md`, `PROJECT_CONTEXT.md`, and one or more relevant `wiki/*.md` pages in the same development pass.
-
-`.github/workflows/documentation-consistency.yml` enforces this guardrail on pushes and pull requests to `main` when the auditor, updater, or hash database changes.
+Whenever a change materially changes runtime behavior, update `README.md`, `PROJECT_CONTEXT.md`, and one or more relevant `wiki/*.md` pages in the same development pass. `.github/workflows/documentation-consistency.yml` enforces this guardrail.
 
 ## GitHub Wiki
 
@@ -44,7 +55,7 @@ Custom MiSTer Downloader / Update All integration is implemented. `.github/workf
 
 Generated reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files must not be managed by Update All.
 
-The Downloader identity is now `jrampey/MiSTer-ROM-Library-Auditor`. Register it in `/media/fat/downloader.ini` with:
+The Downloader identity is `jrampey/MiSTer-ROM-Library-Auditor`:
 
 ```ini
 [jrampey/MiSTer-ROM-Library-Auditor]
@@ -53,9 +64,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 Do not modify `Scripts/update_all.sh` to register this project.
 
-The distribution workflow is:
-
-**ChatGPT/Codex → GitHub → VS Code → MiSTer Update All**
+The distribution workflow is **ChatGPT/Codex → GitHub → VS Code → MiSTer Update All**.
 
 ## Safety invariants
 
@@ -68,26 +77,12 @@ The distribution workflow is:
 
 ## Source-of-truth rule
 
-GitHub is authoritative. Do not assume an old chat artifact is newer than the repository.
-
-For broad development changes, first inspect the repository and give a short assessment of its current state, including inconsistencies or missing pieces. Do not make broad changes until approved. A direct request to change a specific file or feature is authorization for that specific change.
-
-For an authorized implementation change that materially changes documented runtime behavior, documentation synchronization is included in that authorization.
-
+GitHub is authoritative. Do not assume an old chat artifact is newer than the repository. A direct request to change a specific file or feature is authorization for that specific change; documentation synchronization is included when runtime behavior changes.
 
 ## v1.3 catalog accounting integrity
 
-The exporter protects report generation from stdin interference by reading the generated `$PLAN` through a dedicated file descriptor. Commands or functions executed while processing a catalog row therefore cannot consume subsequent plan records from the report loop.
-
-The integrity layer enforces both accounting invariants:
-
-- `TOTAL == CLASSIFIED`
-- `TOTAL + SKIPPED == GAME_SCAN_COUNT`
-
-Failure of the second invariant adds `discovery-accounting-mismatch`, sets the audit verdict to `FAIL`, and sets the Apply recommendation to `DO NOT APPLY`.
-
-This is a v1.3 reliability fix and does not change the release version or the exporter's read-only behavior.
+The exporter reads `$PLAN` through a dedicated file descriptor. Integrity enforces `TOTAL == CLASSIFIED` and `TOTAL + SKIPPED == GAME_SCAN_COUNT`. Failure adds `discovery-accounting-mismatch`, sets `FAIL`, and blocks Apply.
 
 ## Issue #6 canonical-collision regression
 
-Real MiSTer evidence localized the 267-row catalog loss to the second source file resolving to `Super Noah's Ark 3D (USA) (Unl).sfc`. The DAT-match row was emitted, but the catalog row was not. The cause was dead `FINAL_PROPOSAL_COUNTS` bookkeeping that performed Bash arithmetic through a filename-derived associative subscript. That bookkeeping was removed; canonical collision safety remains enforced by preview/apply validation, and the synthetic regression now covers duplicate canonical identities with apostrophe-bearing names.
+Real MiSTer evidence localized the 267-row catalog loss to the second source file resolving to `Super Noah's Ark 3D (USA) (Unl).sfc`. The cause was dead `FINAL_PROPOSAL_COUNTS` bookkeeping that performed Bash arithmetic through a filename-derived associative subscript. That bookkeeping was removed. Issue #7 must preserve this regression: canonical filenames, including apostrophes, are treated strictly as text.
