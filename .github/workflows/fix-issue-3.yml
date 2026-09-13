@@ -1,0 +1,32 @@
+name: Fix Issue 3
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Repair UI
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Export_Game_Library.sh')
+          s=p.read_text()
+          start=s.index('# Live activity spinner plus a detailed progress heartbeat every 30 seconds.')
+          end=s.index('progress_check() {', start)
+          s=s[:start]+'''# Static stage output plus a progress heartbeat every 30 seconds.\nSTART_TIME=$(date +%s)\nLAST_PROGRESS_TIME=$START_TIME\n\non_exit() { cleanup; }\ntrap on_exit EXIT INT TERM\n\n'''+s[end:]
+          s=s.replace("    printf '\\r%79s\\r' ' '\n",'',1)
+          s=s.replace('  printf "----------------------------------------------------\\n"\n',"  printf '%s\\n' '----------------------------------------------------'\n",1)
+          s=s.replace('start_spinner\necho "[1/5] Scanning game library..."','echo "[1/5] Scanning game library..."',1)
+          s=s.replace('sync\nstop_spinner\n','sync\n',1)
+          p.write_text(s)
+          PY
+          bash -n Export_Game_Library.sh
+          ! grep -q 'Still working' Export_Game_Library.sh
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Export_Game_Library.sh
+          git commit -m 'Fix exporter terminal UI on MiSTer'
+          git push
