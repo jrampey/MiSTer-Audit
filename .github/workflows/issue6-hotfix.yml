@@ -1,0 +1,45 @@
+name: Issue 6 Hotfix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/issue6-hotfix.yml'
+      - 'tools/issue6_hotfix.py'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply targeted hotfix
+        run: python3 tools/issue6_hotfix.py
+
+      - name: Validate syntax
+        run: |
+          bash -n Export_Game_Library.sh
+          bash -n tests/test_exporter_synthetic.sh
+          python3 -m py_compile tests/build_synthetic_library.py
+
+      - name: Run synthetic Full Verification regression
+        env:
+          CI: 'true'
+        run: bash tests/test_exporter_synthetic.sh
+
+      - name: Commit verified fix and remove one-shot tooling
+        run: |
+          rm -f tools/issue6_hotfix.py .github/workflows/issue6-hotfix.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git diff --cached --quiet && { echo 'No changes to commit'; exit 1; }
+          git commit -m 'Fix Issue #6 canonical collision truncation'
+          git push origin HEAD:main
