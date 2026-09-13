@@ -54,17 +54,18 @@ jobs:
             https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
             -o /tmp/mister-db-build/db_operator.py
 
-          mkdir -p /tmp/mister-db-build/source
-          cd /tmp/mister-db-build/source
+          # db_operator derives the source revision with git rev-parse HEAD,
+          # so run it from the checked-out repository rather than a temp folder
+          # with no Git history.
+          cd "$GITHUB_WORKSPACE"
 
           DB_ID="jrampey/MiSTerFPGAGameLibraryAudit" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
           BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
           EXTERNAL_FILES="$CSV" \
+          FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" \
           DB_JSON_NAME="db.json" \
-          python3 ../db_operator.py build .
-
-          cp db.json "$GITHUB_WORKSPACE/db.json"
+          python3 /tmp/mister-db-build/db_operator.py build .
 
       - name: Validate database with MiSTer Downloader
         shell: bash
@@ -82,6 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add db.json
