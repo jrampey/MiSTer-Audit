@@ -4,6 +4,28 @@ Audit, identify, organize, and safely clean up your MiSTer FPGA ROM library usin
 
 > **Current release: v1.3**
 
+## 🚀 First-time install on a fresh MiSTer / MiSTer Pi
+
+If this MiSTer has **never had MiSTer ROM Library Auditor installed before**, add the project's Downloader database once. After that, normal MiSTer **Update All** runs can keep the installed runtime files current.
+
+1. Open `/media/fat/downloader.ini` on the MiSTer SD card.
+2. Add this block:
+
+```ini
+[jrampey/MiSTer-ROM-Library-Auditor]
+db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/main/db.json
+```
+
+3. Save `downloader.ini`.
+4. Run **Update All** on the MiSTer.
+5. Update All installs these files under `/media/fat/Scripts/`:
+   - `Export_Game_Library.sh`
+   - `Update_Game_Library.sh`
+   - `mister_hash_database.tsv`
+6. Run `Export_Game_Library` from the MiSTer Scripts menu to create your first read-only library audit.
+
+> **Start with the auditor.** `Export_Game_Library.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the separate updater's Preview / Apply workflow.
+
 **Audit → Review → Preview → Apply → Roll Back**
 
 ## Current runtime
