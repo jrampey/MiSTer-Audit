@@ -18,10 +18,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 3. Save `downloader.ini`.
 4. Run **Update All** on the MiSTer.
-5. Update All installs these files under `/media/fat/Scripts/`:
-   - `Export_Game_Library.sh`
-   - `Update_Game_Library.sh`
-   - `mister_hash_database.tsv`
+5. Update All installs `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
 6. Run `Export_Game_Library` from the MiSTer Scripts menu to create your first read-only library audit.
 
 > **Start with the auditor.** `Export_Game_Library.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the separate updater's Preview / Apply workflow.
@@ -32,11 +29,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 `Export_Game_Library.sh` v1.3 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
 
-`Update_Game_Library.sh` v1.3 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake.
-
-Runtime files are installed together under `/media/fat/Scripts/`: `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv`.
-
-The exporter never renames, moves, or deletes ROMs or saves.
+`Update_Game_Library.sh` v1.3 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake. The exporter never renames, moves, or deletes ROMs or saves.
 
 ## Audit modes
 
@@ -54,6 +47,17 @@ v1.3 uses DAT metadata for canonical naming and system classification when avail
 The main review artifact is `/media/fat/GameLibraryAudit/MiSTer_Library_Audit.txt`.
 
 The consolidated report contains `[AUDIT_METADATA]` including schema version, exporter version/build fingerprint, database fingerprint, metadata-layer status, self-check status, integrity verdict, and Apply recommendation.
+
+### Final-target collision safety
+
+Collision safety is evaluated after DAT identification. Filename parsing can initially make legitimate revisions look like collisions, but authoritative No-Intro identities may resolve them to distinct canonical filenames.
+
+The exporter now distinguishes:
+
+- **canonical DAT variants resolved safely** — every row in the pre-DAT collision group has authoritative DAT identity and the final canonical targets are unique; these rows do not trigger `collision-review-required`;
+- **blocking collisions** — duplicate final canonical targets, unmatched/unsupported rows, or otherwise ambiguous groups; these still produce `PASS WITH WARNINGS`, `DO NOT APPLY`, and `collision-review-required`.
+
+The audit summary reports pre-DAT collision rows, safely resolved canonical DAT variant rows, and blocking collision rows separately. This preserves the updater's existing target validation as an additional safety layer.
 
 ## v1.3 updater safety handshake
 
@@ -93,7 +97,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 Current behavior is documented in `README.md`, `PROJECT_CONTEXT.md`, and `wiki/`. The repository wiki directory is automatically published to the GitHub Wiki.
 
-`.github/workflows/documentation-consistency.yml` guards against documentation drift. A change to the auditor, updater, or hash database must also update `README.md`, `PROJECT_CONTEXT.md`, and at least one relevant `wiki/*.md` page in the same change set.
+`.github/workflows/documentation-consistency.yml` guards against documentation drift. A change to the auditor, updater, or hash database must also update `README.md`, `PROJECT_CONTEXT.md`, and at least one relevant `wiki/*.md` page in the same development pass.
 
 GitHub is the source of truth. The intended development/distribution flow is:
 
@@ -113,20 +117,10 @@ ChatGPT / Codex → GitHub → VS Code → MiSTer Update All
 - Runtime/user data is not managed by Update All.
 - The project release remains v1.3 unless explicitly changed.
 
-See `wiki/` for detailed current behavior and `PROJECT_CONTEXT.md` for development constraints and project context.
-
-
 ### Audit accounting integrity
 
-The v1.3 exporter isolates report-plan input from commands executed during report generation. This prevents nested commands from accidentally consuming pending catalog records.
-
-Audit integrity also verifies that every discovered game-library file is accounted for:
-
-- cataloged files must equal classified files;
-- cataloged files plus intentionally skipped BIOS/support files must equal files discovered.
-
-An accounting mismatch produces a `FAIL` integrity verdict and `DO NOT APPLY` recommendation.
+The v1.3 exporter isolates report-plan input from commands executed during report generation. Audit integrity verifies that cataloged files equal classified files and that cataloged files plus intentionally skipped BIOS/support files equal files discovered. An accounting mismatch produces `FAIL` and `DO NOT APPLY`.
 
 ### Issue #6 catalog-accounting hardening
 
-The v1.3 exporter avoids arithmetic evaluation of filename-derived associative-array subscripts during canonical proposal handling. A real MiSTer library exposed this when two SNES source files resolved to the same apostrophe-bearing canonical No-Intro name; the second row could truncate report generation. The synthetic Full Verification regression now includes that canonical-duplicate shape and still requires every discovered file to be accounted for.
+The v1.3 exporter avoids arithmetic evaluation of filename-derived associative-array subscripts during canonical proposal handling. The synthetic Full Verification regression includes the apostrophe-bearing duplicate canonical pattern that exposed Issue #6 and still requires every discovered file to be accounted for.
