@@ -1,6 +1,6 @@
-# 🎮 MiSTer FPGA Game Library Audit
+# 🎮 MiSTer ROM Library Auditor
 
-A read-only-first toolkit for auditing, identifying, and safely cleaning up a MiSTer FPGA game library.
+Audit, identify, organize, and safely clean up your MiSTer FPGA ROM library using No-Intro hashes and MiSTer-aware metadata.
 
 > **Current release: v1.2**
 
@@ -10,13 +10,9 @@ A read-only-first toolkit for auditing, identifying, and safely cleaning up a Mi
 
 `Export_Game_Library.sh` v1.2 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
 
-`Update_Game_Library.sh` v1.2 is the separate Preview / Apply / Rollback path. The previous v1.1 updater mismatch has been resolved.
+`Update_Game_Library.sh` v1.2 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake.
 
-Runtime files are installed together under `/media/fat/Scripts/`:
-
-- `Export_Game_Library.sh`
-- `Update_Game_Library.sh`
-- `mister_hash_database.tsv`
+Runtime files are installed together under `/media/fat/Scripts/`: `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv`.
 
 The exporter never renames, moves, or deletes ROMs or saves.
 
@@ -31,33 +27,17 @@ v1.2 uses DAT metadata for canonical naming and system classification when avail
 
 ## Reports and integrity metadata
 
-The main review artifact is:
-
-`/media/fat/GameLibraryAudit/MiSTer_Library_Audit.txt`
-
-The audit also publishes structured catalog, rename proposal, save proposal, DAT match/unmatched, duplicate-hash, location-audit, and cache files.
+The main review artifact is `/media/fat/GameLibraryAudit/MiSTer_Library_Audit.txt`.
 
 The consolidated report contains `[AUDIT_METADATA]` including schema version, exporter version/build fingerprint, database fingerprint, metadata-layer status, self-check status, integrity verdict, and Apply recommendation.
 
 ## v1.2 updater safety handshake
 
-Before Preview or Apply, the updater validates that the proposal set came from the expected v1.2 audit contract. It verifies:
+Before Preview or Apply, the updater validates the expected v1.2 audit contract. It verifies schema/version, startup self-check, MiSTer-aware metadata status, integrity verdict, Apply recommendation, exporter build SHA-1, and database SHA-1.
 
-- audit schema version `4`;
-- exporter version `1.2`;
-- startup self-check passed;
-- MiSTer-aware metadata layer is valid;
-- integrity verdict and Apply recommendation are recognized;
-- the installed exporter matches the audit's exporter SHA-1; and
-- the installed hash database matches the audit's database SHA-1.
+If the exporter or database changed after the audit was generated, a fresh audit is required. Apply requires a fully passing audit, revalidates immediately before mutation, and requires typing `APPLY` exactly. `DO NOT APPLY` is enforced by the updater.
 
-If the exporter or database changed after the audit was generated, a fresh audit is required.
-
-Preview remains a review operation. Apply requires a fully passing audit and an Apply recommendation that permits proceeding. `DO NOT APPLY` is enforced by the updater.
-
-Apply revalidates the handshake immediately before file mutation and requires typing `APPLY` exactly. Existing destinations, duplicate targets, unsafe names, out-of-root paths, missing sources, and unsupported CUE renames remain blocked or skipped.
-
-Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, and remains available independently of the current audit handshake so recovery is possible after software/database changes.
+Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, and remains available independently of the current audit handshake.
 
 ## Recommended workflow
 
@@ -79,11 +59,11 @@ The repository publishes a validated MiSTer Downloader `db.json` that manages on
 Register the database in `/media/fat/downloader.ini` with:
 
 ```ini
-[jrampey/MiSTerFPGAGameLibraryAudit]
-db_url = https://raw.githubusercontent.com/jrampey/MiSTerFPGAGameLibraryAudit/main/db.json
+[jrampey/MiSTer-ROM-Library-Auditor]
+db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/main/db.json
 ```
 
-`.github/workflows/build-downloader-db.yml` rebuilds and validates `db.json` when a distributed runtime file changes. Reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files are not managed by Update All.
+`.github/workflows/build-downloader-db.yml` rebuilds and validates `db.json` when a distributed runtime file or the distribution workflow changes. Reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files are not managed by Update All.
 
 ## Documentation synchronization
 
