@@ -1,23 +1,24 @@
-🎮 MiSTer FPGA Game Library Audit
+# 🎮 MiSTer FPGA Game Library Audit
 
-A read-only-first toolkit for auditing, identifying, cleaning, and
-safely renaming a MiSTer FPGA game library — with a streamlined
-workflow for uploading one consolidated audit report to ChatGPT for
-review.
+A read-only-first toolkit for auditing, identifying, and safely cleaning up a MiSTer FPGA game library.
 
-> **Current release: v1.1**
+> **Current auditor release: v1.2**
 
-Audit → Upload → Review → Preview → Clean → Roll Back
+**Audit → Review → Preview → Apply → Roll Back**
 
-The project is designed around one rule:
+The core rule is simple:
 
 > 🛡️ **Identify first, preview second, modify last.**
 
-────────
+## What it does
 
-📦 Required Files
+`Export_Game_Library.sh` scans `/media/fat/games` without modifying ROMs or saves. It builds a complete catalog, identifies supported ROMs by SHA-1 against the bundled MiSTer-aware database, proposes canonical names, checks save pairing and locations, detects duplicates and collisions, and publishes detailed reports under `/media/fat/GameLibraryAudit`.
 
-Copy these three files to your MiSTer:
+`Update_Game_Library.sh` is deliberately separate. It can preview approved rename proposals, apply safety-checked filename changes, and roll back the last applied cleanup.
+
+## Files
+
+Place the runtime files together on the MiSTer, normally under `/media/fat/Scripts/`:
 
 ```text
 /media/fat/Scripts/
@@ -26,437 +27,221 @@ Copy these three files to your MiSTer:
 └── mister_hash_database.tsv
 ```
 
-What each file does
+| File | Purpose |
+| --- | --- |
+| `Export_Game_Library.sh` | v1.2 read-only auditor and report generator |
+| `Update_Game_Library.sh` | Preview / Apply / Rollback rename tool; currently labeled v1.1 |
+| `mister_hash_database.tsv` | Bundled SHA-1 database with canonical and MiSTer-aware metadata |
 
-────────
+Original DAT files are not required on the MiSTer. The exporter reads the bundled TSV directly.
 
-File                                Purpose
+## Running an audit
 
-────────
+Run `Export_Game_Library` from the MiSTer Scripts menu. At startup the exporter performs safety/self-checks, including validating the bundled database's required MiSTer-aware schema.
 
-Export_Game_Library.sh            Read-only library auditor and
-report generator
+Two audit modes are available:
 
-Update_Game_Library.sh            Preview, Apply, and Rollback tool
-for approved filename changes
+- **Fast Audit** — default. Rescans the full library but reuses cached SHA-1 values for unchanged files when possible.
+- **Full Verification** — recalculates hashes for DAT-eligible ROMs instead of relying on cached hashes. Hash work can run in parallel when the MiSTer environment supports it.
 
-mister_hash_database.tsv          Nintendo SHA-1 reference database used for exact ROM identification
+The cache is an optimization only. Fast Audit still rediscovers and re-evaluates the library on every run.
 
-The original No-Intro DAT files are not required on the MiSTer. The
-consolidated TSV database is the reference source used by the exporter.
+During the audit, the exporter:
 
-────────
+- inventories the game library and filters detected BIOS/support files;
+- determines DAT/hash eligibility by system and extension;
+- calculates or reuses SHA-1 hashes;
+- matches hashes against `mister_hash_database.tsv`;
+- uses DAT metadata for canonical title, ROM name, system, core, expected folder, region, release type, and license status when available;
+- falls back to filename-derived classification when authoritative metadata is unavailable;
+- detects duplicate hashes, rename collisions, and location mismatches;
+- pairs saves by the original game basename;
+- generates game and save rename proposals for review; and
+- publishes a consolidated audit plus machine-readable reports.
 
-🔎 Export Workflow
+> **The exporter never renames, moves, or deletes ROMs or saves.**
 
-Step 1 — Run the exporter
+## Hash identification
 
-From the MiSTer menu, open Scripts and run:
+Raw SHA-1 is always attempted first. v1.2 also includes conservative normalized-hash fallbacks for known cartridge-container cases:
+
+- **NES** — after a raw miss, a 16-byte iNES/NES2 header may be excluded for a second lookup.
+- **SNES/SFC** — when file size indicates a 512-byte copier header, the exporter may try the payload hash after the raw miss.
+- **N64 `.z64` / `.v64`** — raw database coverage is used.
+- **N64 `.n64`** — the exporter does not perform a lossy shell byte-order conversion; unmatched files remain unmatched unless a raw record exists.
+
+An unmatched hash does not automatically mean a ROM is bad. Modified dumps, patches, hacks, translations, unsupported representations, and formats outside database coverage can all be legitimate.
+
+### Current database coverage
+
+The bundled database is no longer Nintendo-only. Current audit logic supports MiSTer-aware hash matching for Nintendo systems plus expanded No-Intro-backed coverage including:
+
+- NES / FDS, SNES, Game Boy, Game Boy Color, Game Boy Advance, Nintendo 64
+- Genesis / Mega Drive and 32X
+- Master System
+- Atari 2600
+- Intellivision
+- PC Engine / TurboGrafx-16 and SuperGrafx
+- Amiga
+- Commodore 64
+- Archimedes
+
+The database uses a required 13-column schema:
 
 ```text
-Export_Game_Library
+sha1
+canonical_title
+canonical_rom_name
+dat_source
+size
+crc32
+md5
+mister_system
+mister_core
+expected_folder
+region
+release_type
+license_status
 ```
 
-The exporter scans the configured game and save directories without
-modifying them.
+The first valid record for a unique SHA-1 becomes the in-memory lookup entry.
 
-During the audit it:
+## Canonical naming and classification
 
-• inventories supported game files;
-• calculates SHA-1 hashes;
-• compares hashes against mister_hash_database.tsv;
-• identifies canonical ROM information when an exact match exists;
-• detects regions and alternate versions from filename metadata when
-needed;
-• detects duplicate hashes;
-• filters BIOS, boot, firmware, test, and support files;
-• checks for matching save files;
-• detects rename collisions;
-• generates game and save rename proposals;
-• creates detailed CSV reports for the updater; and
-• creates one consolidated report intended for ChatGPT.
+When an exact or supported normalized DAT match exists, authoritative database metadata takes precedence over filename parsing. This includes canonical ROM naming and MiSTer-aware system information.
 
-> **The export process does not rename, move, or delete games or
-> saves.**
+v1.2 also explicitly separates Genesis/Mega Drive and 32X classification: `.md` and `.gen` files are associated with Mega Drive/Genesis, while `.32x` files are associated with 32X before DAT metadata is applied.
 
-────────
+Filename parsing remains useful for unmatched files and metadata not supplied by the database. Alternate releases are preserved rather than silently deleted, and collisions are reported instead of overwriting files.
 
-Step 2 — Review the completion summary
+## Reports
 
-When the scan finishes, the MiSTer displays a summary of the audit.
-
-The summary includes information such as:
-
-• files cataloged;
-• BIOS/support files skipped;
-• SHA-1 hashes calculated;
-• hash database matches;
-• unmatched files;
-• duplicate hashes;
-• rename collisions;
-• save matches; and
-• reports generated.
-
-The completion screen remains visible for 60 seconds and then closes
-automatically.
-
-You can press Enter to close it immediately.
-
-────────
-
-Step 3 — Find the results
-
-The exporter stores its results under:
+Results are published under:
 
 ```text
 /media/fat/GameLibraryAudit/
 ```
 
-The most important file for sharing is:
+The main review artifact is:
 
 ```text
-/media/fat/GameLibraryAudit/MiSTer_Library_Audit.txt
+MiSTer_Library_Audit.txt
 ```
 
-⭐ This is the file to upload to ChatGPT
+It contains the audit summary, integrity metadata, database/cache health, per-system processing information, timing data, and copies of the major detailed reports.
 
-You normally do not need to upload all of the individual CSV
-reports.
+Other generated files include:
 
-MiSTer_Library_Audit.txt consolidates the information needed to review
-the audit into a single file.
+| Report | Purpose |
+| --- | --- |
+| `game_library.txt` | Human-readable library inventory |
+| `library_catalog.csv` | Structured catalog and classifications |
+| `proposed_renames.csv` | Game filename proposals |
+| `proposed_save_renames.csv` | Save filename proposals |
+| `dat_matches.csv` | Successful hash/database matches |
+| `unmatched_hashes.csv` | Hashed files not identified by the database |
+| `hash_duplicates.csv` | Files sharing SHA-1 hashes |
+| `location_audit.csv` | Current versus expected MiSTer locations |
+| `hash_cache.tsv` / `hash_cache.meta` | Internal incremental hash cache |
 
-The individual reports remain on the MiSTer because
-Update_Game_Library.sh uses them for cleanup operations.
+Reports are generated in a staging area and then published as complete files so an interrupted audit is less likely to replace previous reports with partially generated output.
 
-────────
+## Audit integrity
 
-🤖 Uploading the Audit to ChatGPT
+v1.2 embeds machine-readable audit metadata in the consolidated report, including:
 
-After the exporter finishes:
+- audit schema version;
+- exporter version and build SHA-1;
+- audit mode;
+- database SHA-1 fingerprint;
+- metadata-layer status;
+- self-check status;
+- integrity verdict; and
+- Apply recommendation.
 
-1. Open /media/fat/GameLibraryAudit/ through your preferred MiSTer
-file-access method.
-2. Locate MiSTer_Library_Audit.txt.
-3. Copy or save that file to the device where you use ChatGPT.
-4. Open the ChatGPT conversation for the MiSTer library project.
-5. Tap the + attachment button.
-6. Choose Files.
-7. Select MiSTer_Library_Audit.txt.
-8. Ask ChatGPT to review the audit.
+The completion screen surfaces an **Integrity verdict** and an **Apply recommendation**, including states such as `SAFE TO PREVIEW` or `DO NOT APPLY` as appropriate.
 
-For example:
+The exporter build itself is fingerprinted with SHA-1 so a report can be tied to the exact script that generated it.
+
+## Reviewing the audit
+
+For a normal cleanup pass:
 
 ```text
-Review this v1.1 MiSTer library audit. Check the hash matches,
-unmatched ROMs, duplicate hashes, bad title normalization,
-region/version classification, BIOS/support files, collisions,
-and game/save rename proposals. Tell me what should be fixed
-before I run the updater.
+1. Run Export_Game_Library
+2. Review MiSTer_Library_Audit.txt
+3. Investigate unmatched ROMs, duplicates, location issues, and questionable proposals
+4. Confirm the audit integrity verdict is acceptable
+5. Run Update_Game_Library
+6. Preview
+7. Review proposed and skipped operations
+8. Apply only when satisfied
+9. Re-run the auditor after cleanup
 ```
 
-ChatGPT can then use the consolidated report to evaluate the results
-before any filename changes are applied.
+`MiSTer_Library_Audit.txt` is designed to be the single file needed for a detailed ChatGPT review.
 
-Recommended rule
+## Rename workflow
 
-> 🚫 **Do not run Apply simply because the exporter completed
-> successfully.**
+Run `Update_Game_Library` only after reviewing the audit.
 
-Run the audit, upload the consolidated report, review questionable
-results, and only then move on to the updater.
+### Preview
 
-────────
-
-📊 Local Audit Reports
-
-The exporter retains detailed reports under
-/media/fat/GameLibraryAudit/.
-
-────────
-
-Report                              Purpose
-
-────────
-
-MiSTer_Library_Audit.txt          Consolidated report intended for
-ChatGPT review
-
-game_library.txt                  Human-readable library inventory
-
-library_catalog.csv               Structured catalog containing
-classifications and hashes
-
-proposed_renames.csv              Proposed game filename changes
-
-proposed_save_renames.csv         Proposed save filename changes
-
-dat_matches.csv                   Exact hash-database matches
-
-unmatched_hashes.csv              Files not identified by the
-installed hash database
-
-hash_duplicates.csv               Files sharing an identical SHA-1
-hash
-
-RenameHistory/                    Rollback manifests created by the updater
-
-The consolidated TXT file is for convenient review. The detailed CSV
-files remain the machine-readable working data for the solution.
-
-────────
-
-🔐 Hash Identification
-
-Version 1.1 uses SHA-1 fingerprints to identify ROMs independently
-of their filenames.
-
-The bundled Nintendo lookup database contains 28,570 unique SHA-1
-hashes built from the Nintendo DAT sets prepared for this project.
-
-When a file matches the database, the audit can use authoritative DAT
-metadata instead of relying only on filename parsing.
-
-Current Nintendo coverage includes major MiSTer targets such as:
-
-• Nintendo Entertainment System — headered and headerless
-• Family Computer Disk System
-• Super Nintendo Entertainment System
-• Game Boy
-• Game Boy Color
-• Game Boy Advance
-• Nintendo 64 — BigEndian and ByteSwapped
-• Nintendo 64DD
-• selected specialized GBA sets included in the database
-
-An unmatched hash does not automatically mean a ROM is bad. Headers,
-byte ordering, patches, hacks, translations, modified dumps, or
-unsupported systems can all produce legitimate unmatched files.
-
-────────
-
-🌎 Regions and Alternate Versions
-
-The audit recognizes common long-form and abbreviated ROM metadata such
-as:
-
-```text
-(USA)
-(U)
-(World)
-(Europe)
-(E)
-(Japan)
-(J)
-```
-
-When choosing a preferred regional copy, the project uses:
-
-```text
-USA → World → Europe → Japan → Other
-```
-
-Alternate releases are preserved rather than silently deleted.
-
-The audit can distinguish categories including:
-
-• Retail/Standard
-• Revision
-• Translation
-• Hack/Modified
-• Prototype/Beta/Demo
-• Homebrew/Unlicensed
-
-────────
-
-✨ Title Normalization
-
-The exporter attempts to remove ROM-set metadata while preserving
-meaningful game titles, punctuation, subtitles, and numbering.
-
-Normalization is intentionally conservative.
-
-If multiple ROMs would resolve to the same destination filename, that
-condition should be treated as a collision, not permission to
-overwrite a file.
-
-────────
-
-🧩 BIOS and Support Files
-
-BIOS files, boot ROMs, firmware, machine ROMs, test software, and other
-support files should not be treated as normal games.
-
-The exporter attempts to identify and exclude these from ordinary game
-cleanup and completion statistics.
-
-Anything that cannot be classified confidently should be reviewed rather
-than automatically modified.
-
-────────
-
-🛠️ Cleanup Workflow
-
-After the audit has been reviewed, run:
-
-```text
-Update_Game_Library
-```
-
-The updater provides three main operations.
-
-👀 Preview
-
-Builds the cleanup plan without changing the library.
-
-Always run Preview first.
-
-Review:
+Preview builds a safety-checked plan without renaming files:
 
 ```text
 /media/fat/GameLibraryAudit/apply_preview.tsv
 /media/fat/GameLibraryAudit/apply_skipped.tsv
 ```
 
-✅ Apply
+The updater rejects or skips operations when it detects conditions such as an out-of-root path, unsafe filename, missing source, existing destination, or duplicate destination. CUE renames are intentionally disabled because independently renaming members of a CUE/BIN disc set can break references.
 
-Performs only the safety-checked filename changes in the approved plan.
+### Apply
 
-Apply requires explicit confirmation.
+Apply rebuilds the preview, displays the candidate count, and requires the user to type `APPLY` exactly before any `mv` operation occurs.
 
-The updater checks for problems such as:
-
-• missing source files;
-• existing destination files;
-• duplicate destination names;
-• unsafe paths;
-• ambiguous operations; and
-• unsupported disc-set changes.
-
-↩️ Rollback
-
-Restores filenames from the recorded rename manifest when a completed
-cleanup needs to be reversed.
-
-Rename history is stored under:
+Successful and unsuccessful operations are recorded in a timestamped manifest under:
 
 ```text
 /media/fat/GameLibraryAudit/RenameHistory/
 ```
 
-────────
+### Rollback
 
-💾 Save Files
+Rollback uses the most recent manifest and requires the user to type `ROLLBACK` exactly. Successful renames are processed in reverse order where they can be safely restored.
 
-Game and save cleanup is coordinated so a renamed game does not
-unnecessarily lose access to its corresponding save.
+## Important current limitation
 
-Save proposals are generated separately and remain reviewable before
-Apply.
+The auditor is **v1.2**, while `Update_Game_Library.sh` is still labeled **v1.1**. The exporter produces the v1.2 integrity verdict and Apply recommendation, but the current updater does **not** independently validate that v1.2 audit metadata before allowing Apply.
 
-Ambiguous save matches should be skipped rather than guessed.
+Until that handshake is implemented, treat the auditor's `DO NOT APPLY` recommendation as a hard manual stop. Always review the latest audit before using Apply.
 
-────────
+## Safety invariants
 
-💿 Disc-Based Games
+- Auditing is read-only with respect to ROMs and saves.
+- Rename proposals are review artifacts, not automatic actions.
+- The updater is the only component in this repository intended to rename library files.
+- Existing targets and duplicate proposed targets are not overwritten.
+- Unsafe disc-set renames are skipped.
+- Rename history is retained for rollback.
+- Generated reports, caches, rename history, ROMs, and saves are runtime/user data and must not be managed as distributed content by MiSTer Update All.
 
-Multi-file disc sets require additional safeguards.
+## Project documentation
 
-A .cue file can reference one or more .bin tracks. Renaming only
-part of that set can break the game.
+The [`wiki/`](wiki/) directory documents current implemented behavior in smaller, focused pages. [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md) records project-level development context and constraints.
 
-For this reason, unsafe CUE/BIN rename operations are intentionally
-excluded from automatic cleanup until coordinated disc-set handling is
-implemented.
-
-CHD and other container formats can also require format-specific
-identification because reference DATs may describe normalized disc data
-rather than the hash of the container file.
-
-────────
-
-🛡️ Safety
-
-The intended workflow is:
+GitHub is the source of truth for development. The intended development/distribution workflow is:
 
 ```text
-1. Export
-2. Upload MiSTer_Library_Audit.txt to ChatGPT
-3. Review the audit
-4. Fix exporter/database issues if necessary
-5. Run Update_Game_Library
-6. Preview
-7. Review skipped and proposed operations
-8. Apply
-9. Roll back if necessary
+ChatGPT / Codex → GitHub → VS Code → MiSTer
 ```
 
-The exporter is read-only.
+## Future work
 
-The updater is deliberately separate so simply auditing the library
-cannot rename your games or saves.
+Potential future work includes richer disc identification and coordinated disc-set handling, broader database coverage, improved save analysis, and evaluation of a possible TSV-to-SQLite database migration. SQLite is not part of the current architecture and should not be introduced without reviewing the design first.
 
-> **A questionable rename is better skipped than guessed.**
+Custom MiSTer Downloader / Update All integration is also planned around a generated `db.json`, downloader configuration, and GitHub Actions. Those distribution files are not part of the current runtime implementation unless and until they are added to the repository.
 
-────────
+---
 
-⚠️ Current Limitations
-
-Hash identification requires the exact file representation to match an
-entry in the installed database.
-
-Legitimate files can remain unmatched because of:
-
-• ROM headers;
-• byte ordering;
-• patches;
-• translations;
-• hacks;
-• homebrew;
-• modified dumps;
-• container formats; or
-• systems not yet represented in the database.
-
-The current consolidated hash database focuses on the Nintendo DAT sets
-prepared for this project.
-
-Disc identification and coordinated multi-track renaming remain areas
-for future development.
-
-────────
-
-🗺️ Roadmap
-
-Potential future improvements include:
-
-• additional No-Intro-backed systems;
-• Redump-aware disc identification;
-• header and byte-order normalization before hash lookup;
-• coordinated CUE/BIN renaming;
-• system-aware save matching;
-• orphan-save reporting;
-• canonical primary-ROM selection;
-• USA retail completion statistics;
-• missing-title reports;
-• richer duplicate/cleanup recommendations;
-• external USB library support; and
-• _Arcade inventory support.
-
-────────
-
-🏷️ Version 1.1
-
-Version 1.1 provides the current three-part solution:
-
-```text
-Exporter + Updater + Hash Database
-```
-
-It includes improved region/version parsing, stronger BIOS/support
-filtering, collision-aware rename proposals, SHA-1 generation, Nintendo
-hash matching, duplicate detection, dedicated audit output, a
-consolidated ChatGPT upload report, and the Preview/Apply/Rollback
-updater workflow.
-
-🎮 Run the exporter first. Upload MiSTer_Library_Audit.txt to
-ChatGPT. Review the results. Then clean the library.
+🎮 **Run the auditor first. Review the results. Preview changes. Modify the library only when the evidence says it is safe.**
