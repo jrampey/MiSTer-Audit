@@ -1,5 +1,5 @@
 name: Build MiSTer Downloader Database
-# Refresh Downloader manifest after terminal UI fixes.
+# Refresh Downloader manifest after the Issue #6 canonical-collision fix.
 
 on:
   push:
