@@ -1,5 +1,5 @@
 name: Build MiSTer Downloader Database
-# Refresh Downloader manifest after exporter UI update.
+# Refresh Downloader manifest after terminal UI fixes.
 
 on:
   push:
