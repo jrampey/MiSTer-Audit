@@ -25,8 +25,10 @@ SAVE_INDEX="$WORK.saveindex"
 PLAN="$WORK.plan"
 DAT_INDEX="$WORK.datindex"
 HASH_ROWS="$WORK.hashrows"
+HASH_CACHE="$AUDIT/hash_cache.tsv"
+HASH_CACHE_NEW="$WORK.hashcache_new"
 
-cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$WORK.duphashes"; }
+cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$HASH_CACHE_NEW" "$WORK.duphashes"; }
 trap cleanup EXIT INT TERM
 
 if [ ! -d "$GAMES" ]; then
@@ -45,6 +47,36 @@ hash_file() {
   else
     printf 'UNAVAILABLE'
   fi
+}
+
+
+file_signature() {
+  local p="$1" sig
+  # GNU/BSD stat compatibility. Size + mtime is used only to decide whether a
+  # previously calculated SHA-1 can be reused; every run still rescans the full library.
+  sig="$(stat -c '%s|%Y' "$p" 2>/dev/null)"
+  [ -z "$sig" ] && sig="$(stat -f '%z|%m' "$p" 2>/dev/null)"
+  printf '%s' "$sig"
+}
+
+cache_lookup() {
+  local p="$1" sig="$2"
+  [ -s "$HASH_CACHE" ] || return 0
+  awk -F '\t' -v p="$p" -v s="$sig" '$1==p && $2==s {print $3; exit}' "$HASH_CACHE"
+}
+
+should_hash() {
+  local system="${1,,}" ext="${2,,}"
+  # The bundled v1.2 reference database currently identifies Nintendo cartridge/disk
+  # formats. Avoid expensive hashing of large unsupported CHD/computer/disc containers.
+  case "$ext" in
+    nes|fds|sfc|smc|gb|gbc|gba|n64|z64|v64) return 0 ;;
+  esac
+  # Existing library exporter may classify N64 files under generic .rom in some sets.
+  case "$system" in
+    *n64*|*nintendo*64*) [ "$ext" = "rom" ] && return 0 ;;
+  esac
+  return 1
 }
 
 
@@ -207,7 +239,7 @@ find "$GAMES" -type f \( \
   -o -iname "*.a52" -o -iname "*.a78" -o -iname "*.col" -o -iname "*.int" \
   -o -iname "*.cue" -o -iname "*.chd" -o -iname "*.d64" -o -iname "*.d81" \
   -o -iname "*.g64" -o -iname "*.adf" -o -iname "*.hdf" -o -iname "*.dsk" \
-  -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" \) -print 2>/dev/null | LC_ALL=C sort > "$GAME_LIST"
+  -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" -o -iname "*.n64" -o -iname "*.z64" -o -iname "*.v64" \) -print 2>/dev/null | LC_ALL=C sort > "$GAME_LIST"
 GAME_SCAN_COUNT=$(wc -l < "$GAME_LIST" | tr -d "[:space:]")
 echo "    Files discovered: $GAME_SCAN_COUNT"
 
@@ -265,7 +297,8 @@ printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name",
 printf '%s\n' '"sha1","system","full_path","original_filename"' > "$DAT_UNMATCHED"
 : > "$HASH_ROWS"
 
-TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0
+TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0
+: > "$HASH_CACHE_NEW"
 declare -A SEEN_NAMES
 
 echo "5/5 Building reports..."
@@ -281,8 +314,24 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
     COLLISIONS=$((COLLISIONS+1))
   fi
 
-  sha1="$(hash_file "$p")"
-  dat_status="No match"; dat_name=""; dat_rom=""; dat_source=""
+  sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""
+  if should_hash "$system" "$ext"; then
+    sig="$(file_signature "$p")"
+    cached_sha="$(cache_lookup "$p" "$sig")"
+    if [ -n "$cached_sha" ]; then
+      sha1="$cached_sha"
+      HASH_REUSED=$((HASH_REUSED+1))
+    else
+      sha1="$(hash_file "$p")"
+      [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1))
+    fi
+    if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
+      printf '%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" >> "$HASH_CACHE_NEW"
+    fi
+    dat_status="No match"
+  else
+    HASH_SKIPPED=$((HASH_SKIPPED+1))
+  fi
   if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
     HASHED=$((HASHED+1))
     printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >> "$HASH_ROWS"
@@ -316,6 +365,14 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   TOTAL=$((TOTAL+1)); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done < "$PLAN"
 
+# Refresh the cache from the CURRENT full-library scan only. Deleted files disappear;
+# new/changed files have freshly calculated hashes. Cache never defines report scope.
+if [ -s "$HASH_CACHE_NEW" ]; then
+  mv -f "$HASH_CACHE_NEW" "$HASH_CACHE"
+else
+  : > "$HASH_CACHE"
+fi
+
 # hash_duplicates.csv contains only hashes that occur more than once.
 if [ -s "$HASH_ROWS" ]; then
   awk -F '\t' '{c[$1]++} END {for (h in c) if (c[h]>1) print h}' "$HASH_ROWS" | sort > "$WORK.duphashes"
@@ -334,7 +391,10 @@ Candidate game/disc files: $TOTAL
 BIOS/support files skipped: $SKIPPED
 Collision-affected rows made unique: $COLLISIONS
 Corresponding save-file matches found: $SAVE_MATCHES
-ROM/disc files SHA-1 hashed: $HASHED
+Files with SHA-1 available: $HASHED
+Hashes reused from cache: $HASH_REUSED
+Hashes calculated this run: $HASH_CALCULATED
+Unsupported-format hashes skipped: $HASH_SKIPPED
 Hash database source: $HASH_DB_SOURCE
 Hash records indexed: $HASH_INDEX_COUNT
 Exact DAT SHA-1 matches: $DAT_MATCHED
@@ -369,15 +429,21 @@ EOF2
   echo "MiSTer Game Library Audit Bundle v1.2"
   echo "Generated: $(date)"
   echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."
+  echo "FULL LIBRARY REPORT - cache is used only to avoid recalculating unchanged hashes."
   echo "============================================================"
   echo
   echo "[RUN SUMMARY]"
+  echo "Report scope: FULL LIBRARY"
+  echo "Cache mode: Incremental processing only"
   echo "Files discovered: $GAME_SCAN_COUNT"
   echo "Games/discs cataloged: $TOTAL"
   echo "BIOS/support files skipped: $SKIPPED"
   echo "Collision-affected rows: $COLLISIONS"
   echo "Save matches: $SAVE_MATCHES"
-  echo "Files SHA-1 hashed: $HASHED"
+  echo "Files with SHA-1 available: $HASHED"
+  echo "Hashes reused from cache: $HASH_REUSED"
+  echo "Hashes calculated this run: $HASH_CALCULATED"
+  echo "Unsupported-format hashes skipped: $HASH_SKIPPED"
   echo "Hash database source: $HASH_DB_SOURCE"
   echo "Hash records indexed: $HASH_INDEX_COUNT"
   echo "Exact DAT SHA-1 matches: $DAT_MATCHED"
@@ -408,7 +474,10 @@ echo "Games/discs cataloged: $TOTAL"
 echo "Support files skipped: $SKIPPED"
 echo "Collision rows:        $COLLISIONS"
 echo "Save matches:          $SAVE_MATCHES"
-echo "Files SHA-1 hashed:     $HASHED"
+echo "Files with SHA-1:       $HASHED"
+echo "Hashes reused:          $HASH_REUSED"
+echo "Hashes calculated:      $HASH_CALCULATED"
+echo "Unsupported hash skips: $HASH_SKIPPED"
 echo "Hash DB source:          $HASH_DB_SOURCE"
 echo "Hash records indexed:    $HASH_INDEX_COUNT"
 echo "Exact DAT matches:      $DAT_MATCHED"
@@ -416,6 +485,7 @@ echo
 echo "Created in $AUDIT:"
 echo "  game_library.txt"
 echo "  library_catalog.csv"
+echo "  hash_cache.tsv  (internal incremental cache; full library is still rescanned)"
 echo "  proposed_renames.csv"
 echo "  proposed_save_renames.csv"
 echo "  hash_duplicates.csv"
@@ -430,7 +500,10 @@ echo " SUMMARY OF WHAT WAS DONE"
 echo "----------------------------------------"
 echo "- Scanned /media/fat/games and cataloged $TOTAL game/disc files."
 echo "- Skipped $SKIPPED detected BIOS/support files."
-echo "- Calculated SHA-1 hashes for $HASHED files."
+echo "- Full-library scan completed: $GAME_SCAN_COUNT files discovered and $TOTAL games/discs cataloged."
+echo "- Reused $HASH_REUSED unchanged SHA-1 hashes from cache."
+echo "- Calculated $HASH_CALCULATED new/changed SHA-1 hashes."
+echo "- Skipped hashing $HASH_SKIPPED unsupported formats while still cataloging them."
 echo "- Matched $DAT_MATCHED files against $HASH_INDEX_COUNT reference hash records."
 echo "- Found $COLLISIONS collision-affected catalog rows."
 echo "- Matched $SAVE_MATCHES save files to game basenames."
