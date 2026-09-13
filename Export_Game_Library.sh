@@ -368,4 +368,19 @@ echo "  MiSTer_Library_Audit.txt  <-- upload this one for review"
 echo
 echo "READ-ONLY: your ROMs and saves were not changed."
 echo
-read -p "Press Enter to exit..."
+echo "----------------------------------------"
+echo " SUMMARY OF WHAT WAS DONE"
+echo "----------------------------------------"
+echo "- Scanned /media/fat/games and cataloged $TOTAL game/disc files."
+echo "- Skipped $SKIPPED detected BIOS/support files."
+echo "- Calculated SHA-1 hashes for $HASHED files."
+echo "- Matched $DAT_MATCHED files against $HASH_INDEX_COUNT reference hash records."
+echo "- Found $COLLISIONS collision-affected catalog rows."
+echo "- Matched $SAVE_MATCHES save files to game basenames."
+echo "- Generated audit reports and cleanup proposals in $AUDIT."
+echo "- Created MiSTer_Library_Audit.txt for easy upload/review."
+echo "- No games or saves were renamed, moved, or deleted."
+echo
+echo "This screen will close automatically in 60 seconds."
+echo "Press Enter to close now."
+read -t 60 -r _ || true
