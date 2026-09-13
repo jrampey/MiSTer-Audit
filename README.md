@@ -21,6 +21,8 @@ The exporter never renames, moves, or deletes ROMs or saves.
 - **Fast Audit** rescans the complete library while reusing valid cached hashes where possible.
 - **Full Verification** recalculates supported hashes rather than relying on the cache.
 
+The exporter uses an ASCII-only MiSTer console UI with static stage lines and periodic progress heartbeats. Background carriage-return spinners are intentionally avoided because they can overlap normal output on MiSTer hardware.
+
 The bundled database uses a required 13-column MiSTer-aware schema and includes Nintendo systems plus expanded No-Intro-backed coverage for Genesis/Mega Drive, 32X, Master System, Atari 2600, Intellivision, PC Engine/TurboGrafx-16, SuperGrafx, Amiga, C64, and Archimedes.
 
 v1.3 uses DAT metadata for canonical naming and system classification when available. Raw SHA-1 is authoritative first, with conservative NES and SNES normalized-hash fallback after a raw miss.
