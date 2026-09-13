@@ -1,7 +1,7 @@
 #!/bin/bash
-# Export_Game_Library_v1.1.sh
+# Export_Game_Library_v1.2.sh
 # MiSTer library audit/export. READ ONLY: never renames, moves, or deletes games/saves.
-# v1.1 improves region/version parsing, BIOS/support filtering, title normalization,
+# v1.2 improves region/version parsing, BIOS/support filtering, title normalization,
 # collision-safe proposals, ROM hashing, bundled TSV hash matching, and stores all reports in /media/fat/GameLibraryAudit.
 
 ROOT="/media/fat"
@@ -49,7 +49,7 @@ hash_file() {
 
 
 # Build the local SHA-1 lookup exclusively from the bundled TSV database
-# stored next to this script. Legacy XML DAT-folder parsing was removed in v1.1.
+# stored next to this script. Legacy XML DAT-folder parsing was removed in v1.2.
 build_dat_index() {
   : > "$DAT_INDEX"
   HASH_DB_SOURCE="None"
@@ -144,8 +144,27 @@ suffix_for() {
   printf '%s' "$suffix"
 }
 
+# Print a progress heartbeat at most once every 30 seconds.
+START_TIME=$(date +%s)
+LAST_PROGRESS_TIME=$START_TIME
+progress_check() {
+  local stage="$1" current="${2:-0}" total="${3:-0}" now elapsed pct
+  now=$(date +%s)
+  if [ $((now - LAST_PROGRESS_TIME)) -ge 30 ]; then
+    elapsed=$((now - START_TIME))
+    pct=0
+    if [ "$total" -gt 0 ] 2>/dev/null; then pct=$((current * 100 / total)); fi
+    printf '[%02d:%02d] â %s â %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
+    if [ "$stage" = "Building reports" ]; then
+      printf ' | DAT matches: %s | Unmatched: %s' "${DAT_MATCHED:-0}" "$(( ${HASHED:-0} - ${DAT_MATCHED:-0} ))"
+    fi
+    printf '\n'
+    LAST_PROGRESS_TIME=$now
+  fi
+}
+
 echo
-echo "MiSTer Game Library Export v1.1"
+echo "MiSTer Game Library Export v1.2"
 echo "================================"
 echo "1/5 Scanning games..."
 find "$GAMES" -type f \( \
@@ -162,11 +181,14 @@ echo "    Files discovered: $GAME_SCAN_COUNT"
 
 echo "2/5 Indexing saves once..."
 : > "$SAVE_LIST"; : > "$SAVE_INDEX"
+SAVE_PROCESSED=0
 if [ -d "$SAVES" ]; then
   find "$SAVES" -type f \( -iname "*.sav" -o -iname "*.srm" -o -iname "*.ram" -o -iname "*.eep" -o -iname "*.fla" -o -iname "*.sra" -o -iname "*.mcd" -o -iname "*.nv" \) -print 2>/dev/null | sort > "$SAVE_LIST"
+  SAVE_SCAN_COUNT=$(wc -l < "$SAVE_LIST" | tr -d "[:space:]"); [ -z "$SAVE_SCAN_COUNT" ] && SAVE_SCAN_COUNT=0
   while IFS= read -r sp; do
     [ -z "$sp" ] && continue; sf="${sp##*/}"; sstem="${sf%.*}"
     printf '%s\t%s\n' "${sstem,,}" "$sp" >> "$SAVE_INDEX"
+    SAVE_PROCESSED=$((SAVE_PROCESSED+1)); progress_check "Indexing saves" "$SAVE_PROCESSED" "$SAVE_SCAN_COUNT"
   done < "$SAVE_LIST"
   sort -o "$SAVE_INDEX" "$SAVE_INDEX"
 fi
@@ -182,7 +204,7 @@ echo "    Hash records indexed: $HASH_INDEX_COUNT"
 echo "4/5 Classifying titles and checking collisions..."
 : > "$PLAN"
 declare -A NAME_COUNTS
-SKIPPED=0
+SKIPPED=0; CLASSIFIED=0
 while IFS= read -r p; do
   [ -z "$p" ] && continue
   rel="${p#$GAMES/}"; system="${rel%%/*}"; [ "$system" = "$rel" ] && system="Unknown"
@@ -193,10 +215,11 @@ while IFS= read -r p; do
   key="${system,,}|${proposed,,}"
   NAME_COUNTS["$key"]=$(( ${NAME_COUNTS["$key"]:-0} + 1 ))
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$system" "$p" "$file" "$ext" "$stem" "$clean" "$region" "$kind" >> "$PLAN"
+  CLASSIFIED=$((CLASSIFIED+1)); progress_check "Classifying titles" "$CLASSIFIED" "$GAME_SCAN_COUNT"
 done < "$GAME_LIST"
 
 cat > "$OUT" <<EOF2
-MiSTer Game Library v1.1
+MiSTer Game Library v1.2
 Generated: $(date)
 READ-ONLY EXPORT - no games or saves were modified.
 Reports folder: $AUDIT
@@ -214,6 +237,7 @@ TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0
 declare -A SEEN_NAMES
 
 echo "5/5 Building reports..."
+PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
 while IFS=$'\t' read -r system p file ext stem clean region kind; do
   [ -z "$p" ] && continue
   suffix="$(suffix_for "$region" "$kind")"; base="$clean$suffix"; proposed="$base.$ext"
@@ -257,7 +281,7 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   csv_escape "$p" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$save_count" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$collision" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$sha1" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$dat_status" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$dat_name" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$dat_rom" >> "$CSV"; printf ',' >> "$CSV"; csv_escape "$dat_source" >> "$CSV"; printf '\n' >> "$CSV"
   csv_escape "$system" >> "$REN"; printf ',' >> "$REN"; csv_escape "$p" >> "$REN"; printf ',' >> "$REN"; csv_escape "$proposed" >> "$REN"; printf ',' >> "$REN"
   csv_escape "$region" >> "$REN"; printf ',' >> "$REN"; csv_escape "$kind" >> "$REN"; printf ',' >> "$REN"; csv_escape "REVIEW ONLY" >> "$REN"; printf '\n' >> "$REN"
-  TOTAL=$((TOTAL+1)); (( TOTAL % 1000 == 0 )) && echo "    Processed $TOTAL games..."
+  TOTAL=$((TOTAL+1)); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done < "$PLAN"
 
 # hash_duplicates.csv contains only hashes that occur more than once.
@@ -310,7 +334,7 @@ EOF2
 # Build one consolidated, upload-friendly report while preserving the individual
 # files used by the updater. No ROM/save contents are embedded; only audit metadata.
 {
-  echo "MiSTer Game Library Audit Bundle v1.1"
+  echo "MiSTer Game Library Audit Bundle v1.2"
   echo "Generated: $(date)"
   echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."
   echo "============================================================"
@@ -345,7 +369,7 @@ sync
 
 echo
 echo "========================================"
-echo " MiSTer LIBRARY EXPORT v1.1 COMPLETE"
+echo " MiSTer LIBRARY EXPORT v1.2 COMPLETE"
 echo "========================================"
 echo "Games/discs cataloged: $TOTAL"
 echo "Support files skipped: $SKIPPED"
