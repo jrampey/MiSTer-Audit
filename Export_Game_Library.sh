@@ -217,7 +217,7 @@ progress_check() {
     pct=0
     if [ "$total" -gt 0 ] 2>/dev/null; then pct=$((current * 100 / total)); fi
     printf '\r\033[K'
-    printf '[%02d:%02d] â %s â %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
+    printf '[%02d:%02d] [OK] %s - %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
     if [ "$stage" = "Building reports" ]; then
       printf ' | DAT matches: %s | Unmatched: %s' "${DAT_MATCHED:-0}" "$(( ${HASHED:-0} - ${DAT_MATCHED:-0} ))"
     fi
