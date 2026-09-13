@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="/media/fat"
+ROOT="${RUNNER_TEMP:-/tmp}/mister-synthetic"
 AUDIT="$ROOT/GameLibraryAudit"
 BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 CATALOG="$AUDIT/library_catalog.csv"
@@ -11,13 +11,10 @@ EXPECTED_CATALOGED=6469
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
-# This test is intended for a disposable GitHub-hosted runner. Never overlay a
-# real MiSTer installation or an existing /media/fat tree.
+# This test is intended for a disposable CI runner and uses a writable temp
+# root rather than the production MiSTer path /media/fat.
 [ "${CI:-}" = "true" ] || fail "Synthetic integration test requires CI=true"
-[ ! -e "$ROOT/games" ] || fail "$ROOT/games already exists; refusing to continue"
-[ ! -e "$ROOT/saves" ] || fail "$ROOT/saves already exists; refusing to continue"
-[ ! -e "$AUDIT" ] || fail "$AUDIT already exists; refusing to continue"
-
+rm -rf "$ROOT"
 mkdir -p "$ROOT"
 python3 tests/build_synthetic_library.py "$ROOT"
 
@@ -25,7 +22,9 @@ before_games=$(find "$ROOT/games" -type f -printf '%P\t%s\n' | LC_ALL=C sort | s
 before_saves=$(find "$ROOT/saves" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
 
 # Shortcut 2 selects Full Verification immediately, avoiding the 15-second menu timeout.
-printf '2' | bash ./Export_Game_Library.sh
+# MISTER_AUDIT_ROOT is an explicit test/alternate-root override; production
+# behavior remains /media/fat when the variable is unset.
+printf '2' | MISTER_AUDIT_ROOT="$ROOT" bash ./Export_Game_Library.sh
 
 [ -f "$BUNDLE" ] || fail "audit bundle was not published"
 [ -f "$CATALOG" ] || fail "catalog CSV was not published"
