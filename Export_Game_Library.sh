@@ -308,18 +308,55 @@ fi
 
 echo "MiSTer Game Library Export v1.2"
 echo "================================"
-echo "Select audit mode:"
-echo "  1) Fast Audit (recommended)"
-echo "     Full-library scan; reuses valid cached hashes."
-echo "  2) Full Verification"
-echo "     Full-library scan; recalculates every supported SHA-1."
+
+# Interactive audit-mode menu. Fast Audit is highlighted by default.
+# Supports keyboard/controller Up/Down arrows, Enter, and 1/2 shortcuts.
+AUDIT_MENU_SELECTION=1
+AUDIT_MENU_LINES=5
+render_audit_menu() {
+  local fast_prefix="  " full_prefix="  "
+  [ "$AUDIT_MENU_SELECTION" -eq 1 ] && fast_prefix="> " || full_prefix="> "
+  printf "Select audit mode (Up = run Fast, Down = run Full, Enter = Fast):\n"
+  printf "Fast Audit will start automatically in 15 seconds.\n"
+  printf "%s1) Fast Audit (recommended)\n" "$fast_prefix"
+  printf "     Full-library scan; reuses valid cached hashes.\n"
+  printf "%s2) Full Verification\n" "$full_prefix"
+  printf "     Full-library scan; recalculates every supported SHA-1.\n"
+}
+
+render_audit_menu
+while :; do
+  # Wait up to 15 seconds for input. A timeout runs the default Fast Audit.
+  AUDIT_KEY=""
+  if ! IFS= read -rsn1 -t 15 AUDIT_KEY; then
+    AUDIT_MENU_SELECTION=1
+    break
+  fi
+  case "$AUDIT_KEY" in
+    "") AUDIT_MENU_SELECTION=1; break ;; # Enter runs default Fast Audit
+    1) AUDIT_MENU_SELECTION=1; break ;;
+    2) AUDIT_MENU_SELECTION=2; break ;;
+    $'\x1b')
+      # Arrow keys normally arrive as ESC [ A / ESC [ B. Read the rest
+      # with a short timeout so a lone Escape key does not block.
+      IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
+      if [ "$AUDIT_KEY2" = "[" ]; then
+        IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
+        case "$AUDIT_KEY3" in
+          A) AUDIT_MENU_SELECTION=1; break ;; # Up immediately runs Fast Audit
+          B) AUDIT_MENU_SELECTION=2; break ;; # Down immediately runs Full Verification
+        esac
+      fi
+      ;;
+  esac
+done
+
+if [ "$AUDIT_MENU_SELECTION" -eq 2 ]; then
+  AUDIT_MODE="Full Verification"; USE_HASH_CACHE=0
+else
+  AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1
+fi
 echo
-printf "Choose 1 or 2 [1]: "
-read -r AUDIT_MODE_CHOICE
-case "$AUDIT_MODE_CHOICE" in
-  2) AUDIT_MODE="Full Verification"; USE_HASH_CACHE=0 ;;
-  *) AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1 ;;
-esac
 echo "Audit mode: $AUDIT_MODE"
 echo
 DISCOVERY_START=$(date +%s)
