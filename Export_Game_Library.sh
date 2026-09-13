@@ -84,7 +84,7 @@ cache_lookup() {
 
 should_hash() {
   local system="${1,,}" ext="${2,,}"
-  # System-aware eligibility: only hash formats covered by the bundled Nintendo DB.
+  # System-aware eligibility: hash formats covered by the bundled MiSTer-aware DB.
   # Extension remains a fallback for clearly Nintendo-specific cartridge formats.
   case "$system" in
     nes|*nintendo*entertainment*|famicom|fds|*family*computer*) case "$ext" in nes|fds) return 0;; esac ;;
@@ -93,8 +93,17 @@ should_hash() {
     gbc|*game*boy*color*) [ "$ext" = "gbc" ] && return 0 ;;
     gba|*game*boy*advance*) [ "$ext" = "gba" ] && return 0 ;;
     n64|*nintendo*64*) case "$ext" in n64|z64|v64|rom) return 0;; esac ;;
+    megadrive|mega\ drive|genesis|*sega*mega*drive*|*sega*genesis*) case "$ext" in md|gen|bin) return 0;; esac ;;
+    s32x|32x|*sega*32x*) case "$ext" in 32x|bin) return 0;; esac ;;
+    sms|*master*system*|mark\ iii) case "$ext" in sms|bin) return 0;; esac ;;
+    atari2600|*atari*2600*) case "$ext" in a26|bin|rom) return 0;; esac ;;
+    intellivision|*mattel*intellivision*) case "$ext" in int|bin|rom) return 0;; esac ;;
+    tgfx16|turbografx16|*turbo*grafx*|*pc*engine*) case "$ext" in pce|sgx|bin) return 0;; esac ;;
+    amiga) case "$ext" in adf|adz|ipf|rom) return 0;; esac ;;
+    c64|commodore\ 64) case "$ext" in crt|prg|d64|g64|tap|t64|bin|rom) return 0;; esac ;;
+    archie|archimedes) case "$ext" in adf|jfd|rom) return 0;; esac ;;
   esac
-  case "$ext" in nes|fds|sfc|smc|gb|gbc|gba|n64|z64|v64) return 0;; esac
+  case "$ext" in nes|fds|sfc|smc|gb|gbc|gba|n64|z64|v64|md|gen|32x|sms|a26|int|pce|sgx) return 0;; esac
   return 1
 }
 
