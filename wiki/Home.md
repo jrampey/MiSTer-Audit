@@ -9,11 +9,14 @@ This wiki documents the behavior currently implemented in the repository. It des
 - [Reports](Reports.md) — files written under `/media/fat/GameLibraryAudit` and what each contains.
 - [Rename workflow](Rename-Workflow.md) — Preview, Apply, Rollback, safeguards, and current limitations.
 - [Safety and invariants](Safety-and-Invariants.md) — read-only boundaries and rules that protect the library.
+- [Update All installation](Update-All-Installation.md) — add this repository to MiSTer Downloader / Update All and keep the runtime files current.
 
 ## Current implementation
 
 The auditor is **v1.2**. `Export_Game_Library.sh` scans `/media/fat/games`, optionally hashes DAT-eligible ROMs, identifies matches using the bundled MiSTer-aware hash database, pairs saves, detects duplicates and location issues, proposes canonical renames, and publishes a consolidated audit.
 
 `Update_Game_Library.sh` is currently labeled **v1.1**. It is the separate mutation path for previewing, applying, and rolling back rename proposals.
+
+The repository also publishes a MiSTer Downloader-compatible `db.json`. GitHub Actions regenerates and validates this database whenever one of the distributed runtime files changes. The database installs only `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv` into `/media/fat/Scripts/`.
 
 The repository's implementation is authoritative. This wiki should be updated when behavior changes.
