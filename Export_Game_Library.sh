@@ -2,7 +2,7 @@
 # Export_Game_Library_v1.2.sh
 # MiSTer library audit/export. READ ONLY: never renames, moves, or deletes games/saves.
 # v1.2 improves region/version parsing, BIOS/support filtering, title normalization,
-# collision-safe proposals, ROM hashing, bundled TSV hash matching, full-library incremental caching, in-memory indexes, atomic report publishing, and timing telemetry.
+# collision-safe proposals, ROM hashing, bundled TSV hash matching, full-library incremental caching, in-memory indexes, atomic report publishing, timing telemetry, and Fast/Full Verification audit modes.
 
 ROOT="/media/fat"
 GAMES="$ROOT/games"
@@ -40,7 +40,6 @@ STAGE_DAT_UNMATCHED="$STAGE_DIR/unmatched_hashes.csv"
 STAGE_BUNDLE="$STAGE_DIR/MiSTer_Library_Audit.txt"
 
 cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$HASH_CACHE_NEW" "$WORK.duphashes"; rm -rf "$STAGE_DIR"; }
-trap cleanup EXIT INT TERM
 
 if [ ! -d "$GAMES" ]; then
   echo "ERROR: $GAMES was not found."
@@ -258,7 +257,8 @@ stop_spinner() {
   fi
 }
 
-trap 'stop_spinner' EXIT INT TERM
+on_exit() { stop_spinner; cleanup; }
+trap on_exit EXIT INT TERM
 
 progress_check() {
   local stage="$1" current="${2:-0}" total="${3:-0}" now elapsed pct
@@ -280,6 +280,20 @@ progress_check() {
 echo
 echo "MiSTer Game Library Export v1.2"
 echo "================================"
+echo "Select audit mode:"
+echo "  1) Fast Audit (recommended)"
+echo "     Full-library scan; reuses valid cached hashes."
+echo "  2) Full Verification"
+echo "     Full-library scan; recalculates every supported SHA-1."
+echo
+printf "Choose 1 or 2 [1]: "
+read -r AUDIT_MODE_CHOICE
+case "$AUDIT_MODE_CHOICE" in
+  2) AUDIT_MODE="Full Verification"; USE_HASH_CACHE=0 ;;
+  *) AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1 ;;
+esac
+echo "Audit mode: $AUDIT_MODE"
+echo
 DISCOVERY_START=$(date +%s)
 start_spinner
 echo "1/5 Scanning games..."
@@ -380,7 +394,10 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   if should_hash "$system" "$ext"; then
     sig="$(file_signature "$p")"
     cache_key="$p|$sig"
-    cached_sha="${CACHE_SHA[$cache_key]:-}"
+    cached_sha=""
+    if [ "$USE_HASH_CACHE" -eq 1 ]; then
+      cached_sha="${CACHE_SHA[$cache_key]:-}"
+    fi
     if [ -n "$cached_sha" ]; then
       sha1="$cached_sha"
       HASH_REUSED=$((HASH_REUSED+1))
@@ -504,14 +521,16 @@ EOF2
   echo "MiSTer Game Library Audit Bundle v1.2"
   echo "Generated: $(date)"
   echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."
-  echo "FULL LIBRARY REPORT - cache is used only to avoid recalculating unchanged hashes."
+  echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."
   echo "============================================================"
   echo
   echo "[RUN SUMMARY]"
   echo "Report scope: FULL LIBRARY"
-  echo "Cache mode: Incremental processing only"
+  echo "Audit mode: $AUDIT_MODE"
+  echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"
   echo "Files discovered: $GAME_SCAN_COUNT"
-  echo "Games/discs cataloged: $TOTAL"
+  echo "Audit mode:             $AUDIT_MODE"
+echo "Games/discs cataloged: $TOTAL"
   echo "BIOS/support files skipped: $SKIPPED"
   echo "Collision-affected rows: $COLLISIONS"
   echo "Save matches: $SAVE_MATCHES"
@@ -588,6 +607,7 @@ echo "----------------------------------------"
 echo "- Scanned /media/fat/games and cataloged $TOTAL game/disc files."
 echo "- Skipped $SKIPPED detected BIOS/support files."
 echo "- Full-library scan completed: $GAME_SCAN_COUNT files discovered and $TOTAL games/discs cataloged."
+echo "- Audit mode: $AUDIT_MODE."
 echo "- Reused $HASH_REUSED unchanged SHA-1 hashes from cache."
 echo "- Calculated $HASH_CALCULATED new/changed SHA-1 hashes."
 echo "- Skipped hashing $HASH_SKIPPED unsupported formats while still cataloging them."
