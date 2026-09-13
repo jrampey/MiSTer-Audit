@@ -14,6 +14,8 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 `Export_Game_Library.sh` is the **v1.3** auditor. Important v1.3 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, and an audit integrity verdict with `SAFE TO PREVIEW` / `DO NOT APPLY` recommendations.
 
+The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner: actual MiSTer console testing showed overlapping output and invalid elapsed-time display. Separator strings beginning with `-` must be printed through a safe format such as `printf '%s\n'` rather than used directly as a `printf` format string.
+
 `Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Apply is blocked when the audit says `DO NOT APPLY`, when integrity is not `PASS`, or when the exporter/database has changed since the audit was generated.
 
 ## Hash database
