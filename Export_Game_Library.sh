@@ -393,38 +393,11 @@ location_status() {
   echo "MISFILED"
 }
 
-# Live activity spinner plus a detailed progress heartbeat every 30 seconds.
+# Static stage output plus a progress heartbeat every 30 seconds.
 START_TIME=$(date +%s)
 LAST_PROGRESS_TIME=$START_TIME
-SPINNER_PID=""
 
-start_spinner() {
-  [ -n "$SPINNER_PID" ] && return
-  (
-    frames='|/-\\'
-    i=0
-    while :; do
-      now=$(date +%s)
-      elapsed=$((now - START_TIME))
-      frame=$(printf '%s' "$frames" | cut -c $((i % 4 + 1)))
-      printf '\r[%02d:%02d] %s Still working... ' $((elapsed/60)) $((elapsed%60)) "$frame"
-      i=$((i+1))
-      sleep 1
-    done
-  ) &
-  SPINNER_PID=$!
-}
-
-stop_spinner() {
-  if [ -n "$SPINNER_PID" ]; then
-    kill "$SPINNER_PID" 2>/dev/null || true
-    wait "$SPINNER_PID" 2>/dev/null || true
-    SPINNER_PID=""
-    printf '\r%79s\r' ' '
-  fi
-}
-
-on_exit() { stop_spinner; cleanup; }
+on_exit() { cleanup; }
 trap on_exit EXIT INT TERM
 
 progress_check() {
@@ -434,7 +407,6 @@ progress_check() {
     elapsed=$((now - START_TIME))
     pct=0
     if [ "$total" -gt 0 ] 2>/dev/null; then pct=$((current * 100 / total)); fi
-    printf '\r%79s\r' ' '
     printf '[%02d:%02d] %s: %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
     if [ "$stage" = "Building reports" ]; then
       printf ' | DAT matches: %s | Unmatched: %s' "${DAT_MATCHED:-0}" "$(( ${HASHED:-0} - ${DAT_MATCHED:-0} ))"
@@ -497,7 +469,7 @@ render_audit_menu() {
   printf "     Reuse valid cached hashes.\n"
   printf "%s2) Full Verification\n" "$full_prefix"
   printf "     Recalculate every supported SHA-1.\n"
-  printf "----------------------------------------------------\n"
+  printf '%s\n' '----------------------------------------------------'
   printf "1/2 or arrows select | Enter = Fast | Auto = 15s\n"
 }
 
@@ -538,7 +510,6 @@ echo "Selected: $AUDIT_MODE"
 echo "----------------------------------------------------"
 echo
 DISCOVERY_START=$(date +%s)
-start_spinner
 echo "[1/5] Scanning game library..."
 find "$GAMES" -type f \( \
   -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" \
@@ -1008,7 +979,6 @@ PUBLISH_END=$(date +%s)
 TOTAL_END=$PUBLISH_END
 
 sync
-stop_spinner
 
 echo
 echo "+--------------------------------------------------+"
