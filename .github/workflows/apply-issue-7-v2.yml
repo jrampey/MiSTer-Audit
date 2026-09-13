@@ -1,0 +1,131 @@
+name: Apply Issue 7 canonical collision fix v2
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/apply-issue-7-v2.yml"]
+permissions:
+  contents: write
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Patch Issue 7
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('Export_Game_Library.sh'); t=p.read_text()
+          def one(old,new,label):
+              global t
+              if t.count(old)!=1: raise SystemExit(f'{label}: count={t.count(old)}')
+              t=t.replace(old,new,1)
+          one('REPORT_START=$(date +%s)', r'''# Resolve pre-DAT filename collisions against authoritative final DAT targets.
+          # A group is non-blocking only when every row has DAT identity and every
+          # final canonical target is unique. Scalar counters preserve Issue #6 safety.
+          declare -A COLLISION_GROUP_AUTH_COUNT COLLISION_FINAL_COUNTS COLLISION_SHA_BY_PATH
+          while IFS=$'\t' read -r csystem cp cfile cext cstem cclean cregion ckind; do
+            [ -z "$cp" ] && continue
+            csuffix="$(suffix_for "$cregion" "$ckind")"; cfallback="$cclean$csuffix.$cext"
+            cgroup="${csystem,,}|${cfallback,,}"; cgroup_count="${NAME_COUNTS["$cgroup"]:-0}"
+            [ "$cgroup_count" -gt 1 ] 2>/dev/null || continue
+            cfinal="$cfallback"; cauthoritative=0; craw=""
+            if should_hash "$csystem" "$cext"; then
+              csig="$(file_signature "$cp")"; ccache_key="$cp|$csig"
+              [ "$USE_HASH_CACHE" -eq 1 ] && craw="${CACHE_SHA[$ccache_key]:-}"
+              [ -z "$craw" ] && [ "$USE_HASH_CACHE" -eq 0 ] && craw="${PREHASH_SHA_BY_PATH[$cp]:-}"
+              [ -z "$craw" ] && craw="$(hash_file "$cp")"
+              if [ -n "$craw" ] && [ "$craw" != "UNAVAILABLE" ]; then
+                COLLISION_SHA_BY_PATH["$cp"]="$craw"
+                chkey="$(normalized_dat_hash "$cp" "$cext" "${craw,,}")"
+                if [ -n "${DAT_NAME_BY_SHA[$chkey]+x}" ]; then
+                  cdat_name="${DAT_NAME_BY_SHA[$chkey]}"; cdat_rom="${DAT_ROM_BY_SHA[$chkey]}"
+                  cmeta_region="${DAT_REGION_BY_SHA[$chkey]:-}"; cmeta_release="${DAT_RELEASE_BY_SHA[$chkey]:-}"
+                  if [ -n "$cdat_rom" ]; then cfinal="${cdat_rom##*/}"
+                  else
+                    cclean_final="$(clean_title "$cdat_name")"
+                    [ -n "$cmeta_region" ] && cregion="$cmeta_region"; [ -n "$cmeta_release" ] && ckind="$cmeta_release"
+                    cfinal="$cclean_final$(suffix_for "$cregion" "$ckind").$cext"
+                  fi
+                  cauthoritative=1
+                fi
+              fi
+            fi
+            cfinal_key="${csystem,,}|${cfinal,,}"; ccompound="$cgroup|$cfinal_key"
+            ccount="${COLLISION_FINAL_COUNTS["$ccompound"]:-0}"; ccount=$((ccount+1)); COLLISION_FINAL_COUNTS["$ccompound"]="$ccount"
+            if [ "$cauthoritative" -eq 1 ]; then ccount="${COLLISION_GROUP_AUTH_COUNT["$cgroup"]:-0}"; ccount=$((ccount+1)); COLLISION_GROUP_AUTH_COUNT["$cgroup"]="$ccount"; fi
+          done < "$PLAN"
+
+          REPORT_START=$(date +%s)''','prepass')
+          one('TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0','TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; RESOLVED_CANONICAL_VARIANTS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0','counters')
+          one('declare -A SEEN_NAMES','declare -A BLOCKING_SEEN_NAMES','seen array')
+          pat=re.compile(r'''  suffix="\$\(suffix_for "\$region" "\$kind"\)"; base="\$clean\$suffix"; proposed="\$base\.\$ext"\n  key="\$\{system,,\}\|\$\{proposed,,\}"; collision="None"\n  if \[ "\$\{NAME_COUNTS\["\$key"\]:-0\}" -gt 1 \]; then\n    # Keep every proposal unique without discarding source metadata\.\n    n=\$\(\( \$\{SEEN_NAMES\["\$key"\]:-0\} \+ 1 \)\); SEEN_NAMES\["\$key"\]=\$n\n    proposed="\$base \[Variant \$n\]\.\$ext"; collision="Resolved variant \$n of \$\{NAME_COUNTS\["\$key"\]\}"\n    COLLISIONS=\$\(\(COLLISIONS\+1\)\)\n  fi''')
+          repl='''  suffix="$(suffix_for "$region" "$kind")"; base="$clean$suffix"; proposed="$base.$ext"\n  key="${system,,}|${proposed,,}"; collision="None"\n  pre_collision_count="${NAME_COUNTS["$key"]:-0}"; collision_group="$key"'''
+          t,n=pat.subn(lambda m:repl,t,1)
+          if n!=1: raise SystemExit(f'initial collision block: count={n}')
+          one('      if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi','      if [ -n "${COLLISION_SHA_BY_PATH[$p]:-}" ]; then sha1="${COLLISION_SHA_BY_PATH[$p]}"; elif [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi','hash reuse')
+          old='''  # Do not perform arithmetic on filename-derived associative-array\n  # subscripts here. Canonical duplicate safety is enforced later by the\n  # updater's preview/apply validation; the exporter only records proposals.\n\n  save_count=0; save_key="${stem,,}"'''
+          new='''  # Classify safety after DAT identity has finalized the target.\n  if [ "$pre_collision_count" -gt 1 ] 2>/dev/null; then\n    final_key="${system,,}|${proposed,,}"; compound_key="$collision_group|$final_key"\n    auth_count="${COLLISION_GROUP_AUTH_COUNT["$collision_group"]:-0}"; final_count="${COLLISION_FINAL_COUNTS["$compound_key"]:-0}"\n    if [ "$auth_count" -eq "$pre_collision_count" ] 2>/dev/null && [ "$final_count" -eq 1 ] 2>/dev/null; then\n      collision="Resolved canonical DAT variant"; RESOLVED_CANONICAL_VARIANTS=$((RESOLVED_CANONICAL_VARIANTS+1))\n    else\n      collision="BLOCKING collision"; COLLISIONS=$((COLLISIONS+1))\n      if [ "$final_count" -gt 1 ] 2>/dev/null; then\n        n="${BLOCKING_SEEN_NAMES["$final_key"]:-0}"; n=$((n+1)); BLOCKING_SEEN_NAMES["$final_key"]="$n"\n        final_base="${proposed%.*}"; final_ext="${proposed##*.}"; proposed="$final_base [Variant $n].$final_ext"\n        collision="BLOCKING collision - variant $n of $final_count"\n      fi\n    fi\n  fi\n\n  save_count=0; save_key="${stem,,}"'''
+          one(old,new,'final collision block')
+          one('Collision-affected rows made unique: $COLLISIONS','Blocking collision rows: $COLLISIONS\nResolved canonical DAT variant rows: $RESOLVED_CANONICAL_VARIANTS','text summary')
+          one('  echo "Collision-affected rows: $COLLISIONS"','  echo "Blocking collision rows: $COLLISIONS"\n  echo "Resolved canonical DAT variant rows: $RESOLVED_CANONICAL_VARIANTS"','bundle summary')
+          one('echo " Collisions        : $COLLISIONS"','echo " Blocking collisions: $COLLISIONS"\necho " DAT variants safe : $RESOLVED_CANONICAL_VARIANTS"','terminal summary')
+          p.write_text(t)
+
+          b=Path('tests/build_synthetic_library.py'); x=b.read_text(); marker='    # The bulk profile uses an intentionally unsupported hash extension that is\n'
+          add='''    # Issue #7 canonical variants: same fallback, distinct authoritative targets.\n    (special / "Canonical Variant (USA) (Rev 1).sfc").write_bytes(b"issue7 canonical variant rev1\\n")\n    (special / "Canonical Variant (USA) (Rev 2).sfc").write_bytes(b"issue7 canonical variant rev2\\n")\n    created += 2\n\n    # Unsupported ambiguous fallback pair must remain blocking.\n    ambiguous = games / "GameGear"\n    ambiguous.mkdir(parents=True, exist_ok=True)\n    (ambiguous / "Ambiguous Collision (USA) (Rev 1).gg").write_bytes(b"ambiguous-one\\n")\n    (ambiguous / "Ambiguous Collision (USA) (Rev 2).gg").write_bytes(b"ambiguous-two\\n")\n    created += 2\n\n'''
+          if x.count(marker)!=1: raise SystemExit('builder marker')
+          b.write_text(x.replace(marker,add+marker,1))
+
+          q=Path('tests/test_exporter_synthetic.sh'); x=q.read_text(); marker='python3 - "$TEST_BIN/Export_Game_Library.sh" "$ROOT" <<\'PY\'\n'
+          add=r'''# Issue #7 distinct authoritative canonical revisions.
+          for rev in 1 2; do
+            variant_path="$ROOT/games/SNES/Canonical Variant (USA) (Rev $rev).sfc"; variant_sha=$(sha1sum "$variant_path" | awk '{print $1}')
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$variant_sha" "Canonical Variant (USA) (Rev $rev)" "Canonical Variant (USA) (Rev $rev).sfc" "Synthetic Issue #7 regression" "29" "00000000" "00000000000000000000000000000000" "SNES" "SNES" "SNES" "USA" "Revision" "Licensed" >> "$TEST_BIN/mister_hash_database.tsv"
+          done
+
+          '''
+          if x.count(marker)!=1: raise SystemExit('test DAT marker')
+          x=x.replace(marker,add+marker,1)
+          marker='verdict=$(value_after_colon "Audit integrity verdict")\n'; x=x.replace(marker,marker+'blocking=$(value_after_colon "Blocking collision rows")\nresolved=$(value_after_colon "Resolved canonical DAT variant rows")\n',1)
+          marker='[ "$verdict" != "FAIL" ] || fail "audit integrity verdict is FAIL"\n'; x=x.replace(marker,marker+'[ "$resolved" -eq 2 ] || fail "resolved=$resolved expected=2"\n[ "$blocking" -eq 4 ] || fail "blocking=$blocking expected=4"\n',1)
+          marker='grep -Fq \'Synthetic GameGear 05746\' "$CATALOG" || fail "tail sentinel missing"\n'
+          checks='grep -F \'Canonical Variant\' "$CATALOG" | grep -Fq \'Resolved canonical DAT variant\' || fail "canonical variants not resolved"\ngrep -F \'Ambiguous Collision\' "$CATALOG" | grep -Fq \'BLOCKING collision\' || fail "ambiguous pair not blocking"\n'
+          if x.count(marker)!=1: raise SystemExit('test sentinel marker')
+          q.write_text(x.replace(marker,marker+checks,1))
+
+          Path('README.md').write_text(Path('README.md').read_text()+'''\n\n### Issue #7 final-target collision classification\n\nv1.3 evaluates collision safety after DAT identity finalizes each proposed filename. A pre-DAT collision is non-blocking only when every row has authoritative DAT identity and every final canonical target is unique. Identical targets, hash duplicates, unmatched/unsupported rows, and mixed or ambiguous groups remain blocking. Reports separate `Resolved canonical DAT variant` rows from `BLOCKING collision` rows; only blocking collisions produce `collision-review-required` and `DO NOT APPLY`.\n''')
+          Path('PROJECT_CONTEXT.md').write_text(Path('PROJECT_CONTEXT.md').read_text()+'''\n\n## Issue #7 final-target collision safety\n\nCollision safety is evaluated against final post-DAT targets. Pre-DAT fallback collisions resolve automatically only when all rows have authoritative DAT identities and unique canonical targets. Identical targets, hash duplicates, unmatched/unsupported files, and mixed/ambiguous groups remain blocking. `COLLISIONS` counts only blocking rows and `RESOLVED_CANONICAL_VARIANTS` is reported separately. Preserve Issue #6 apostrophe safety by doing arithmetic only on scalar counters, never filename-derived associative subscripts.\n''')
+          Path('wiki/Audit-Safety.md').write_text(Path('wiki/Audit-Safety.md').read_text()+'''\n\n## Final-target collision classification\n\nAfter SHA-1/DAT identification, a pre-DAT collision group is `Resolved canonical DAT variant` only when every member has authoritative DAT identity and each final canonical target is unique. Identical canonical targets, hash duplicates, unmatched/unsupported files, and mixed/ambiguous groups are `BLOCKING collision`. Only blocking rows contribute to `collision-review-required` and `DO NOT APPLY`; duplicate final targets receive deterministic `[Variant N]` review proposals.\n''')
+          PY
+      - name: Validate regression suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n Export_Game_Library.sh
+          CI=true bash tests/test_exporter_synthetic.sh
+      - name: Rebuild Downloader database
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mister-db-build /tmp/downloader-test
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"; CSV="/tmp/mister-db-build/external_files.csv"
+          printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
+          add_file(){ local s="$1" d="$2"; printf '%s,%s/%s,%s,%s,%s\n' "$d" "$RAW_BASE" "$s" "$(stat -c '%s' "$s")" "$(md5sum "$s"|awk '{print $1}')" "mister-rom-library-auditor" >> "$CSV"; }
+          add_file Export_Game_Library.sh Scripts/Export_Game_Library.sh; add_file Update_Game_Library.sh Scripts/Update_Game_Library.sh; add_file mister_hash_database.tsv Scripts/mister_hash_database.tsv
+          curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o /tmp/mister-db-build/db_operator.py
+          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME=db.json python3 /tmp/mister-db-build/db_operator.py build .
+          curl -fsSL https://github.com/MiSTer-devel/Downloader_MiSTer/releases/download/latest/downloader_test.py -o /tmp/downloader-test/downloader_test.py; chmod +x /tmp/downloader-test/downloader_test.py
+          (cd /tmp/downloader-test && ./downloader_test.py "jrampey/MiSTer-ROM-Library-Auditor" "$GITHUB_WORKSPACE/db.json")
+      - name: Commit fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-issue-7.yml .github/workflows/apply-issue-7-v2.yml
+          git add Export_Game_Library.sh tests/build_synthetic_library.py tests/test_exporter_synthetic.sh README.md PROJECT_CONTEXT.md wiki/Audit-Safety.md db.json
+          git commit -m "Fix final-target collision classification for Issue #7"
+          git push
