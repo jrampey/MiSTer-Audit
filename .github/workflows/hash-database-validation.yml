@@ -1,0 +1,54 @@
+name: Hash Database Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - mister_hash_database.tsv
+      - tools/validate_hash_database.py
+      - .github/workflows/hash-database-validation.yml
+  push:
+    branches: [main]
+    paths:
+      - mister_hash_database.tsv
+      - tools/validate_hash_database.py
+      - .github/workflows/hash-database-validation.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Validate current hash database
+        run: python3 tools/validate_hash_database.py mister_hash_database.tsv --min-records 40000
+
+      - name: Guard against catastrophic database shrinkage
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+            echo "No parent commit available; skipping historical comparison."
+            exit 0
+          fi
+          if ! git cat-file -e HEAD^:mister_hash_database.tsv 2>/dev/null; then
+            echo "Previous commit has no hash database; skipping historical comparison."
+            exit 0
+          fi
+          previous=$(git show HEAD^:mister_hash_database.tsv | awk 'NR > 1 && NF { count++ } END { print count+0 }')
+          current=$(awk 'NR > 1 && NF { count++ } END { print count+0 }' mister_hash_database.tsv)
+          echo "Previous records: $previous"
+          echo "Current records:  $current"
+          if (( previous > 0 && current * 100 < previous * 90 )); then
+            echo "::error::Hash database shrank by more than 10% ($previous -> $current). Review the source data before merging/releasing."
+            exit 1
+          fi
+          echo "Database size regression check passed."
