@@ -21,10 +21,29 @@ python3 tests/build_synthetic_library.py "$ROOT"
 before_games=$(find "$ROOT/games" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
 before_saves=$(find "$ROOT/saves" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
 
+# Exercise the production exporter code from an isolated copy, changing only
+# its fixed MiSTer root so the GitHub-hosted runner never needs /media/fat.
+# Keep the hash database beside the copy because the exporter resolves it
+# relative to its own script directory.
+TEST_BIN="$ROOT/test-bin"
+mkdir -p "$TEST_BIN"
+cp ./Export_Game_Library.sh "$TEST_BIN/Export_Game_Library.sh"
+cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
+python3 - "$TEST_BIN/Export_Game_Library.sh" "$ROOT" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+root = sys.argv[2]
+text = p.read_text()
+needle = 'ROOT="/media/fat"'
+if text.count(needle) != 1:
+    raise SystemExit('ERROR: expected exactly one production ROOT assignment')
+text = text.replace(needle, f'ROOT="{root}"', 1)
+p.write_text(text)
+PY
+
 # Shortcut 2 selects Full Verification immediately, avoiding the 15-second menu timeout.
-# MISTER_AUDIT_ROOT is an explicit test/alternate-root override; production
-# behavior remains /media/fat when the variable is unset.
-printf '2' | MISTER_AUDIT_ROOT="$ROOT" bash ./Export_Game_Library.sh
+printf '2' | bash "$TEST_BIN/Export_Game_Library.sh"
 
 [ -f "$BUNDLE" ] || fail "audit bundle was not published"
 [ -f "$CATALOG" ] || fail "catalog CSV was not published"
