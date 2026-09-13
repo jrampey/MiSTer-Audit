@@ -42,6 +42,10 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "SNES" "SNES" "SNES" "USA" "Homebrew/Unlicensed" "Unlicensed" \
   >> "$TEST_BIN/mister_hash_database.tsv"
 
+for rev in 1 2; do
+  vp="$ROOT/games/SNES/Canonical Variant (USA) (Rev $rev).sfc"; vh=$(sha1sum "$vp" | awk '{print $1}')
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$vh" "Canonical Variant (USA) (Rev $rev)" "Canonical Variant (USA) (Rev $rev).sfc" "Synthetic Issue #7" "12" "00000000" "00000000000000000000000000000000" "SNES" "SNES" "SNES" "USA" "Revision" "Licensed" >> "$TEST_BIN/mister_hash_database.tsv"
+done
 python3 - "$TEST_BIN/Export_Game_Library.sh" "$ROOT" <<'PY'
 from pathlib import Path
 import sys
@@ -72,12 +76,16 @@ discovered=$(value_after_colon "Files discovered")
 cataloged=$(value_after_colon "Games/discs cataloged")
 skipped=$(value_after_colon "BIOS/support files skipped")
 verdict=$(value_after_colon "Audit integrity verdict")
+blocking=$(value_after_colon "Blocking collision rows")
+resolved=$(value_after_colon "Canonical DAT variant rows resolved safely")
 
 [ "$discovered" = "$EXPECTED_DISCOVERED" ] || fail "discovered=$discovered expected=$EXPECTED_DISCOVERED"
 [ "$cataloged" = "$EXPECTED_CATALOGED" ] || fail "cataloged=$cataloged expected=$EXPECTED_CATALOGED"
 [ "$skipped" = "$EXPECTED_SKIPPED" ] || fail "skipped=$skipped expected=$EXPECTED_SKIPPED"
 [ $((cataloged + skipped)) -eq "$discovered" ] || fail "discovery accounting does not balance"
 [ "$verdict" != "FAIL" ] || fail "audit integrity verdict is FAIL"
+[ "$resolved" -eq 2 ] || fail "resolved canonical variants=$resolved expected=2"
+[ "$blocking" -eq 4 ] || fail "blocking collision rows=$blocking expected=4"
 
 catalog_rows=$(( $(wc -l < "$CATALOG") - 1 ))
 [ "$catalog_rows" -eq "$EXPECTED_CATALOGED" ] || fail "catalog CSV rows=$catalog_rows expected=$EXPECTED_CATALOGED"
@@ -92,7 +100,7 @@ grep -Fq 'Synthetic NES 0000' "$CATALOG" || fail "first-system sentinel missing"
 grep -Fq 'Synthetic TGFX16 0119' "$CATALOG" || fail "hashed-system sentinel missing"
 grep -Fq 'Super 3D Noah' "$CATALOG" || fail "first canonical-collision source missing"
 grep -Fq "Super Noah's Ark 3D (U) .smc" "$CATALOG" || fail "second canonical-collision source missing"
-grep -Fq 'Synthetic GameGear 05746' "$CATALOG" || fail "tail sentinel missing"
+grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
 # derived associative-array subscript. Keep that unsafe pattern out permanently.

@@ -45,6 +45,15 @@ def main() -> None:
         (special / name).write_bytes(special_payload)
         created += 1
 
+    # Issue #7: distinct canonical revisions sharing one fallback title.
+    (special / "Canonical Variant (USA) (Rev 1).sfc").write_bytes(b"issue7-rev1\n")
+    (special / "Canonical Variant (USA) (Rev 2).sfc").write_bytes(b"issue7-rev2\n")
+    created += 2
+    ambiguous = games / "GameGear"; ambiguous.mkdir(parents=True, exist_ok=True)
+    (ambiguous / "Ambiguous Collision (USA) (Rev 1).gg").write_bytes(b"ambiguous-1\n")
+    (ambiguous / "Ambiguous Collision (USA) (Rev 2).gg").write_bytes(b"ambiguous-2\n")
+    created += 2
+
     # The bulk profile uses an intentionally unsupported hash extension that is
     # still part of exporter discovery. This keeps the 6,575-file regression
     # test fast while exercising the same classification/report accounting path.

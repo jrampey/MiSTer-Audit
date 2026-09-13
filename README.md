@@ -124,3 +124,6 @@ The v1.3 exporter isolates report-plan input from commands executed during repor
 ### Issue #6 catalog-accounting hardening
 
 The v1.3 exporter avoids arithmetic evaluation of filename-derived associative-array subscripts during canonical proposal handling. The synthetic Full Verification regression includes the apostrophe-bearing duplicate canonical pattern that exposed Issue #6 and still requires every discovered file to be accounted for.
+
+
+Issue #7 final-target duplicate detection spans the complete catalog, so differently named sources resolving to the same canonical target remain blocking.

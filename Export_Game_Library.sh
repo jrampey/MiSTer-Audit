@@ -300,11 +300,10 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind; do
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
   fi
 
-  if [ "$pre_collision" -eq 1 ]; then
-    authoritative=0; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") [ -n "$proposed" ] && authoritative=1 ;; esac
-    printf '%s\t%s\t%s\n' "$key" "$authoritative" "${proposed,,}" >> "$COLLISION_ROWS"
-    if [ "$authoritative" -eq 1 ]; then collision="Canonical DAT variant candidate"; else collision="Blocking collision candidate"; fi
-  fi
+  # Record every final target so canonical duplicates are detected even when fallback names differ.
+  authoritative=0; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") [ -n "$proposed" ] && authoritative=1 ;; esac
+  printf '%s\t%s\t%s\t%s\t%s\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >> "$COLLISION_ROWS"
+  if [ "$pre_collision" -eq 1 ]; then if [ "$authoritative" -eq 1 ]; then collision="Canonical DAT variant candidate"; else collision="Blocking collision candidate"; fi; fi
 
   save_count=0; save_key="${stem,,}"
   if [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_escape "$system" >> "$STAGE_SAVE_REN"; printf ',' >> "$STAGE_SAVE_REN"; csv_escape "$p" >> "$STAGE_SAVE_REN"; printf ',' >> "$STAGE_SAVE_REN"; csv_escape "$sp" >> "$STAGE_SAVE_REN"; printf ',' >> "$STAGE_SAVE_REN"; csv_escape "$proposed_save" >> "$STAGE_SAVE_REN"; printf ',' >> "$STAGE_SAVE_REN"; csv_escape "Exact original basename" >> "$STAGE_SAVE_REN"; printf ',' >> "$STAGE_SAVE_REN"; csv_escape "REVIEW ONLY" >> "$STAGE_SAVE_REN"; printf '\n' >> "$STAGE_SAVE_REN"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
@@ -316,21 +315,15 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind; do
 done
 exec 3<&-
 
-# Issue #7: decide collision safety only after final DAT-driven targets are known.
-# A pre-DAT collision group is non-blocking only when every row has authoritative
-# DAT identity and every final target filename in that group is unique.
+# Issue #7: evaluate both pre-DAT groups and duplicate final targets.
 if [ -s "$COLLISION_ROWS" ]; then
   read -r COLLISIONS RESOLVED_COLLISIONS < <(awk -F '\t' '
-    { g=$1; rows[g]++; auth[g]+=$2; target[g SUBSEP $3]++ }
+    { group[NR]=$2; pre[NR]=$3+0; auth[NR]=$4+0; target[NR]=$5; final_count[$5]++; if(pre[NR]){group_rows[$2]++;group_auth[$2]+=auth[NR];group_target[$2 SUBSEP $5]++} }
     END {
-      blocking=0; resolved=0
-      for (g in rows) {
-        duplicate=0
-        prefix=g SUBSEP
-        for (t in target) if (index(t,prefix)==1 && target[t]>1) { duplicate=1; break }
-        if (auth[g]==rows[g] && !duplicate) resolved+=rows[g]; else blocking+=rows[g]
-      }
-      print blocking, resolved
+      for(g in group_rows){duplicate=0;prefix=g SUBSEP;for(k in group_target)if(index(k,prefix)==1&&group_target[k]>1){duplicate=1;break};group_safe[g]=(group_auth[g]==group_rows[g]&&!duplicate)}
+      blocking=0;resolved=0
+      for(i=1;i<=NR;i++){is_blocking=(final_count[target[i]]>1)||(pre[i]&&!group_safe[group[i]]);if(is_blocking)blocking++;else if(pre[i])resolved++}
+      print blocking,resolved
     }' "$COLLISION_ROWS")
   COLLISIONS=${COLLISIONS:-0}; RESOLVED_COLLISIONS=${RESOLVED_COLLISIONS:-0}
 fi

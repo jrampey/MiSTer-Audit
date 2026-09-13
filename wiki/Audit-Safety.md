@@ -31,3 +31,6 @@ After all rows are processed, each pre-DAT collision group is evaluated from tem
 The audit summary reports pre-DAT collision rows, safely resolved canonical DAT variant rows, and blocking collision rows separately. The updater still validates duplicate/existing targets during Preview and Apply, so final-target classification does not remove the mutation-side safety checks.
 
 Collision evidence is evaluated as text through a temporary TSV/`awk` pass rather than filename-derived Bash associative-array arithmetic. This preserves the Issue #6 safety requirement for canonical names containing apostrophes or other punctuation.
+
+
+Final-target duplicate detection spans the complete catalog, including differently named source files that resolve to one identical canonical DAT filename.

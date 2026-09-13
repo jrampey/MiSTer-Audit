@@ -86,3 +86,6 @@ The exporter reads `$PLAN` through a dedicated file descriptor. Integrity enforc
 ## Issue #6 canonical-collision regression
 
 Real MiSTer evidence localized the 267-row catalog loss to the second source file resolving to `Super Noah's Ark 3D (USA) (Unl).sfc`. The cause was dead `FINAL_PROPOSAL_COUNTS` bookkeeping that performed Bash arithmetic through a filename-derived associative subscript. That bookkeeping was removed. Issue #7 must preserve this regression: canonical filenames, including apostrophes, are treated strictly as text.
+
+
+Issue #7 records every final target, not only pre-DAT collision groups, so identical canonical targets from differently named sources remain blocking.
