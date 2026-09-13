@@ -14,13 +14,25 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 `Export_Game_Library.sh` is the **v1.2** auditor. Important v1.2 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, and an audit integrity verdict with `SAFE TO PREVIEW` / `DO NOT APPLY` recommendations.
 
-`Update_Game_Library.sh` is currently labeled **v1.1** and is the separate mutation path for Preview / Apply / Rollback. A known development priority is strengthening the updater's handshake with the v1.2 audit output so Apply can validate audit schema/integrity metadata rather than relying on those fields as a manual gate.
+`Update_Game_Library.sh` is the **v1.2** companion updater and the separate mutation path for Preview / Apply / Rollback. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Apply is blocked when the audit says `DO NOT APPLY`, when integrity is not `PASS`, or when the exporter/database has changed since the audit was generated.
 
 ## Hash database
 
 The bundled `mister_hash_database.tsv` contains roughly **42,259 unique SHA-1 records** and has been expanded beyond Nintendo with No-Intro data for Genesis/Mega Drive, 32X, Master System, Atari 2600, Intellivision, PC Engine/TurboGrafx-16, SuperGrafx, Amiga, C64, and Archimedes.
 
 The current MiSTer-aware TSV schema is authoritative. We have discussed eventually replacing the TSV database with SQLite, but **do not make that migration without reviewing the architecture first**.
+
+## Documentation synchronization
+
+Documentation is part of the implementation workflow. Whenever a change materially changes runtime behavior, update the relevant documentation in the same development pass:
+
+- `README.md`
+- `PROJECT_CONTEXT.md`
+- one or more relevant `wiki/*.md` pages
+
+`.github/workflows/documentation-consistency.yml` enforces this guardrail on pushes and pull requests to `main`. If `Export_Game_Library.sh`, `Update_Game_Library.sh`, or `mister_hash_database.tsv` changes without also changing all three documentation surfaces, the workflow fails and identifies the missing documentation update.
+
+The workflow is intentionally a consistency guard, not an AI documentation generator. Documentation content should be updated deliberately from the actual implementation rather than generated blindly in CI.
 
 ## GitHub Wiki
 
@@ -30,7 +42,7 @@ The wiki currently documents the audit workflow, hash database, reports, rename 
 
 ## MiSTer Downloader / Update All distribution
 
-Custom MiSTer Downloader / Update All integration is now implemented and working.
+Custom MiSTer Downloader / Update All integration is implemented and working.
 
 The repository publishes a generated `db.json` using `.github/workflows/build-downloader-db.yml`. The workflow uses the official MiSTer database tooling, validates the generated database with MiSTer Downloader, and commits the current `db.json` back to `main`.
 
@@ -77,3 +89,5 @@ When one of the three distributed runtime files changes on `main`, GitHub Action
 The project went through several intermediate builds, so do not assume an old chat artifact is newer than GitHub. Inspect the actual repository before modifying anything. GitHub is authoritative.
 
 For broad development changes, first inspect the repository and give me a short assessment of its current state, including inconsistencies or missing pieces. Do not make broad changes until I approve the assessment. A direct request to change a specific file or feature is authorization for that specific change.
+
+For any authorized implementation change that materially changes documented runtime behavior, documentation synchronization is included in that authorization: update `README.md`, `PROJECT_CONTEXT.md`, and the relevant wiki page(s) as part of the same development pass.
