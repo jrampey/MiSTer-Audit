@@ -15,7 +15,10 @@ SAVE_REN="$AUDIT/proposed_save_renames.csv"
 HASH_DUP="$AUDIT/hash_duplicates.csv"
 DAT_MATCH="$AUDIT/dat_matches.csv"
 DAT_UNMATCHED="$AUDIT/unmatched_hashes.csv"
+BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 DAT_DIR="$AUDIT/DATs"
+HASH_DB_SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+HASH_DB_TSV="$HASH_DB_SCRIPT_DIR/mister_hash_database.tsv"
 WORK="/tmp/mister_library_v11.$$"
 GAME_LIST="$WORK.games"
 SAVE_LIST="$WORK.saves"
@@ -24,7 +27,7 @@ PLAN="$WORK.plan"
 DAT_INDEX="$WORK.datindex"
 HASH_ROWS="$WORK.hashrows"
 
-cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS"; }
+cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$WORK.duphashes"; }
 trap cleanup EXIT INT TERM
 
 if [ ! -d "$GAMES" ]; then
@@ -46,10 +49,24 @@ hash_file() {
 }
 
 
-# Build a local SHA-1 lookup from No-Intro/Redump-style XML DAT files.
-# DATs are metadata/checksum files only; no ROM content is downloaded or uploaded.
+# Build a local SHA-1 lookup. Prefer the bundled TSV database next to this script;
+# fall back to XML DAT files in GameLibraryAudit/DATs.
 build_dat_index() {
   : > "$DAT_INDEX"
+  DAT_FILE_COUNT=0
+  HASH_DB_SOURCE="None"
+
+  if [ -f "$HASH_DB_TSV" ]; then
+    echo "    Using bundled hash database: $HASH_DB_TSV"
+    awk -F '\t' 'NR>1 {
+      h=tolower($1)
+      if (h ~ /^[0-9a-f]+$/ && length(h)==40)
+        print h "\t" $2 "\t" $3 "\t" $4
+    }' "$HASH_DB_TSV" > "$DAT_INDEX"
+    HASH_DB_SOURCE="mister_hash_database.tsv"
+  fi
+
+  # XML DAT fallback/addition. This also permits future non-Nintendo DATs.
   local dat count=0
   for dat in "$DAT_DIR"/*.dat "$DAT_DIR"/*.xml; do
     [ -f "$dat" ] || continue
@@ -68,13 +85,17 @@ build_dat_index() {
       }
     ' "$dat" >> "$DAT_INDEX"
   done
-  [ -s "$DAT_INDEX" ] && sort -t $'\t' -k1,1 -o "$DAT_INDEX" "$DAT_INDEX"
   DAT_FILE_COUNT=$count
+  if [ "$count" -gt 0 ]; then
+    [ "$HASH_DB_SOURCE" = "None" ] && HASH_DB_SOURCE="XML DATs" || HASH_DB_SOURCE="$HASH_DB_SOURCE + XML DATs"
+  fi
+  [ -s "$DAT_INDEX" ] && LC_ALL=C sort -t $'\t' -k1,1 -u -o "$DAT_INDEX" "$DAT_INDEX"
 }
 
 dat_lookup() {
   local h="${1,,}"
   [ -s "$DAT_INDEX" ] || return 0
+  # DAT index is sorted by SHA-1; awk is used for broad MiSTer compatibility.
   awk -F '\t' -v k="$h" '$1==k {print; exit}' "$DAT_INDEX"
 }
 
@@ -112,7 +133,7 @@ is_support_file() {
     */bios/*|*/bioses/*|*/firmware/*|*/kickstart/*|*/bootrom/*|*/boot_rom/*|*/boot-rom/*|*/system_rom/*|*/system-rom/*|*/machine_rom/*|*/machine-rom/*|*/testrom/*|*/test_rom/*|*/test-rom/*|*/diagnostic/*|*/diagnostics/*|*/utilities/*|*/utility/*) return 0 ;;
   esac
   case "$file" in
-    bios.*|boot.rom|boot.bin|boot0.rom|boot1.rom|boot2.rom|boot3.rom|firmware.*|kickstart.rom|cd_bios.rom|uni-bioscd.rom|kanji.rom|empty.rom) return 0 ;;
+    bios.*|boot.rom|boot.bin|boot[0-9]*.rom|boot[0-9]*_*.rom|boot[0-9]*-*.rom|firmware.*|kickstart.rom|cd_bios.rom|uni-bioscd.rom|kanji.rom|empty.rom) return 0 ;;
   esac
   # Strong support/diagnostic names observed in v1.0 output and common MiSTer sets.
   if [[ "$stem" == *" bios"* || "$stem" == *"bios "* || "$stem" == *"boot rom"* || "$stem" == *"bootrom"* || "$stem" == *"firmware"* || "$stem" == *"test rom"* || "$stem" == *"diagnostic"* || "$stem" == serialporttest* || "$stem" == sioecho* || "$stem" == statuslights* || "$stem" == *"240p test suite"* ]]; then return 0; fi
@@ -149,7 +170,7 @@ suffix_for() {
 echo
 echo "MiSTer Game Library Export v1.1"
 echo "================================"
-echo "1/4 Scanning games..."
+echo "1/5 Scanning games..."
 find "$GAMES" -type f \( \
   -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" \
   -o -iname "*.gb" -o -iname "*.gbc" -o -iname "*.gba" -o -iname "*.md" \
@@ -158,7 +179,9 @@ find "$GAMES" -type f \( \
   -o -iname "*.a52" -o -iname "*.a78" -o -iname "*.col" -o -iname "*.int" \
   -o -iname "*.cue" -o -iname "*.chd" -o -iname "*.d64" -o -iname "*.d81" \
   -o -iname "*.g64" -o -iname "*.adf" -o -iname "*.hdf" -o -iname "*.dsk" \
-  -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" \) -print 2>/dev/null | sort > "$GAME_LIST"
+  -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" \) -print 2>/dev/null | LC_ALL=C sort > "$GAME_LIST"
+GAME_SCAN_COUNT=$(wc -l < "$GAME_LIST" | tr -d "[:space:]")
+echo "    Files discovered: $GAME_SCAN_COUNT"
 
 echo "2/5 Indexing saves once..."
 : > "$SAVE_LIST"; : > "$SAVE_INDEX"
@@ -173,7 +196,11 @@ fi
 
 echo "3/5 Loading No-Intro/Redump DAT hash metadata..."
 build_dat_index
-echo "    DAT files loaded: $DAT_FILE_COUNT"
+HASH_INDEX_COUNT=$(wc -l < "$DAT_INDEX" 2>/dev/null | tr -d "[:space:]")
+[ -z "$HASH_INDEX_COUNT" ] && HASH_INDEX_COUNT=0
+echo "    Hash database source: $HASH_DB_SOURCE"
+echo "    Hash records indexed: $HASH_INDEX_COUNT"
+echo "    Additional XML DAT files loaded: $DAT_FILE_COUNT"
 
 # First pass builds metadata and collision counts.
 echo "4/5 Classifying titles and checking collisions..."
@@ -276,7 +303,9 @@ BIOS/support files skipped: $SKIPPED
 Collision-affected rows made unique: $COLLISIONS
 Corresponding save-file matches found: $SAVE_MATCHES
 ROM/disc files SHA-1 hashed: $HASHED
-DAT metadata files loaded: $DAT_FILE_COUNT
+Hash database source: $HASH_DB_SOURCE
+Hash records indexed: $HASH_INDEX_COUNT
+Additional XML DAT files loaded: $DAT_FILE_COUNT
 Exact DAT SHA-1 matches: $DAT_MATCHED
 
 Created in $AUDIT:
@@ -287,6 +316,7 @@ Created in $AUDIT:
   hash_duplicates.csv
   dat_matches.csv
   unmatched_hashes.csv
+  MiSTer_Library_Audit.txt  (single file to upload for review)
   DATs/  (place No-Intro/Redump XML DAT files here)
 
 IMPORTANT:
@@ -302,6 +332,42 @@ IMPORTANT:
 - Hashes are recorded locally only; no ROM data is uploaded.
 - CUE/BIN and other multi-file disc sets require coordinated renaming before any future apply step.
 EOF2
+
+# Build one consolidated, upload-friendly report while preserving the individual
+# files used by the updater. No ROM/save contents are embedded; only audit metadata.
+{
+  echo "MiSTer Game Library Audit Bundle v1.1"
+  echo "Generated: $(date)"
+  echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."
+  echo "============================================================"
+  echo
+  echo "[RUN SUMMARY]"
+  echo "Files discovered: $GAME_SCAN_COUNT"
+  echo "Games/discs cataloged: $TOTAL"
+  echo "BIOS/support files skipped: $SKIPPED"
+  echo "Collision-affected rows: $COLLISIONS"
+  echo "Save matches: $SAVE_MATCHES"
+  echo "Files SHA-1 hashed: $HASHED"
+  echo "Hash database source: $HASH_DB_SOURCE"
+  echo "Hash records indexed: $HASH_INDEX_COUNT"
+  echo "Additional XML DAT files loaded: $DAT_FILE_COUNT"
+  echo "Exact DAT SHA-1 matches: $DAT_MATCHED"
+  echo
+  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv proposed_renames.csv proposed_save_renames.csv; do
+    echo "============================================================"
+    echo "[BEGIN $report]"
+    echo "============================================================"
+    if [ -f "$AUDIT/$report" ]; then
+      cat "$AUDIT/$report"
+    else
+      echo "(report not generated)"
+    fi
+    echo
+    echo "[END $report]"
+    echo
+  done
+} > "$BUNDLE"
+
 sync
 
 echo
@@ -313,7 +379,9 @@ echo "Support files skipped: $SKIPPED"
 echo "Collision rows:        $COLLISIONS"
 echo "Save matches:          $SAVE_MATCHES"
 echo "Files SHA-1 hashed:     $HASHED"
-echo "DAT files loaded:       $DAT_FILE_COUNT"
+echo "Hash DB source:          $HASH_DB_SOURCE"
+echo "Hash records indexed:    $HASH_INDEX_COUNT"
+echo "Extra DAT files loaded:  $DAT_FILE_COUNT"
 echo "Exact DAT matches:      $DAT_MATCHED"
 echo
 echo "Created in $AUDIT:"
@@ -324,6 +392,7 @@ echo "  proposed_save_renames.csv"
 echo "  hash_duplicates.csv"
 echo "  dat_matches.csv"
 echo "  unmatched_hashes.csv"
+echo "  MiSTer_Library_Audit.txt  <-- upload this one for review"
 echo "  DATs/"
 echo
 echo "READ-ONLY: your ROMs and saves were not changed."
