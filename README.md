@@ -52,18 +52,24 @@ The consolidated report contains `[AUDIT_METADATA]` including schema version, ex
 
 Collision safety is evaluated after DAT identification. Filename parsing can initially make legitimate revisions look like collisions, but authoritative No-Intro identities may resolve them to distinct canonical filenames.
 
-The exporter now distinguishes:
+The exporter distinguishes:
 
-- **canonical DAT variants resolved safely** — every row in the pre-DAT collision group has authoritative DAT identity and the final canonical targets are unique; these rows do not trigger `collision-review-required`;
-- **blocking collisions** — duplicate final canonical targets, unmatched/unsupported rows, or otherwise ambiguous groups; these still produce `PASS WITH WARNINGS`, `DO NOT APPLY`, and `collision-review-required`.
+- **canonical DAT variants resolved safely** — every row in the pre-DAT collision group has authoritative DAT identity and the final canonical targets are unique;
+- **blocking collisions** — duplicate final canonical targets, unmatched/unsupported rows, or otherwise ambiguous groups.
 
-The audit summary reports pre-DAT collision rows, safely resolved canonical DAT variant rows, and blocking collision rows separately. This preserves the updater's existing target validation as an additional safety layer.
+The audit summary reports pre-DAT collision rows, safely resolved canonical DAT variant rows, and blocking collision rows separately.
+
+Blocking collisions remain visible as `PASS WITH WARNINGS`, `DO NOT APPLY`, and `collision-review-required` in the audit so they cannot be missed. The updater now treats that exact collision-only warning as skippable rather than fatal: it independently reconstructs the exporter collision classification from `library_catalog.csv`, excludes every blocking game row from `apply_preview.tsv`, excludes any paired save rename, records the skips in `apply_skipped.tsv`, and allows unrelated safe renames to proceed.
+
+The updater still blocks Apply for `FAIL`, any non-collision warning, exporter/database fingerprint changes, unsafe paths, existing targets, duplicate mutation targets, and unsupported CUE/BIN rename sets.
 
 ## v1.3 updater safety handshake
 
 Before Preview or Apply, the updater validates the expected v1.3 audit contract. It verifies schema/version, startup self-check, MiSTer-aware metadata status, integrity verdict, Apply recommendation, exporter build SHA-1, and database SHA-1.
 
-If the exporter or database changed after the audit was generated, a fresh audit is required. Apply requires a fully passing audit, revalidates immediately before mutation, and requires typing `APPLY` exactly. `DO NOT APPLY` is enforced by the updater.
+If the exporter or database changed after the audit was generated, a fresh audit is required. Apply revalidates immediately before mutation and requires typing `APPLY` exactly.
+
+A clean `PASS` audit behaves as before. A `PASS WITH WARNINGS` audit is eligible for Apply only when its sole integrity note is `collision-review-required`; in that case, blocking collision rows are automatically skipped and left untouched. Any other warning remains a hard Apply block.
 
 Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, and remains available independently of the current audit handshake.
 
@@ -75,8 +81,8 @@ Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, an
 3. Investigate warnings and questionable proposals
 4. Run Update_Game_Library
 5. Preview
-6. Review planned and skipped operations
-7. Apply only when the v1.3 integrity checks pass
+6. Review apply_preview.tsv and apply_skipped.tsv
+7. Apply; collision-blocked rows remain untouched automatically
 8. Re-run the auditor after cleanup
 ```
 
@@ -110,7 +116,9 @@ ChatGPT / Codex → GitHub → VS Code → MiSTer Update All
 - Auditing is read-only.
 - Rename proposals are review artifacts, not automatic actions.
 - The updater is the only component intended to rename library files.
-- Apply requires a compatible passing v1.3 audit plus explicit confirmation.
+- Blocking collision rows and their paired save renames are never mutated.
+- Collision-only warnings can be applied with those rows skipped; non-collision warnings cannot.
+- Apply requires a compatible v1.3 audit plus explicit confirmation.
 - Existing or duplicate targets are never overwritten.
 - Unsafe disc-set renames are skipped.
 - Rename history is retained for rollback.
@@ -125,5 +133,4 @@ The v1.3 exporter isolates report-plan input from commands executed during repor
 
 The v1.3 exporter avoids arithmetic evaluation of filename-derived associative-array subscripts during canonical proposal handling. The synthetic Full Verification regression includes the apostrophe-bearing duplicate canonical pattern that exposed Issue #6 and still requires every discovered file to be accounted for.
 
-
-Issue #7 final-target duplicate detection spans the complete catalog, so differently named sources resolving to the same canonical target remain blocking.
+Issue #7 final-target duplicate detection spans the complete catalog, so differently named sources resolving to the same canonical target remain blocking. The updater mirrors that classification during plan construction and simply leaves those rows untouched while allowing unrelated safe operations to continue.
