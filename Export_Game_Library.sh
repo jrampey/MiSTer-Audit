@@ -15,6 +15,7 @@ SAVE_REN="$AUDIT/proposed_save_renames.csv"
 HASH_DUP="$AUDIT/hash_duplicates.csv"
 DAT_MATCH="$AUDIT/dat_matches.csv"
 DAT_UNMATCHED="$AUDIT/unmatched_hashes.csv"
+LOCATION_AUDIT="$AUDIT/location_audit.csv"
 BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 HASH_DB_SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 HASH_DB_TSV="$HASH_DB_SCRIPT_DIR/mister_hash_database.tsv"
@@ -40,6 +41,7 @@ STAGE_SAVE_REN="$STAGE_DIR/proposed_save_renames.csv"
 STAGE_HASH_DUP="$STAGE_DIR/hash_duplicates.csv"
 STAGE_DAT_MATCH="$STAGE_DIR/dat_matches.csv"
 STAGE_DAT_UNMATCHED="$STAGE_DIR/unmatched_hashes.csv"
+STAGE_LOCATION_AUDIT="$STAGE_DIR/location_audit.csv"
 STAGE_BUNDLE="$STAGE_DIR/MiSTer_Library_Audit.txt"
 
 cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$HASH_CACHE_NEW" "$PREHASH_RESULTS" "$WORK.duphashes" "$WORK.hashjobs"; rm -rf "$STAGE_DIR"; }
@@ -99,7 +101,7 @@ should_hash() {
 
 # Build the local SHA-1 lookup exclusively from the bundled TSV database
 # stored next to this script. Legacy XML DAT-folder parsing was removed in v1.2.
-declare -A DAT_NAME_BY_SHA DAT_ROM_BY_SHA DAT_SOURCE_BY_SHA
+declare -A DAT_NAME_BY_SHA DAT_ROM_BY_SHA DAT_SOURCE_BY_SHA DAT_SYSTEM_BY_SHA DAT_CORE_BY_SHA DAT_FOLDER_BY_SHA DAT_REGION_BY_SHA DAT_RELEASE_BY_SHA DAT_LICENSE_BY_SHA
 build_dat_index() {
   : > "$DAT_INDEX"
   HASH_DB_SOURCE="None"
@@ -110,7 +112,7 @@ build_dat_index() {
     echo "    Using bundled hash database: $HASH_DB_TSV"
     HASH_DB_SOURCE="mister_hash_database.tsv"
     HASH_DB_FINGERPRINT="$(hash_file "$HASH_DB_TSV")"
-    while IFS=$'\t' read -r h title rom source rest; do
+    while IFS=$'\t' read -r h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest; do
       [ "$h" = "sha1" ] && continue
       h="${h,,}"
       [[ "$h" =~ ^[0-9a-f]{40}$ ]] || continue
@@ -118,6 +120,12 @@ build_dat_index() {
         DAT_NAME_BY_SHA["$h"]="$title"
         DAT_ROM_BY_SHA["$h"]="$rom"
         DAT_SOURCE_BY_SHA["$h"]="$source"
+        DAT_SYSTEM_BY_SHA["$h"]="$meta_system"
+        DAT_CORE_BY_SHA["$h"]="$meta_core"
+        DAT_FOLDER_BY_SHA["$h"]="$meta_folder"
+        DAT_REGION_BY_SHA["$h"]="$meta_region"
+        DAT_RELEASE_BY_SHA["$h"]="$meta_release"
+        DAT_LICENSE_BY_SHA["$h"]="$meta_license"
         HASH_INDEX_COUNT=$((HASH_INDEX_COUNT+1))
       fi
     done < "$HASH_DB_TSV"
@@ -233,6 +241,18 @@ suffix_for() {
   printf '%s' "$suffix"
 }
 
+location_status() {
+  local current="${1,,}" expected="${2,,}"
+  [ -z "$expected" ] && { echo "Unknown"; return; }
+  [ "$current" = "$expected" ] && { echo "OK"; return; }
+  case "$expected" in
+    nes) case "$current" in nes|fds|famicom) echo "OK (compatible folder)"; return;; esac ;;
+    gameboy) case "$current" in gameboy|game\ boy|gb) echo "OK (compatible folder)"; return;; esac ;;
+    n64) case "$current" in n64|nintendo64|nintendo\ 64) echo "OK (compatible folder)"; return;; esac ;;
+  esac
+  echo "MISFILED"
+}
+
 # Live activity spinner plus a detailed progress heartbeat every 30 seconds.
 START_TIME=$(date +%s)
 LAST_PROGRESS_TIME=$START_TIME
@@ -295,6 +315,8 @@ if [ ! -f "$HASH_DB_TSV" ]; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SE
 if [ -f "$HASH_DB_TSV" ]; then
   IFS=$'\t' read -r dbh _ < "$HASH_DB_TSV"
   [ "$dbh" = "sha1" ] || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES invalid:hash-db-header"; }
+  DB_HEADER=$(head -n 1 "$HASH_DB_TSV" 2>/dev/null)
+  case "$DB_HEADER" in *mister_system*expected_folder*release_type*license_status*) METADATA_LAYER_STATUS="MiSTer-aware";; *) METADATA_LAYER_STATUS="Legacy database - metadata fields unavailable";; esac
   DB_LINE_COUNT=$(wc -l < "$HASH_DB_TSV" 2>/dev/null); DB_LINE_COUNT=${DB_LINE_COUNT//[[:space:]]/}
   [ "${DB_LINE_COUNT:-0}" -ge 1000 ] 2>/dev/null || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES suspiciously-small:hash-db"; }
 fi
@@ -306,6 +328,7 @@ if [ "$SELF_CHECK_STATUS" != "PASS" ]; then
   exit 1
 fi
 
+METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
 echo "MiSTer Game Library Export v1.2"
 echo "================================"
 
@@ -452,12 +475,13 @@ READ-ONLY EXPORT - no games or saves were modified.
 Reports folder: $AUDIT
 ============================================================
 EOF2
-printf '%s\n' '"system","clean_title","region","version_type","original_filename","proposed_filename","full_path","save_match_count","collision_status","sha1","dat_match","dat_canonical_name","dat_rom_name","dat_source"' > "$STAGE_CSV"
+printf '%s\n' '"system","clean_title","region","version_type","original_filename","proposed_filename","full_path","save_match_count","collision_status","sha1","dat_match","dat_canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","metadata_region","release_type","license_status","location_status"' > "$STAGE_CSV"
 printf '%s\n' '"system","current_path","proposed_filename","region","version_type","status"' > "$STAGE_REN"
 printf '%s\n' '"system","game_path","save_path","proposed_save_filename","match_type","status"' > "$STAGE_SAVE_REN"
 printf '%s\n' '"sha1","system","full_path","original_filename","clean_title"' > "$STAGE_HASH_DUP"
-printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source"' > "$STAGE_DAT_MATCH"
+printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status"' > "$STAGE_DAT_MATCH"
 printf '%s\n' '"sha1","system","full_path","original_filename"' > "$STAGE_DAT_UNMATCHED"
+printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","location_status"' > "$STAGE_LOCATION_AUDIT"
 : > "$HASH_ROWS"
 
 TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
@@ -479,7 +503,7 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
 
   row_seconds_start=$SECONDS
   SYSTEM_FILES["$system"]=$(( ${SYSTEM_FILES["$system"]:-0} + 1 ))
-  sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""
+  sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""; meta_system=""; meta_core=""; meta_folder=""; meta_region=""; meta_release=""; meta_license=""; loc_status="Unknown"
   if should_hash "$system" "$ext"; then
     HASH_ELIGIBLE=$((HASH_ELIGIBLE+1)); SYSTEM_ELIGIBLE["$system"]=$(( ${SYSTEM_ELIGIBLE["$system"]:-0} + 1 ))
     sig="$(file_signature "$p")"
@@ -513,8 +537,11 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
     hkey="${sha1,,}"
     if [ -n "${DAT_NAME_BY_SHA[$hkey]+x}" ]; then
       dat_name="${DAT_NAME_BY_SHA[$hkey]}"; dat_rom="${DAT_ROM_BY_SHA[$hkey]}"; dat_source="${DAT_SOURCE_BY_SHA[$hkey]}"
+      meta_system="${DAT_SYSTEM_BY_SHA[$hkey]:-}"; meta_core="${DAT_CORE_BY_SHA[$hkey]:-}"; meta_folder="${DAT_FOLDER_BY_SHA[$hkey]:-}"; meta_region="${DAT_REGION_BY_SHA[$hkey]:-}"; meta_release="${DAT_RELEASE_BY_SHA[$hkey]:-}"; meta_license="${DAT_LICENSE_BY_SHA[$hkey]:-}"
+      loc_status="$(location_status "$system" "$meta_folder")"
       dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
-      csv_escape "$sha1" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$p" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$file" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_name" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_rom" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_source" >> "$STAGE_DAT_MATCH"; printf '\n' >> "$STAGE_DAT_MATCH"
+      csv_escape "$sha1" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$p" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$file" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_name" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_rom" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_source" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_core" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_folder" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_region" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_release" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_license" >> "$STAGE_DAT_MATCH"; printf '\n' >> "$STAGE_DAT_MATCH"
+      csv_escape "$system" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$p" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$dat_name" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_system" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_core" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_folder" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$loc_status" >> "$STAGE_LOCATION_AUDIT"; printf '\n' >> "$STAGE_LOCATION_AUDIT"
     else
       SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 ))
       csv_escape "$sha1" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$system" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$p" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$file" >> "$STAGE_DAT_UNMATCHED"; printf '\n' >> "$STAGE_DAT_UNMATCHED"
@@ -536,7 +563,7 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   printf '[%s] %s | Region: %s | Type: %s | Saves: %s | File: %s | Collision: %s\n' "$system" "$clean" "$region" "$kind" "$save_count" "$file" "$collision" >> "$STAGE_OUT"
   csv_escape "$system" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$clean" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$region" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"
   csv_escape "$kind" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$file" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$proposed" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"
-  csv_escape "$p" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$save_count" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$collision" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$sha1" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_status" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_name" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_rom" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_source" >> "$STAGE_CSV"; printf '\n' >> "$STAGE_CSV"
+  csv_escape "$p" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$save_count" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$collision" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$sha1" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_status" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_name" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_rom" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_source" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$meta_system" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$meta_core" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$meta_folder" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$meta_region" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$meta_release" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$meta_license" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$loc_status" >> "$STAGE_CSV"; printf '\n' >> "$STAGE_CSV"
   csv_escape "$system" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$p" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$proposed" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"
   csv_escape "$region" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$kind" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "REVIEW ONLY" >> "$STAGE_REN"; printf '\n' >> "$STAGE_REN"
   TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
@@ -635,6 +662,7 @@ echo "Games/discs cataloged: $TOTAL"
   echo "Hashes calculated this run: $HASH_CALCULATED"
   echo "Unsupported-format hashes skipped: $HASH_SKIPPED"
   echo "Hash database source: $HASH_DB_SOURCE"
+  echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"
   echo "Hash records indexed: $HASH_INDEX_COUNT"
   echo "Exact DAT SHA-1 matches: $DAT_MATCHED"
   echo
@@ -643,6 +671,7 @@ echo "Games/discs cataloged: $TOTAL"
   echo "exporter_version=1.2"
   echo "audit_mode=$AUDIT_MODE"
   echo "database_sha1=$HASH_DB_FINGERPRINT"
+  echo "metadata_layer=$METADATA_LAYER_STATUS"
   echo "library_files=$GAME_SCAN_COUNT"
   echo "cataloged_files=$TOTAL"
   echo "self_check=$SELF_CHECK_STATUS"
@@ -676,7 +705,7 @@ echo "Games/discs cataloged: $TOTAL"
   echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"
   echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"
   echo
-  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv proposed_renames.csv proposed_save_renames.csv; do
+  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv location_audit.csv proposed_renames.csv proposed_save_renames.csv; do
     echo "============================================================"
     echo "[BEGIN $report]"
     echo "============================================================"
@@ -696,7 +725,7 @@ PUBLISH_START=$REPORT_END
 
 # Publish reports atomically, one complete file at a time. Previous reports remain
 # intact until their fully generated replacements are ready.
-for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv MiSTer_Library_Audit.txt; do
+for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv location_audit.csv MiSTer_Library_Audit.txt; do
   [ -f "$STAGE_DIR/$report" ] || continue
   mv -f "$STAGE_DIR/$report" "$AUDIT/$report"
 done
@@ -733,6 +762,7 @@ echo "  proposed_renames.csv"
 echo "  proposed_save_renames.csv"
 echo "  hash_duplicates.csv"
 echo "  dat_matches.csv"
+echo "  location_audit.csv"
 echo "  unmatched_hashes.csv"
 echo "  MiSTer_Library_Audit.txt  <-- upload this one for review"
 echo
