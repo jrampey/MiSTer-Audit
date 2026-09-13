@@ -1,0 +1,26 @@
+name: Synthetic Library Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-verification-regression:
+    name: Full Verification synthetic regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate test scripts
+        run: |
+          bash -n Export_Game_Library.sh
+          bash -n tests/test_exporter_synthetic.sh
+          python3 -m py_compile tests/build_synthetic_library.py
+
+      - name: Run synthetic Full Verification
+        run: bash tests/test_exporter_synthetic.sh
