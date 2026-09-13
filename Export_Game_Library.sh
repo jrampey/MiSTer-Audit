@@ -395,7 +395,7 @@ fi
 
 METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
 EXPORTER_BUILD_SHA1="$(hash_file "$0")"
-echo "MiSTer Game Library Export v1.2"
+echo "MiSTer Game Library Export v1.3"
 echo "================================"
 
 # Interactive audit-mode menu. Fast Audit is highlighted by default.
