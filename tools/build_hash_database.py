@@ -37,8 +37,8 @@ SYSTEM_RULES = [
     ("Sega - Master System - Mark III", "SMS", "SMS", "SMS"),
     ("Atari - Atari 2600", "Atari2600", "Atari2600", "Atari2600"),
     ("Mattel - Intellivision", "Intellivision", "Intellivision", "Intellivision"),
-    ("NEC - PC Engine - TurboGrafx 16", "TGFX16", "TurboGrafx16", "TGFX16"),
-    ("NEC - SuperGrafx", "TGFX16", "TurboGrafx16", "TGFX16"),
+    ("NEC - PC Engine - TurboGrafx-16", "TGFX16", "TurboGrafx16", "TGFX16"),
+    ("NEC - PC Engine SuperGrafx", "TGFX16", "TurboGrafx16", "TGFX16"),
     ("Commodore - Amiga", "Amiga", "Minimig", "Amiga"),
     ("Commodore - Commodore 64", "C64", "C64", "C64"),
     ("Acorn - Archimedes", "ARCHIE", "Archie", "Archie"),
@@ -208,8 +208,6 @@ def main() -> int:
     generated = [r for p in parsed for r in p["records"]]
     preserved = [r for r in existing if r["mister_system"] not in touched_systems]
 
-    # First deterministic record for a SHA-1 wins. Generated No-Intro records take
-    # precedence for touched systems; untouched legacy records are preserved.
     combined = generated + preserved
     combined.sort(key=lambda r: (r["sha1"].lower(), r["mister_system"], r["canonical_rom_name"], r["dat_source"]))
     deduped = {}
