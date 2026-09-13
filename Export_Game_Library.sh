@@ -2,7 +2,7 @@
 # Export_Game_Library_v1.1.sh
 # MiSTer library audit/export. READ ONLY: never renames, moves, or deletes games/saves.
 # v1.1 improves region/version parsing, BIOS/support filtering, title normalization,
-# collision-safe proposals, ROM hashing, No-Intro/Redump DAT hash matching, and stores all reports in /media/fat/GameLibraryAudit.
+# collision-safe proposals, ROM hashing, bundled TSV hash matching, and stores all reports in /media/fat/GameLibraryAudit.
 
 ROOT="/media/fat"
 GAMES="$ROOT/games"
@@ -16,7 +16,6 @@ HASH_DUP="$AUDIT/hash_duplicates.csv"
 DAT_MATCH="$AUDIT/dat_matches.csv"
 DAT_UNMATCHED="$AUDIT/unmatched_hashes.csv"
 BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
-DAT_DIR="$AUDIT/DATs"
 HASH_DB_SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 HASH_DB_TSV="$HASH_DB_SCRIPT_DIR/mister_hash_database.tsv"
 WORK="/tmp/mister_library_v11.$$"
@@ -35,7 +34,7 @@ if [ ! -d "$GAMES" ]; then
   read -p "Press Enter to exit..."
   exit 1
 fi
-mkdir -p "$AUDIT" "$DAT_DIR" || exit 1
+mkdir -p "$AUDIT" || exit 1
 
 hash_file() {
   local p="$1"
@@ -49,11 +48,10 @@ hash_file() {
 }
 
 
-# Build a local SHA-1 lookup. Prefer the bundled TSV database next to this script;
-# fall back to XML DAT files in GameLibraryAudit/DATs.
+# Build the local SHA-1 lookup exclusively from the bundled TSV database
+# stored next to this script. Legacy XML DAT-folder parsing was removed in v1.1.
 build_dat_index() {
   : > "$DAT_INDEX"
-  DAT_FILE_COUNT=0
   HASH_DB_SOURCE="None"
 
   if [ -f "$HASH_DB_TSV" ]; then
@@ -64,31 +62,10 @@ build_dat_index() {
         print h "\t" $2 "\t" $3 "\t" $4
     }' "$HASH_DB_TSV" > "$DAT_INDEX"
     HASH_DB_SOURCE="mister_hash_database.tsv"
+  else
+    echo "    WARNING: $HASH_DB_TSV was not found. Hashes will still be calculated, but canonical matching will be unavailable."
   fi
 
-  # XML DAT fallback/addition. This also permits future non-Nintendo DATs.
-  local dat count=0
-  for dat in "$DAT_DIR"/*.dat "$DAT_DIR"/*.xml; do
-    [ -f "$dat" ] || continue
-    count=$((count+1))
-    awk -v source="${dat##*/}" '
-      function attr(line, key,    p,r,q) {
-        p=index(line,key "=\""); if (!p) return "";
-        r=substr(line,p+length(key)+2); q=index(r,"\"");
-        return q ? substr(r,1,q-1) : "";
-      }
-      /<(game|machine)[[:space:]][^>]*name="/ { n=attr($0,"name"); if (n!="") game=n }
-      /<(rom|disk)[[:space:]][^>]*sha1="/ {
-        h=tolower(attr($0,"sha1")); rn=attr($0,"name");
-        if (h ~ /^[0-9a-f][0-9a-f]*$/ && length(h)==40)
-          print h "\t" game "\t" rn "\t" source
-      }
-    ' "$dat" >> "$DAT_INDEX"
-  done
-  DAT_FILE_COUNT=$count
-  if [ "$count" -gt 0 ]; then
-    [ "$HASH_DB_SOURCE" = "None" ] && HASH_DB_SOURCE="XML DATs" || HASH_DB_SOURCE="$HASH_DB_SOURCE + XML DATs"
-  fi
   [ -s "$DAT_INDEX" ] && LC_ALL=C sort -t $'\t' -k1,1 -u -o "$DAT_INDEX" "$DAT_INDEX"
 }
 
@@ -194,13 +171,12 @@ if [ -d "$SAVES" ]; then
   sort -o "$SAVE_INDEX" "$SAVE_INDEX"
 fi
 
-echo "3/5 Loading No-Intro/Redump DAT hash metadata..."
+echo "3/5 Loading bundled hash database..."
 build_dat_index
 HASH_INDEX_COUNT=$(wc -l < "$DAT_INDEX" 2>/dev/null | tr -d "[:space:]")
 [ -z "$HASH_INDEX_COUNT" ] && HASH_INDEX_COUNT=0
 echo "    Hash database source: $HASH_DB_SOURCE"
 echo "    Hash records indexed: $HASH_INDEX_COUNT"
-echo "    Additional XML DAT files loaded: $DAT_FILE_COUNT"
 
 # First pass builds metadata and collision counts.
 echo "4/5 Classifying titles and checking collisions..."
@@ -305,7 +281,6 @@ Corresponding save-file matches found: $SAVE_MATCHES
 ROM/disc files SHA-1 hashed: $HASHED
 Hash database source: $HASH_DB_SOURCE
 Hash records indexed: $HASH_INDEX_COUNT
-Additional XML DAT files loaded: $DAT_FILE_COUNT
 Exact DAT SHA-1 matches: $DAT_MATCHED
 
 Created in $AUDIT:
@@ -317,7 +292,6 @@ Created in $AUDIT:
   dat_matches.csv
   unmatched_hashes.csv
   MiSTer_Library_Audit.txt  (single file to upload for review)
-  DATs/  (place No-Intro/Redump XML DAT files here)
 
 IMPORTANT:
 - Nothing was renamed, moved, or deleted.
@@ -326,7 +300,7 @@ IMPORTANT:
 - Duplicate proposals receive deterministic [Variant N] suffixes for review.
 - Save matching still uses the original ROM basename and remains REVIEW ONLY.
 - SHA-1 hashes identify byte-for-byte duplicate files regardless of filename.
-- No-Intro/Redump XML DATs placed in GameLibraryAudit/DATs are indexed locally and matched by exact SHA-1.
+- The bundled mister_hash_database.tsv is the single canonical hash lookup source.
 - Exact DAT matches add canonical DAT title, ROM/track name, and source DAT to library_catalog.csv.
 - Raw whole-file SHA-1 matching may not identify headered ROMs or container formats such as CHD/CUE when a DAT hashes normalized ROM data or individual disc tracks.
 - Hashes are recorded locally only; no ROM data is uploaded.
@@ -350,7 +324,6 @@ EOF2
   echo "Files SHA-1 hashed: $HASHED"
   echo "Hash database source: $HASH_DB_SOURCE"
   echo "Hash records indexed: $HASH_INDEX_COUNT"
-  echo "Additional XML DAT files loaded: $DAT_FILE_COUNT"
   echo "Exact DAT SHA-1 matches: $DAT_MATCHED"
   echo
   for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv proposed_renames.csv proposed_save_renames.csv; do
@@ -381,7 +354,6 @@ echo "Save matches:          $SAVE_MATCHES"
 echo "Files SHA-1 hashed:     $HASHED"
 echo "Hash DB source:          $HASH_DB_SOURCE"
 echo "Hash records indexed:    $HASH_INDEX_COUNT"
-echo "Extra DAT files loaded:  $DAT_FILE_COUNT"
 echo "Exact DAT matches:      $DAT_MATCHED"
 echo
 echo "Created in $AUDIT:"
@@ -393,7 +365,6 @@ echo "  hash_duplicates.csv"
 echo "  dat_matches.csv"
 echo "  unmatched_hashes.csv"
 echo "  MiSTer_Library_Audit.txt  <-- upload this one for review"
-echo "  DATs/"
 echo
 echo "READ-ONLY: your ROMs and saves were not changed."
 echo
