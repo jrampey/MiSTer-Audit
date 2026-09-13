@@ -144,9 +144,39 @@ suffix_for() {
   printf '%s' "$suffix"
 }
 
-# Print a progress heartbeat at most once every 30 seconds.
+# Live activity spinner plus a detailed progress heartbeat every 30 seconds.
 START_TIME=$(date +%s)
 LAST_PROGRESS_TIME=$START_TIME
+SPINNER_PID=""
+
+start_spinner() {
+  [ -n "$SPINNER_PID" ] && return
+  (
+    frames='|/-\\'
+    i=0
+    while :; do
+      now=$(date +%s)
+      elapsed=$((now - START_TIME))
+      frame=$(printf '%s' "$frames" | cut -c $((i % 4 + 1)))
+      printf '\r[%02d:%02d] %s Still working... ' $((elapsed/60)) $((elapsed%60)) "$frame"
+      i=$((i+1))
+      sleep 1
+    done
+  ) &
+  SPINNER_PID=$!
+}
+
+stop_spinner() {
+  if [ -n "$SPINNER_PID" ]; then
+    kill "$SPINNER_PID" 2>/dev/null || true
+    wait "$SPINNER_PID" 2>/dev/null || true
+    SPINNER_PID=""
+    printf '\r\033[K'
+  fi
+}
+
+trap 'stop_spinner' EXIT INT TERM
+
 progress_check() {
   local stage="$1" current="${2:-0}" total="${3:-0}" now elapsed pct
   now=$(date +%s)
@@ -154,6 +184,7 @@ progress_check() {
     elapsed=$((now - START_TIME))
     pct=0
     if [ "$total" -gt 0 ] 2>/dev/null; then pct=$((current * 100 / total)); fi
+    printf '\r\033[K'
     printf '[%02d:%02d] â %s â %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
     if [ "$stage" = "Building reports" ]; then
       printf ' | DAT matches: %s | Unmatched: %s' "${DAT_MATCHED:-0}" "$(( ${HASHED:-0} - ${DAT_MATCHED:-0} ))"
@@ -166,6 +197,7 @@ progress_check() {
 echo
 echo "MiSTer Game Library Export v1.2"
 echo "================================"
+start_spinner
 echo "1/5 Scanning games..."
 find "$GAMES" -type f \( \
   -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" \
@@ -366,6 +398,7 @@ EOF2
 } > "$BUNDLE"
 
 sync
+stop_spinner
 
 echo
 echo "========================================"
@@ -402,6 +435,7 @@ echo "- Matched $DAT_MATCHED files against $HASH_INDEX_COUNT reference hash reco
 echo "- Found $COLLISIONS collision-affected catalog rows."
 echo "- Matched $SAVE_MATCHES save files to game basenames."
 echo "- Generated audit reports and cleanup proposals in $AUDIT."
+echo "- Displayed a live 1-second activity indicator and 30-second progress checkpoints."
 echo "- Created MiSTer_Library_Audit.txt for easy upload/review."
 echo "- No games or saves were renamed, moved, or deleted."
 echo
