@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version, for example 1.3"
+        description: "Release version, for example 1.4"
         required: true
         type: string
 
@@ -45,57 +45,16 @@ jobs:
           python3 - <<'PY'
           import os, re
           from pathlib import Path
-
           v = os.environ["VERSION"]
-
           def replace(path, substitutions):
-              p = Path(path)
-              text = p.read_text()
-              for pattern, replacement in substitutions:
-                  text = re.sub(pattern, replacement, text)
+              p = Path(path); text = p.read_text()
+              for pattern, replacement in substitutions: text = re.sub(pattern, replacement, text)
               p.write_text(text)
-
-          replace("Export_Game_Library.sh", [
-              (r"# Export_Game_Library_v[0-9.]+\.sh", f"# Export_Game_Library_v{v}.sh"),
-              (r"exporter_version=[0-9.]+", f"exporter_version={v}"),
-              (r"MiSTer Game Library Audit v[0-9.]+", f"MiSTer ROM Library Auditor v{v}"),
-          ])
-
-          replace("Update_Game_Library.sh", [
-              (r"# Update_Game_Library_v[0-9.]+\.sh", f"# Update_Game_Library_v{v}.sh"),
-              (r"Companion updater for MiSTer Game Library Audit v[0-9.]+", f"Companion updater for MiSTer ROM Library Auditor v{v}"),
-              (r"v[0-9.]+ audit handshake", f"v{v} audit handshake"),
-              (r'EXPECTED_EXPORTER_VERSION="[0-9.]+"', f'EXPECTED_EXPORTER_VERSION="{v}"'),
-              (r"Run Export_Game_Library\.sh v[0-9.]+", f"Run Export_Game_Library.sh v{v}"),
-              (r"MiSTer Game Library Updater v[0-9.]+", f"MiSTer ROM Library Updater v{v}"),
-          ])
-
-          replace("README.md", [
-              (r"Current release: v[0-9.]+", f"Current release: v{v}"),
-              (r"`Export_Game_Library\.sh` v[0-9.]+", f"`Export_Game_Library.sh` v{v}"),
-              (r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),
-              (r"v[0-9.]+ uses DAT metadata", f"v{v} uses DAT metadata"),
-              (r"v[0-9.]+ updater safety handshake", f"v{v} updater safety handshake"),
-              (r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),
-              (r"v[0-9.]+ integrity checks", f"v{v} integrity checks"),
-              (r"passing v[0-9.]+ audit", f"passing v{v} audit"),
-              (r"release remains v[0-9.]+", f"release remains v{v}"),
-          ])
-
-          replace("PROJECT_CONTEXT.md", [
-              (r"current release is \*\*v[0-9.]+\*\*", f"current release is **v{v}**"),
-              (r"is the \*\*v[0-9.]+\*\* auditor", f"is the **v{v}** auditor"),
-              (r"is the \*\*v[0-9.]+\*\* companion updater", f"is the **v{v}** companion updater"),
-              (r"Important v[0-9.]+ work", f"Important v{v} work"),
-          ])
-
-          replace("wiki/Rename-Workflow.md", [
-              (r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),
-              (r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),
-              (r"exporter version `[0-9.]+`", f"exporter version `{v}`"),
-              (r"both \*\*v[0-9.]+\*\*", f"both **v{v}**"),
-              (r"auditor's v[0-9.]+ integrity metadata", f"auditor's v{v} integrity metadata"),
-          ])
+          replace("Export_Game_Library.sh", [(r"# Export_Game_Library_v[0-9.]+\.sh", f"# Export_Game_Library_v{v}.sh"),(r"exporter_version=[0-9.]+", f"exporter_version={v}"),(r"MiSTer Game Library Audit v[0-9.]+", f"MiSTer ROM Library Auditor v{v}")])
+          replace("Update_Game_Library.sh", [(r"# Update_Game_Library_v[0-9.]+\.sh", f"# Update_Game_Library_v{v}.sh"),(r"Companion updater for MiSTer Game Library Audit v[0-9.]+", f"Companion updater for MiSTer ROM Library Auditor v{v}"),(r"v[0-9.]+ audit handshake", f"v{v} audit handshake"),(r'EXPECTED_EXPORTER_VERSION="[0-9.]+"', f'EXPECTED_EXPORTER_VERSION="{v}"'),(r"Run Export_Game_Library\.sh v[0-9.]+", f"Run Export_Game_Library.sh v{v}"),(r"MiSTer Game Library Updater v[0-9.]+", f"MiSTer ROM Library Updater v{v}")])
+          replace("README.md", [(r"Current release: v[0-9.]+", f"Current release: v{v}"),(r"`Export_Game_Library\.sh` v[0-9.]+", f"`Export_Game_Library.sh` v{v}"),(r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),(r"v[0-9.]+ uses DAT metadata", f"v{v} uses DAT metadata"),(r"v[0-9.]+ updater safety handshake", f"v{v} updater safety handshake"),(r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),(r"v[0-9.]+ integrity checks", f"v{v} integrity checks"),(r"passing v[0-9.]+ audit", f"passing v{v} audit"),(r"release remains v[0-9.]+", f"release remains v{v}")])
+          replace("PROJECT_CONTEXT.md", [(r"current release is \*\*v[0-9.]+\*\*", f"current release is **v{v}**"),(r"is the \*\*v[0-9.]+\*\* auditor", f"is the **v{v}** auditor"),(r"is the \*\*v[0-9.]+\*\* companion updater", f"is the **v{v}** companion updater"),(r"Important v[0-9.]+ work", f"Important v{v} work")])
+          replace("wiki/Rename-Workflow.md", [(r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),(r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),(r"exporter version `[0-9.]+`", f"exporter version `{v}`"),(r"both \*\*v[0-9.]+\*\*", f"both **v{v}**"),(r"auditor's v[0-9.]+ integrity metadata", f"auditor's v{v} integrity metadata")])
           PY
 
       - name: Validate release-ready source
@@ -112,15 +71,38 @@ jobs:
           bash -n Export_Game_Library.sh
           bash -n Update_Game_Library.sh
 
-      - name: Commit release version
+      - name: Build Downloader database
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mister-db-build
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
+          CSV="/tmp/mister-db-build/external_files.csv"
+          printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
+          add_file() { local source="$1" target="$2" size md5; size=$(stat -c '%s' "$source"); md5=$(md5sum "$source" | awk '{print $1}'); printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "mister-rom-library-auditor" >> "$CSV"; }
+          add_file "Export_Game_Library.sh" "Scripts/Export_Game_Library.sh"
+          add_file "Update_Game_Library.sh" "Scripts/Update_Game_Library.sh"
+          add_file "mister_hash_database.tsv" "Scripts/mister_hash_database.tsv"
+          curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o /tmp/mister-db-build/db_operator.py
+          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
+
+      - name: Validate database with MiSTer Downloader
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/downloader-test
+          curl -fsSL https://github.com/MiSTer-devel/Downloader_MiSTer/releases/download/latest/downloader_test.py -o /tmp/downloader-test/downloader_test.py
+          chmod +x /tmp/downloader-test/downloader_test.py
+          cd /tmp/downloader-test
+          ./downloader_test.py "jrampey/MiSTer-ROM-Library-Auditor" "$GITHUB_WORKSPACE/db.json"
+
+      - name: Commit release version and Downloader database
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Export_Game_Library.sh Update_Game_Library.sh README.md PROJECT_CONTEXT.md wiki/Rename-Workflow.md
-          git diff --cached --quiet && { echo "No release version changes found"; exit 1; }
+          git add Export_Game_Library.sh Update_Game_Library.sh README.md PROJECT_CONTEXT.md wiki/Rename-Workflow.md db.json
+          git diff --cached --quiet && { echo "No release changes found"; exit 1; }
           git commit -m "Release v${VERSION}"
           git push origin HEAD:main
 
