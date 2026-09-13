@@ -1,0 +1,55 @@
+name: Rebuild Hash Database from No-Intro
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Sources/No-Intro/**/*.dat"
+      - "Sources/No-Intro/**/*.xml"
+      - "tools/build_hash_database.py"
+      - ".github/workflows/rebuild-hash-database.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "Sources/No-Intro/**/*.dat"
+      - "Sources/No-Intro/**/*.xml"
+      - "tools/build_hash_database.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Rebuild from No-Intro sources
+        run: python3 tools/build_hash_database.py
+
+      - name: Validate generated database
+        run: python3 tools/validate_hash_database.py mister_hash_database.tsv --min-records 40000
+
+      - name: Verify deterministic rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          first=$(sha256sum mister_hash_database.tsv | awk '{print $1}')
+          python3 tools/build_hash_database.py
+          second=$(sha256sum mister_hash_database.tsv | awk '{print $1}')
+          test "$first" = "$second"
+          echo "Deterministic database SHA-256: $second"
+
+      - name: Show database delta
+        run: cat build/hash_database_delta.md
+
+      - name: Require generated files to be committed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- mister_hash_database.tsv Sources/no_intro_manifest.json; then
+            echo "::error::No-Intro sources changed the generated database or manifest. Run tools/build_hash_database.py locally and commit the generated files."
+            exit 1
+          fi
