@@ -2,7 +2,7 @@
 
 The GitHub repository `jrampey/MiSTer-ROM-Library-Auditor` is the source of truth. Before making changes, inspect the current repository files and understand the existing implementation.
 
-The current release is **v1.2**. Do not increment the release version unless explicitly instructed.
+The current release is **v1.3**. Do not increment the release version unless explicitly instructed.
 
 ## Project purpose
 
@@ -12,9 +12,9 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 ## Current implementation
 
-`Export_Game_Library.sh` is the **v1.2** auditor. Important v1.2 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, and an audit integrity verdict with `SAFE TO PREVIEW` / `DO NOT APPLY` recommendations.
+`Export_Game_Library.sh` is the **v1.3** auditor. Important v1.3 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, and an audit integrity verdict with `SAFE TO PREVIEW` / `DO NOT APPLY` recommendations.
 
-`Update_Game_Library.sh` is the **v1.2** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Apply is blocked when the audit says `DO NOT APPLY`, when integrity is not `PASS`, or when the exporter/database has changed since the audit was generated.
+`Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Apply is blocked when the audit says `DO NOT APPLY`, when integrity is not `PASS`, or when the exporter/database has changed since the audit was generated.
 
 ## Hash database
 

@@ -1,15 +1,15 @@
 # Rename Workflow
 
-Renaming is intentionally separate from auditing. `Export_Game_Library.sh` only proposes changes; `Update_Game_Library.sh` v1.2 is the mutation path.
+Renaming is intentionally separate from auditing. `Export_Game_Library.sh` only proposes changes; `Update_Game_Library.sh` v1.3 is the mutation path.
 
 ## Audit handshake
 
 Before Preview or Apply, the updater reads `[AUDIT_METADATA]` from `/media/fat/GameLibraryAudit/MiSTer_Library_Audit.txt` and validates that the proposals came from a compatible, trustworthy audit.
 
-The updater requires the expected v1.2 audit contract, including:
+The updater requires the expected v1.3 audit contract, including:
 
 - audit schema version `4`;
-- exporter version `1.2`;
+- exporter version `1.3`;
 - `self_check=PASS`;
 - `metadata_layer=MiSTer-aware`;
 - a recognized integrity verdict and Apply recommendation; and
@@ -48,6 +48,6 @@ Rollback requires typing `ROLLBACK` exactly. Successful entries from the last ma
 
 ## Current implementation
 
-The auditor and updater are both **v1.2**. The previous v1.1/v1.2 mismatch has been resolved: Apply now consumes and enforces the auditor's v1.2 integrity metadata instead of relying on it only as a manual review gate.
+The auditor and updater are both **v1.3**. The previous v1.1/v1.2 mismatch has been resolved: Apply now consumes and enforces the auditor's v1.3 integrity metadata instead of relying on it only as a manual review gate.
 
 After Apply or Rollback, rerun the auditor to verify the library state.

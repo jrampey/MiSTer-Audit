@@ -1,8 +1,8 @@
 #!/bin/bash
-# Update_Game_Library_v1.2.sh
-# Companion updater for MiSTer Game Library Audit v1.2.
+# Update_Game_Library_v1.3.sh
+# Companion updater for MiSTer ROM Library Auditor v1.3
 # Safely previews/applies reviewed game + save rename proposals and can roll back the last run.
-# Preview validates the v1.2 audit handshake. Apply additionally requires a clean integrity verdict
+# Preview validates the v1.3 audit handshake. Apply additionally requires a clean integrity verdict
 # and verifies that the audit was produced by the currently installed exporter/hash database.
 
 ROOT="/media/fat"
@@ -19,7 +19,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
 EXPORTER="$SCRIPT_DIR/Export_Game_Library.sh"
 HASH_DB="$SCRIPT_DIR/mister_hash_database.tsv"
 EXPECTED_SCHEMA="4"
-EXPECTED_EXPORTER_VERSION="1.2"
+EXPECTED_EXPORTER_VERSION="1.3"
 
 mkdir -p "$HISTORY" || exit 1
 
@@ -50,7 +50,7 @@ validate_audit() {
 
   if [[ ! -f "$BUNDLE" ]]; then
     echo "ERROR: Missing $BUNDLE"
-    echo "Run Export_Game_Library.sh v1.2 before previewing or applying renames."
+    echo "Run Export_Game_Library.sh v1.3 before previewing or applying renames."
     return 1
   fi
 
@@ -252,7 +252,7 @@ rollback() {
   echo "Rollback pass finished. Re-run the auditor to verify the library."
 }
 
-echo "MiSTer Game Library Updater v1.2"
+echo "MiSTer ROM Library Updater v1.3"
 echo "================================="
 echo "1) Preview safe renames"
 echo "2) Apply safe renames"

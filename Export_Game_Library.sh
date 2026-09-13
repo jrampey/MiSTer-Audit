@@ -1,5 +1,5 @@
 #!/bin/bash
-# Export_Game_Library_v1.2.sh
+# Export_Game_Library_v1.3.sh
 # MiSTer library audit/export. READ ONLY: never renames, moves, or deletes games/saves.
 # v1.2 improves region/version parsing, BIOS/support filtering, title normalization,
 # collision-safe proposals, ROM hashing, bundled TSV hash matching, full-library incremental caching, in-memory indexes, atomic report publishing, timing telemetry, and Fast/Full Verification audit modes.
@@ -813,7 +813,7 @@ echo "Games/discs cataloged: $TOTAL"
   echo
   echo "[AUDIT_METADATA]"
   echo "schema_version=$AUDIT_SCHEMA_VERSION"
-  echo "exporter_version=1.2"
+  echo "exporter_version=1.3"
   echo "build_sha1=$EXPORTER_BUILD_SHA1"
   echo "audit_mode=$AUDIT_MODE"
   echo "database_sha1=$HASH_DB_FINGERPRINT"

@@ -2,15 +2,15 @@
 
 Audit, identify, organize, and safely clean up your MiSTer FPGA ROM library using No-Intro hashes and MiSTer-aware metadata.
 
-> **Current release: v1.2**
+> **Current release: v1.3**
 
 **Audit → Review → Preview → Apply → Roll Back**
 
 ## Current runtime
 
-`Export_Game_Library.sh` v1.2 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
+`Export_Game_Library.sh` v1.3 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
 
-`Update_Game_Library.sh` v1.2 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake.
+`Update_Game_Library.sh` v1.3 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake.
 
 Runtime files are installed together under `/media/fat/Scripts/`: `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv`.
 
@@ -23,7 +23,7 @@ The exporter never renames, moves, or deletes ROMs or saves.
 
 The bundled database uses a required 13-column MiSTer-aware schema and includes Nintendo systems plus expanded No-Intro-backed coverage for Genesis/Mega Drive, 32X, Master System, Atari 2600, Intellivision, PC Engine/TurboGrafx-16, SuperGrafx, Amiga, C64, and Archimedes.
 
-v1.2 uses DAT metadata for canonical naming and system classification when available. Raw SHA-1 is authoritative first, with conservative NES and SNES normalized-hash fallback after a raw miss.
+v1.3 uses DAT metadata for canonical naming and system classification when available. Raw SHA-1 is authoritative first, with conservative NES and SNES normalized-hash fallback after a raw miss.
 
 ## Reports and integrity metadata
 
@@ -31,9 +31,9 @@ The main review artifact is `/media/fat/GameLibraryAudit/MiSTer_Library_Audit.tx
 
 The consolidated report contains `[AUDIT_METADATA]` including schema version, exporter version/build fingerprint, database fingerprint, metadata-layer status, self-check status, integrity verdict, and Apply recommendation.
 
-## v1.2 updater safety handshake
+## v1.3 updater safety handshake
 
-Before Preview or Apply, the updater validates the expected v1.2 audit contract. It verifies schema/version, startup self-check, MiSTer-aware metadata status, integrity verdict, Apply recommendation, exporter build SHA-1, and database SHA-1.
+Before Preview or Apply, the updater validates the expected v1.3 audit contract. It verifies schema/version, startup self-check, MiSTer-aware metadata status, integrity verdict, Apply recommendation, exporter build SHA-1, and database SHA-1.
 
 If the exporter or database changed after the audit was generated, a fresh audit is required. Apply requires a fully passing audit, revalidates immediately before mutation, and requires typing `APPLY` exactly. `DO NOT APPLY` is enforced by the updater.
 
@@ -48,7 +48,7 @@ Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, an
 4. Run Update_Game_Library
 5. Preview
 6. Review planned and skipped operations
-7. Apply only when the v1.2 integrity checks pass
+7. Apply only when the v1.3 integrity checks pass
 8. Re-run the auditor after cleanup
 ```
 
@@ -82,11 +82,11 @@ ChatGPT / Codex → GitHub → VS Code → MiSTer Update All
 - Auditing is read-only.
 - Rename proposals are review artifacts, not automatic actions.
 - The updater is the only component intended to rename library files.
-- Apply requires a compatible passing v1.2 audit plus explicit confirmation.
+- Apply requires a compatible passing v1.3 audit plus explicit confirmation.
 - Existing or duplicate targets are never overwritten.
 - Unsafe disc-set renames are skipped.
 - Rename history is retained for rollback.
 - Runtime/user data is not managed by Update All.
-- The project release remains v1.2 unless explicitly changed.
+- The project release remains v1.3 unless explicitly changed.
 
 See `wiki/` for detailed current behavior and `PROJECT_CONTEXT.md` for development constraints and project context.
