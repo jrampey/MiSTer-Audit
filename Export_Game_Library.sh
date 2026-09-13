@@ -420,7 +420,7 @@ stop_spinner() {
     kill "$SPINNER_PID" 2>/dev/null || true
     wait "$SPINNER_PID" 2>/dev/null || true
     SPINNER_PID=""
-    printf '\r\033[K'
+    printf '\r%79s\r' ' '
   fi
 }
 
@@ -434,8 +434,8 @@ progress_check() {
     elapsed=$((now - START_TIME))
     pct=0
     if [ "$total" -gt 0 ] 2>/dev/null; then pct=$((current * 100 / total)); fi
-    printf '\r\033[K'
-    printf '[%02d:%02d] [OK] %s - %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
+    printf '\r%79s\r' ' '
+    printf '[%02d:%02d] %s: %s / %s (%s%%)' $((elapsed/60)) $((elapsed%60)) "$stage" "$current" "$total" "$pct"
     if [ "$stage" = "Building reports" ]; then
       printf ' | DAT matches: %s | Unmatched: %s' "${DAT_MATCHED:-0}" "$(( ${HASHED:-0} - ${DAT_MATCHED:-0} ))"
     fi
@@ -477,8 +477,11 @@ fi
 
 METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
 EXPORTER_BUILD_SHA1="$(hash_file "$0")"
-echo "MiSTer Game Library Export v1.3"
-echo "================================"
+echo "+--------------------------------------------------+"
+echo "| MiSTer ROM Library Auditor v1.3                 |"
+echo "| Read-only audit - no ROMs or saves are changed  |"
+echo "+--------------------------------------------------+"
+echo
 
 # Interactive audit-mode menu. Fast Audit is highlighted by default.
 # Supports keyboard/controller Up/Down arrows, Enter, and 1/2 shortcuts.
@@ -487,12 +490,15 @@ AUDIT_MENU_LINES=5
 render_audit_menu() {
   local fast_prefix="  " full_prefix="  "
   [ "$AUDIT_MENU_SELECTION" -eq 1 ] && fast_prefix="> " || full_prefix="> "
-  printf "Select audit mode (Up = run Fast, Down = run Full, Enter = Fast):\n"
-  printf "Fast Audit will start automatically in 15 seconds.\n"
-  printf "%s1) Fast Audit (recommended)\n" "$fast_prefix"
-  printf "     Full-library scan; reuses valid cached hashes.\n"
+  printf "+--------------------------------------------------+\n"
+  printf "| AUDIT MODE                                       |\n"
+  printf "+--------------------------------------------------+\n"
+  printf "%s1) Fast Audit - recommended\n" "$fast_prefix"
+  printf "     Reuse valid cached hashes.\n"
   printf "%s2) Full Verification\n" "$full_prefix"
-  printf "     Full-library scan; recalculates every supported SHA-1.\n"
+  printf "     Recalculate every supported SHA-1.\n"
+  printf "----------------------------------------------------\n"
+  printf "1/2 or arrows select | Enter = Fast | Auto = 15s\n"
 }
 
 render_audit_menu
@@ -528,11 +534,12 @@ else
   AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1
 fi
 echo
-echo "Audit mode: $AUDIT_MODE"
+echo "Selected: $AUDIT_MODE"
+echo "----------------------------------------------------"
 echo
 DISCOVERY_START=$(date +%s)
 start_spinner
-echo "1/5 Scanning games..."
+echo "[1/5] Scanning game library..."
 find "$GAMES" -type f \( \
   -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" \
   -o -iname "*.gb" -o -iname "*.gbc" -o -iname "*.gba" -o -iname "*.md" \
@@ -547,7 +554,7 @@ echo "    Files discovered: $GAME_SCAN_COUNT"
 DISCOVERY_END=$(date +%s)
 SAVE_START=$DISCOVERY_END
 
-echo "2/5 Indexing saves once..."
+echo "[2/5] Indexing save files..."
 : > "$SAVE_LIST"; : > "$SAVE_INDEX"
 declare -A SAVES_BY_STEM
 SAVE_PROCESSED=0
@@ -565,7 +572,7 @@ fi
 SAVE_END=$(date +%s)
 DB_START=$SAVE_END
 
-echo "3/5 Loading bundled hash database..."
+echo "[3/5] Loading hash database..."
 build_dat_index
 echo "    Hash database source: $HASH_DB_SOURCE"
 echo "    Hash records indexed: $HASH_INDEX_COUNT"
@@ -575,7 +582,7 @@ DB_END=$(date +%s)
 CLASSIFY_START=$DB_END
 
 # First pass builds metadata and collision counts.
-echo "4/5 Classifying titles and checking collisions..."
+echo "[4/5] Classifying titles and collisions..."
 : > "$PLAN"
 declare -A NAME_COUNTS
 SKIPPED=0; CLASSIFIED=0
@@ -641,7 +648,7 @@ TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; H
 printf 'path\tsignature\tsha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
 declare -A SEEN_NAMES FINAL_PROPOSAL_COUNTS
 
-echo "5/5 Building reports..."
+echo "[5/5] Building audit reports..."
 PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
 while IFS=$'\t' read -r system p file ext stem clean region kind; do
   [ -z "$p" ] && continue
@@ -1004,62 +1011,24 @@ sync
 stop_spinner
 
 echo
-echo "========================================"
-echo " MiSTer LIBRARY EXPORT v1.3 COMPLETE"
-echo "========================================"
-echo "Games/discs cataloged: $TOTAL"
-echo "Support files skipped: $SKIPPED"
-echo "Collision rows:        $COLLISIONS"
-echo "Save matches:          $SAVE_MATCHES"
-echo "Files with SHA-1:       $HASHED"
-echo "Hashes reused:          $HASH_REUSED"
-echo "Hashes calculated:      $HASH_CALCULATED"
-echo "Unsupported hash skips: $HASH_SKIPPED"
-echo "Hash DB source:          $HASH_DB_SOURCE"
-echo "Hash records indexed:    $HASH_INDEX_COUNT"
-echo "Exact DAT matches:      $DAT_MATCHED"
-echo "DAT-eligible ROMs:      $HASH_ELIGIBLE"
-echo "Cache hit rate:         $CACHE_HIT_RATE%"
-echo "Self-check:             $SELF_CHECK_STATUS"
-echo "Integrity verdict:      $AUDIT_VERDICT"
-echo "Apply recommendation:   $APPLY_RECOMMENDATION"
-echo "Build SHA-1:             $EXPORTER_BUILD_SHA1"
+echo "+--------------------------------------------------+"
+echo "| AUDIT COMPLETE                                   |"
+echo "+--------------------------------------------------+"
+echo " Mode              : $AUDIT_MODE"
+echo " Games cataloged   : $TOTAL"
+echo " DAT matches       : $DAT_MATCHED / $HASHED"
+echo " Collisions        : $COLLISIONS"
+echo " Save matches      : $SAVE_MATCHES"
+echo " Cache hit rate    : $CACHE_HIT_RATE%"
+echo " Integrity         : $AUDIT_VERDICT"
+echo " Apply             : $APPLY_RECOMMENDATION"
+echo "----------------------------------------------------"
+echo " Reports: $AUDIT"
+echo " Review : MiSTer_Library_Audit.txt"
+echo " Missing: missing_library_titles.csv"
+echo "----------------------------------------------------"
+echo " READ ONLY: no ROMs or saves were changed."
+echo "----------------------------------------------------"
 echo
-echo "Created in $AUDIT:"
-echo "  game_library.txt"
-echo "  library_catalog.csv"
-echo "  hash_cache.tsv  (internal incremental cache; full library is still rescanned)"
-echo "  proposed_renames.csv"
-echo "  proposed_save_renames.csv"
-echo "  hash_duplicates.csv"
-echo "  dat_matches.csv"
-echo "  location_audit.csv"
-echo "  unmatched_hashes.csv"
-echo "  library_completion.csv"
-echo "  missing_library_titles.csv"
-echo "  MiSTer_Library_Audit.txt  <-- upload this one for review"
-echo
-echo "READ-ONLY: your ROMs and saves were not changed."
-echo
-echo "----------------------------------------"
-echo " SUMMARY OF WHAT WAS DONE"
-echo "----------------------------------------"
-echo "- Scanned /media/fat/games and cataloged $TOTAL game/disc files."
-echo "- Skipped $SKIPPED detected BIOS/support files."
-echo "- Full-library scan completed: $GAME_SCAN_COUNT files discovered and $TOTAL games/discs cataloged."
-echo "- Audit mode: $AUDIT_MODE."
-echo "- Reused $HASH_REUSED unchanged SHA-1 hashes from cache."
-echo "- Calculated $HASH_CALCULATED new/changed SHA-1 hashes."
-echo "- Skipped hashing $HASH_SKIPPED unsupported formats while still cataloging them."
-echo "- Matched $DAT_MATCHED files against $HASH_INDEX_COUNT reference hash records."
-echo "- Found $COLLISIONS collision-affected catalog rows."
-echo "- Matched $SAVE_MATCHES save files to game basenames."
-echo "- Generated audit reports and cleanup proposals in $AUDIT."
-echo "- Displayed a live 1-second activity indicator and 30-second progress checkpoints."
-echo "- Created MiSTer_Library_Audit.txt for easy upload/review."
-echo "- Timing: discovery $((DISCOVERY_END-DISCOVERY_START))s; saves $((SAVE_END-SAVE_START))s; DB/cache $((DB_END-DB_START))s; classification $((CLASSIFY_END-CLASSIFY_START))s; report/hash $((REPORT_END-REPORT_START))s; total $((TOTAL_END-START_TIME))s."
-echo "- No games or saves were renamed, moved, or deleted."
-echo
-echo "This screen will close automatically in 60 seconds."
-echo "Press Enter to close now."
+echo "Press Enter to close, or wait 60 seconds."
 read -t 60 -r _ || true
