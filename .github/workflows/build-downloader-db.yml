@@ -43,7 +43,7 @@ jobs:
             local size md5
             size=$(stat -c '%s' "$source")
             md5=$(md5sum "$source" | awk '{print $1}')
-            printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "mister-game-library-audit" >> "$CSV"
+            printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "mister-rom-library-auditor" >> "$CSV"
           }
 
           add_file "Export_Game_Library.sh" "Scripts/Export_Game_Library.sh"
@@ -54,12 +54,9 @@ jobs:
             https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
             -o /tmp/mister-db-build/db_operator.py
 
-          # db_operator derives the source revision with git rev-parse HEAD,
-          # so run it from the checked-out repository rather than a temp folder
-          # with no Git history.
           cd "$GITHUB_WORKSPACE"
 
-          DB_ID="jrampey/MiSTerFPGAGameLibraryAudit" \
+          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
           BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
           EXTERNAL_FILES="$CSV" \
@@ -77,7 +74,7 @@ jobs:
             -o /tmp/downloader-test/downloader_test.py
           chmod +x /tmp/downloader-test/downloader_test.py
           cd /tmp/downloader-test
-          ./downloader_test.py "jrampey/MiSTerFPGAGameLibraryAudit" "$GITHUB_WORKSPACE/db.json"
+          ./downloader_test.py "jrampey/MiSTer-ROM-Library-Auditor" "$GITHUB_WORKSPACE/db.json"
 
       - name: Commit generated database
         shell: bash
