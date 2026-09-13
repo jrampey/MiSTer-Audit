@@ -17,6 +17,8 @@ Before auditing, the exporter verifies required commands, SHA-1 support, the bun
 
 **Full Verification** recalculates hashes for eligible ROMs rather than trusting cached hashes. The implementation can use two parallel hash workers when supported.
 
+The MiSTer console UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. It intentionally avoids background carriage-return spinners because they can overlap normal console output and produce unreliable elapsed-time displays on MiSTer hardware.
+
 ## Processing
 
 1. Discover game and save files.
