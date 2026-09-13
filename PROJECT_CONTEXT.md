@@ -73,3 +73,17 @@ GitHub is authoritative. Do not assume an old chat artifact is newer than the re
 For broad development changes, first inspect the repository and give a short assessment of its current state, including inconsistencies or missing pieces. Do not make broad changes until approved. A direct request to change a specific file or feature is authorization for that specific change.
 
 For an authorized implementation change that materially changes documented runtime behavior, documentation synchronization is included in that authorization.
+
+
+## v1.3 catalog accounting integrity
+
+The exporter protects report generation from stdin interference by reading the generated `$PLAN` through a dedicated file descriptor. Commands or functions executed while processing a catalog row therefore cannot consume subsequent plan records from the report loop.
+
+The integrity layer enforces both accounting invariants:
+
+- `TOTAL == CLASSIFIED`
+- `TOTAL + SKIPPED == GAME_SCAN_COUNT`
+
+Failure of the second invariant adds `discovery-accounting-mismatch`, sets the audit verdict to `FAIL`, and sets the Apply recommendation to `DO NOT APPLY`.
+
+This is a v1.3 reliability fix and does not change the release version or the exporter's read-only behavior.

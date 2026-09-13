@@ -92,3 +92,15 @@ ChatGPT / Codex → GitHub → VS Code → MiSTer Update All
 - The project release remains v1.3 unless explicitly changed.
 
 See `wiki/` for detailed current behavior and `PROJECT_CONTEXT.md` for development constraints and project context.
+
+
+### Audit accounting integrity
+
+The v1.3 exporter isolates report-plan input from commands executed during report generation. This prevents nested commands from accidentally consuming pending catalog records.
+
+Audit integrity also verifies that every discovered game-library file is accounted for:
+
+- cataloged files must equal classified files;
+- cataloged files plus intentionally skipped BIOS/support files must equal files discovered.
+
+An accounting mismatch produces a `FAIL` integrity verdict and `DO NOT APPLY` recommendation.
