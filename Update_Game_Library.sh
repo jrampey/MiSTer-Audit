@@ -2,8 +2,8 @@
 # Update_Game_Library_v1.3.sh
 # Companion updater for MiSTer ROM Library Auditor v1.3
 # Safely previews/applies reviewed game + save rename proposals and can roll back the last run.
-# Preview validates the v1.3 audit handshake. Apply additionally requires a clean integrity verdict
-# and verifies that the audit was produced by the currently installed exporter/hash database.
+# Collision-only audit warnings are handled by automatically skipping every blocking collision row.
+# Other integrity failures remain hard blocks.
 
 ROOT="/media/fat"
 GAMES="$ROOT/games"
@@ -11,6 +11,7 @@ SAVES="$ROOT/saves"
 AUDIT="$ROOT/GameLibraryAudit"
 GAME_CSV="$AUDIT/proposed_renames.csv"
 SAVE_CSV="$AUDIT/proposed_save_renames.csv"
+CATALOG="$AUDIT/library_catalog.csv"
 BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 HISTORY="$AUDIT/RenameHistory"
 PLAN="$AUDIT/apply_preview.tsv"
@@ -20,6 +21,11 @@ EXPORTER="$SCRIPT_DIR/Export_Game_Library.sh"
 HASH_DB="$SCRIPT_DIR/mister_hash_database.tsv"
 EXPECTED_SCHEMA="4"
 EXPECTED_EXPORTER_VERSION="1.3"
+COLLISION_INPUT="/tmp/mister_updater_collision_input.$$"
+BLOCKLIST="/tmp/mister_updater_blocked.$$"
+
+cleanup() { rm -f "$COLLISION_INPUT" "$BLOCKLIST"; }
+trap cleanup EXIT INT TERM
 
 mkdir -p "$HISTORY" || exit 1
 
@@ -43,10 +49,17 @@ audit_meta() {
   ' "$BUNDLE" 2>/dev/null
 }
 
+trim_spaces() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
 validate_audit() {
   local mode="${1:-preview}"
-  local schema exporter_version build_sha database_sha metadata_layer self_check verdict recommendation notes
-  local current_exporter_sha current_database_sha errors=0
+  local schema exporter_version build_sha database_sha metadata_layer self_check verdict recommendation notes notes_trimmed
+  local current_exporter_sha current_database_sha errors=0 collision_only=0
 
   if [[ ! -f "$BUNDLE" ]]; then
     echo "ERROR: Missing $BUNDLE"
@@ -63,6 +76,10 @@ validate_audit() {
   verdict="$(audit_meta integrity_verdict)"
   recommendation="$(audit_meta apply_recommendation)"
   notes="$(audit_meta integrity_notes)"
+  notes_trimmed="$(trim_spaces "$notes")"
+
+  [[ "$verdict" == "PASS WITH WARNINGS" && "$notes_trimmed" == "collision-review-required" ]] && collision_only=1
+  [[ "$recommendation" == "APPLY WITH SKIPS" && "$notes_trimmed" == *"collision"* ]] && collision_only=1
 
   echo
   echo "Audit compatibility check"
@@ -85,8 +102,18 @@ validate_audit() {
   [[ -n "$recommendation" ]] || { echo "ERROR: Audit apply recommendation is missing."; errors=1; }
 
   if [[ "$mode" == "apply" ]]; then
-    [[ "$verdict" == "PASS" ]] || { echo "ERROR: Apply requires integrity_verdict=PASS."; errors=1; }
-    [[ "$recommendation" != "DO NOT APPLY" ]] || { echo "ERROR: Auditor explicitly recommends DO NOT APPLY."; errors=1; }
+    if [[ "$verdict" == "FAIL" ]]; then
+      echo "ERROR: Apply is blocked by integrity_verdict=FAIL."
+      errors=1
+    elif [[ "$verdict" == "PASS" ]]; then
+      [[ "$recommendation" != "DO NOT APPLY" ]] || { echo "ERROR: Auditor explicitly recommends DO NOT APPLY."; errors=1; }
+    elif (( collision_only )); then
+      echo "WARNING: Audit contains collision-only warnings."
+      echo "         Blocking collision rows will be skipped automatically."
+    else
+      echo "ERROR: Apply warnings are not limited to skippable collision rows."
+      errors=1
+    fi
 
     if [[ ! -f "$EXPORTER" ]]; then
       echo "ERROR: Current exporter not found at $EXPORTER."
@@ -113,8 +140,10 @@ validate_audit() {
     if [[ "$verdict" == "FAIL" ]]; then
       echo "ERROR: Audit integrity failed. Generate a fresh audit before previewing renames."
       errors=1
+    elif (( collision_only )); then
+      echo "WARNING: Collision-only warnings detected; blocking rows will be shown as skipped."
     elif [[ "$verdict" == "PASS WITH WARNINGS" || "$recommendation" == "DO NOT APPLY" ]]; then
-      echo "WARNING: Preview is allowed for review, but Apply will remain blocked."
+      echo "WARNING: Preview is allowed for review, but Apply remains blocked by non-collision warnings."
     fi
   fi
 
@@ -150,18 +179,156 @@ parse_csv() {
 safe_under() { case "$1" in "$2"/*) return 0;; *) return 1;; esac; }
 unsafe_name() { [[ -z "$1" || "$1" == */* || "$1" == "." || "$1" == ".." ]]; }
 
+trim_title() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+region_of() {
+  local s="${1,,}"
+  if [[ "$s" =~ \((usa|us|u)(,|\)|[[:space:]]) ]] || [[ "$s" =~ \((ue|u,e|u\+e)\) ]]; then echo USA
+  elif [[ "$s" =~ \((world|w)\) ]]; then echo World
+  elif [[ "$s" =~ \((europe|eur|e)\) ]]; then echo Europe
+  elif [[ "$s" =~ \((japan|jpn|j)\) ]]; then echo Japan
+  elif [[ "$s" =~ \((canada|can)\) ]]; then echo Canada
+  elif [[ "$s" =~ \((australia|aus)\) ]]; then echo Australia
+  elif [[ "$s" =~ \((korea|kor|k)\) ]]; then echo Korea
+  elif [[ "$s" =~ \((brazil|bra|b)\) ]]; then echo Brazil
+  else echo Unknown
+  fi
+}
+
+kind_of() {
+  local s="${1,,}"
+  if [[ "$s" =~ \((proto|prototype|beta|demo|sample)([^a-z]|$) ]] || [[ "$s" =~ \[(proto|prototype|beta|demo|sample)([^a-z]|$) ]]; then echo Prototype/Beta/Demo
+  elif [[ "$s" =~ \((rev|revision)[[:space:]._-]*[0-9a-z]+\) ]] || [[ "$s" =~ \[(rev|revision)[[:space:]._-]*[0-9a-z]+\] ]]; then echo Revision
+  elif [[ "$s" =~ \((unl|unlicensed|homebrew|aftermarket)\) ]] || [[ "$s" =~ \[(unl|unlicensed|homebrew|aftermarket)\] ]] || [[ "$s" == *" homebrew "* ]] || [[ "$s" == *" aftermarket "* ]]; then echo Homebrew/Unlicensed
+  elif [[ "$s" =~ \[t[^]]*\] ]] || [[ "$s" == *"(translation"* ]] || [[ "$s" == *"(translated"* ]] || [[ "$s" == *"(eng)"* ]] || [[ "$s" == *"(english"* ]] || [[ "$s" == *"translation"* ]] || [[ "$s" == *"english patched"* ]]; then echo Translation
+  elif [[ "$s" =~ \[h[^]]*\] ]] || [[ "$s" == *"(hack"* ]] || [[ "$s" == *"(hacked"* ]] || [[ "$s" == *"(improvement"* ]] || [[ "$s" == *"(redux"* ]] || [[ "$s" == *"(randomizer"* ]] || [[ "$s" == *" hack "* ]] || [[ "$s" == *" improvement "* ]] || [[ "$s" == *" randomizer "* ]]; then echo Hack/Modified
+  else echo Retail/Standard
+  fi
+}
+
+clean_title() {
+  local s="$1" before
+  local re_region='^(.*)[[:space:]]+\((USA|US|U|World|W|Europe|EUR|E|Japan|JPN|J|Canada|CAN|Australia|AUS|Korea|KOR|Brazil|BRA|UE|U,E|U\+E)\)(.*)$'
+  local re_meta='^(.*)[[:space:]]+\((Rev(ision)?[[:space:]._-]*[0-9A-Za-z]+|Proto(type)?|Beta|Demo|Sample|Unl(icensed)?|Homebrew|Aftermarket|Translation|Translated|Eng(lish)?[^)]*)\)(.*)$'
+  local re_bracket='^(.*)[[:space:]]+\[([tThH][^]]*|!|[bBoOfFpPaA][0-9]*|[cCxX])\](.*)$'
+  while :; do
+    before="$s"
+    if [[ "$s" =~ $re_region ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"
+    elif [[ "$s" =~ $re_meta ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[7]}"
+    elif [[ "$s" =~ $re_bracket ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"
+    else break
+    fi
+    [[ "$s" == "$before" ]] && break
+  done
+  s="$(trim_title "$s")"
+  while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done
+  s="${s% -}"; s="${s% _}"; s="$(trim_title "$s")"
+  [[ -z "$s" ]] && s="$1"
+  printf '%s' "$s"
+}
+
+suffix_for() {
+  local region="$1" kind="$2" suffix=""
+  [[ "$region" != "USA" && "$region" != "Unknown" ]] && suffix=" [$region]"
+  [[ "$region" == "Unknown" ]] && suffix=" [Unknown Region]"
+  [[ "$kind" != "Retail/Standard" ]] && suffix="$suffix [$kind]"
+  printf '%s' "$suffix"
+}
+
+# Reproduce the exporter's final collision classification from library_catalog.csv.
+# Output: path<TAB>reason for every row that must not be mutated.
+classify_blocking_games() {
+  : > "$COLLISION_INPUT"
+  : > "$BLOCKLIST"
+
+  [[ -f "$CATALOG" ]] || { echo "Missing $CATALOG"; return 1; }
+
+  local line system original proposed path dat_status ext stem clean region kind fallback group authoritative final_target
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ "$line" == '"system"'* ]] && continue
+    parse_csv "$line"
+    ((${#CSV_FIELDS[@]} >= 21)) || continue
+
+    system="${CSV_FIELDS[0]}"
+    original="${CSV_FIELDS[4]}"
+    proposed="${CSV_FIELDS[5]}"
+    path="${CSV_FIELDS[6]}"
+    dat_status="${CSV_FIELDS[10]}"
+
+    ext="${original##*.}"; ext="${ext,,}"
+    stem="${original%.*}"
+    clean="$(clean_title "$stem")"
+    region="$(region_of "$stem")"
+    kind="$(kind_of "$stem")"
+    fallback="$clean$(suffix_for "$region" "$kind").$ext"
+    group="${system,,}|${fallback,,}"
+    authoritative=0
+    case "$dat_status" in
+      "Exact SHA-1"|"Normalized SHA-1") authoritative=1 ;;
+    esac
+    final_target="${system,,}|${proposed,,}"
+
+    printf '%s\t%s\t%s\t%s\n' "$path" "$group" "$authoritative" "$final_target" >> "$COLLISION_INPUT"
+  done < "$CATALOG"
+
+  awk -F '\t' '
+    {
+      path[NR]=$1; group[NR]=$2; auth[NR]=$3+0; target[NR]=$4
+      final_count[$4]++
+      group_rows[$2]++
+      group_auth[$2]+=auth[NR]
+      group_target[$2 SUBSEP $4]++
+    }
+    END {
+      for (g in group_rows) {
+        duplicate=0
+        prefix=g SUBSEP
+        for (k in group_target) {
+          if (index(k,prefix)==1 && group_target[k]>1) { duplicate=1; break }
+        }
+        group_safe[g]=(group_auth[g]==group_rows[g] && !duplicate)
+      }
+      for (i=1; i<=NR; i++) {
+        pre=(group_rows[group[i]]>1)
+        if (final_count[target[i]]>1) {
+          print path[i] "\tblocking collision: duplicate final target"
+        } else if (pre && !group_safe[group[i]]) {
+          print path[i] "\tblocking collision: unresolved pre-DAT group"
+        }
+      }
+    }
+  ' "$COLLISION_INPUT" > "$BLOCKLIST"
+}
+
 build_plan() {
   : > "$PLAN"; : > "$SKIPS"
   printf 'type\told_path\tnew_path\n' >> "$PLAN"
   printf 'type\tpath\treason\n' >> "$SKIPS"
-  declare -A TARGETS
-  local line old proposed new dir ext type
+  declare -A TARGETS BLOCKED_GAMES
+  local line old proposed new dir ext type block_path block_reason game_path
+
+  classify_blocking_games || return 1
+  while IFS=$'\t' read -r block_path block_reason; do
+    [[ -n "$block_path" ]] || continue
+    BLOCKED_GAMES["$block_path"]="$block_reason"
+  done < "$BLOCKLIST"
 
   if [[ ! -f "$GAME_CSV" ]]; then echo "Missing $GAME_CSV"; return 1; fi
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" == '"system"'* ]] && continue
     parse_csv "$line"
     old="${CSV_FIELDS[1]}"; proposed="${CSV_FIELDS[2]}"; type="GAME"
+
+    if [[ -n "${BLOCKED_GAMES["$old"]+x}" ]]; then
+      printf '%s\t%s\t%s\n' "$type" "$old" "${BLOCKED_GAMES["$old"]}" >> "$SKIPS"
+      continue
+    fi
+
     safe_under "$old" "$GAMES" || { printf '%s\t%s\t%s\n' "$type" "$old" "outside games root" >> "$SKIPS"; continue; }
     unsafe_name "$proposed" && { printf '%s\t%s\t%s\n' "$type" "$old" "unsafe proposed filename" >> "$SKIPS"; continue; }
     ext="${old##*.}"; ext="${ext,,}"
@@ -170,7 +337,7 @@ build_plan() {
     dir="${old%/*}"; new="$dir/$proposed"
     [[ "$old" == "$new" ]] && continue
     if [[ -e "$new" ]]; then printf '%s\t%s\t%s\n' "$type" "$old" "target already exists: $new" >> "$SKIPS"; continue; fi
-    if [[ -n "${TARGETS[$new]}" ]]; then printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new" >> "$SKIPS"; continue; fi
+    if [[ -n "${TARGETS["$new"]+x}" ]]; then printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new" >> "$SKIPS"; continue; fi
     TARGETS["$new"]="$old"
     printf '%s\t%s\t%s\n' "$type" "$old" "$new" >> "$PLAN"
   done < "$GAME_CSV"
@@ -179,29 +346,46 @@ build_plan() {
     while IFS= read -r line || [[ -n "$line" ]]; do
       [[ "$line" == '"system"'* ]] && continue
       parse_csv "$line"
-      old="${CSV_FIELDS[2]}"; proposed="${CSV_FIELDS[3]}"; type="SAVE"
+      game_path="${CSV_FIELDS[1]}"; old="${CSV_FIELDS[2]}"; proposed="${CSV_FIELDS[3]}"; type="SAVE"
+
+      if [[ -n "${BLOCKED_GAMES["$game_path"]+x}" ]]; then
+        printf '%s\t%s\t%s\n' "$type" "$old" "game rename skipped: ${BLOCKED_GAMES["$game_path"]}" >> "$SKIPS"
+        continue
+      fi
+
       safe_under "$old" "$SAVES" || { printf '%s\t%s\t%s\n' "$type" "$old" "outside saves root" >> "$SKIPS"; continue; }
       unsafe_name "$proposed" && { printf '%s\t%s\t%s\n' "$type" "$old" "unsafe proposed filename" >> "$SKIPS"; continue; }
       [[ -e "$old" ]] || { printf '%s\t%s\t%s\n' "$type" "$old" "source missing" >> "$SKIPS"; continue; }
       dir="${old%/*}"; new="$dir/$proposed"
       [[ "$old" == "$new" ]] && continue
       if [[ -e "$new" ]]; then printf '%s\t%s\t%s\n' "$type" "$old" "target already exists: $new" >> "$SKIPS"; continue; fi
-      if [[ -n "${TARGETS[$new]}" ]]; then printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new" >> "$SKIPS"; continue; fi
+      if [[ -n "${TARGETS["$new"]+x}" ]]; then printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new" >> "$SKIPS"; continue; fi
       TARGETS["$new"]="$old"
       printf '%s\t%s\t%s\n' "$type" "$old" "$new" >> "$PLAN"
     done < "$SAVE_CSV"
   fi
 }
 
+show_plan_summary() {
+  local n s c
+  n=$(( $(wc -l < "$PLAN") - 1 ))
+  s=$(( $(wc -l < "$SKIPS") - 1 ))
+  c=$(awk -F '\t' 'NR>1 && $3 ~ /^blocking collision:|^game rename skipped: blocking collision:/ {n++} END{print n+0}' "$SKIPS")
+  echo
+  echo "Safe rename candidates: $n"
+  echo "Skipped/review items: $s"
+  echo "Collision-blocked rows skipped: $c"
+  echo "Preview: $PLAN"
+  echo "Skipped: $SKIPS"
+  echo
+  sed -n '1,21p' "$PLAN"
+  (( n > 20 )) && echo "... see $PLAN for the full preview."
+}
+
 preview() {
   validate_audit preview || return 1
   build_plan || return 1
-  local n s
-  n=$(( $(wc -l < "$PLAN") - 1 )); s=$(( $(wc -l < "$SKIPS") - 1 ))
-  echo; echo "Safe rename candidates: $n"; echo "Skipped/review items: $s"
-  echo "Preview: $PLAN"; echo "Skipped: $SKIPS"; echo
-  sed -n '1,21p' "$PLAN"
-  (( n > 20 )) && echo "... see $PLAN for the full preview."
+  show_plan_summary
 }
 
 apply_plan() {
@@ -210,11 +394,11 @@ apply_plan() {
   local n stamp manifest type old new
   n=$(( $(wc -l < "$PLAN") - 1 ))
   (( n > 0 )) || { echo "Nothing safe to rename."; return 0; }
-  echo; echo "Safe rename candidates: $n"
-  echo "Preview: $PLAN"; echo "Skipped: $SKIPS"
-  sed -n '1,21p' "$PLAN"
-  (( n > 20 )) && echo "... see $PLAN for the full preview."
-  echo; echo "This will rename $n files. No ROM/save contents are modified."
+
+  show_plan_summary
+  echo
+  echo "This will rename $n safe files. Collision-blocked rows and their saves remain untouched."
+  echo "No ROM/save contents are modified."
   echo "Type APPLY exactly to continue:"
   read -r confirm
   [[ "$confirm" == "APPLY" ]] || { echo "Cancelled."; return 0; }
@@ -222,6 +406,7 @@ apply_plan() {
   # Revalidate immediately before mutation in case the audit, exporter, or DB changed
   # while the plan was being reviewed.
   validate_audit apply || { echo "Apply cancelled because the audit handshake changed."; return 1; }
+  build_plan || { echo "Apply cancelled because the safe plan could not be rebuilt."; return 1; }
 
   stamp=$(date +%Y%m%d-%H%M%S)
   manifest="$HISTORY/rename-$stamp.tsv"
@@ -233,13 +418,14 @@ apply_plan() {
   done
   cp "$manifest" "$HISTORY/last_manifest.tsv"
   echo "Finished. Rollback manifest: $manifest"
-  echo "Run the auditor again before making another cleanup pass."
+  echo "Blocking collision rows were left unchanged. Run the auditor again before another cleanup pass."
 }
 
 rollback() {
   local manifest="$HISTORY/last_manifest.tsv" type old new result
   [[ -f "$manifest" ]] || { echo "No last rollback manifest found."; return 1; }
-  echo "Rollback will restore successful renames from:"; echo "$manifest"
+  echo "Rollback will restore successful renames from:"
+  echo "$manifest"
   echo "Type ROLLBACK exactly to continue:"
   read -r confirm
   [[ "$confirm" == "ROLLBACK" ]] || { echo "Cancelled."; return 0; }
@@ -255,7 +441,7 @@ rollback() {
 echo "MiSTer ROM Library Updater v1.3"
 echo "================================="
 echo "1) Preview safe renames"
-echo "2) Apply safe renames"
+echo "2) Apply safe renames (blocking collisions auto-skipped)"
 echo "3) Roll back last applied cleanup"
 echo "4) Exit"
 read -r choice
