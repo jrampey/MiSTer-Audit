@@ -29,8 +29,8 @@ HASH_ROWS="$WORK.hashrows"
 HASH_CACHE="$AUDIT/hash_cache.tsv"
 HASH_CACHE_NEW="$WORK.hashcache_new"
 CACHE_META="$AUDIT/hash_cache.meta"
-CACHE_FORMAT="3"
-AUDIT_SCHEMA_VERSION="3"
+CACHE_FORMAT="4"
+AUDIT_SCHEMA_VERSION="4"
 FULL_VERIFY_WORKERS=2
 PREHASH_RESULTS="$WORK.prehash_results"
 STAGE_DIR="$AUDIT/.staging.$$"
@@ -63,6 +63,55 @@ hash_file() {
   else
     printf 'UNAVAILABLE'
   fi
+}
+
+
+hash_stream_skip() {
+  local p="$1" block="$2"
+  if command -v sha1sum >/dev/null 2>&1; then
+    dd if="$p" bs="$block" skip=1 2>/dev/null | sha1sum 2>/dev/null | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    dd if="$p" bs="$block" skip=1 2>/dev/null | openssl sha1 2>/dev/null | awk '{print $NF}'
+  else
+    printf 'UNAVAILABLE'
+  fi
+}
+
+# Raw SHA-1 is authoritative first. Only on a DAT miss do we try safe,
+# platform-specific normalizations known to occur in cartridge dumps.
+normalized_dat_hash() {
+  local p="$1" ext="${2,,}" raw="${3,,}" size alt=""
+  [ -n "${DAT_NAME_BY_SHA[$raw]+x}" ] && { printf '%s' "$raw"; return; }
+  size=$(stat -c '%s' "$p" 2>/dev/null)
+  [ -z "$size" ] && size=$(stat -f '%z' "$p" 2>/dev/null)
+
+  case "$ext" in
+    nes)
+      # iNES/NES2 files may carry a 16-byte container header while a DAT may
+      # identify the ROM payload. Try payload SHA only after the raw SHA misses.
+      if [ "${size:-0}" -gt 16 ] 2>/dev/null; then
+        alt="$(hash_stream_skip "$p" 16)"
+        [ -n "${DAT_NAME_BY_SHA[${alt,,}]+x}" ] && { printf '%s' "${alt,,}"; return; }
+      fi
+      ;;
+    sfc|smc)
+      # Legacy SNES copier headers are 512 bytes. Only try stripping one when
+      # file size strongly indicates a copier header.
+      if [ "${size:-0}" -gt 512 ] 2>/dev/null && [ $((size % 32768)) -eq 512 ]; then
+        alt="$(hash_stream_skip "$p" 512)"
+        [ -n "${DAT_NAME_BY_SHA[${alt,,}]+x}" ] && { printf '%s' "${alt,,}"; return; }
+      fi
+      ;;
+    z64|v64)
+      # Big-endian and byte-swapped N64 DATs are both in the database, so raw
+      # SHA matching is already the safe normalization strategy for these.
+      ;;
+    n64)
+      # Little-endian N64 requires 32-bit byte reversal. Do not guess using a
+      # lossy shell transform; leave unmatched unless a raw DAT record exists.
+      ;;
+  esac
+  printf '%s' "$raw"
 }
 
 
@@ -325,7 +374,14 @@ if [ -f "$HASH_DB_TSV" ]; then
   IFS=$'\t' read -r dbh _ < "$HASH_DB_TSV"
   [ "$dbh" = "sha1" ] || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES invalid:hash-db-header"; }
   DB_HEADER=$(head -n 1 "$HASH_DB_TSV" 2>/dev/null)
-  case "$DB_HEADER" in *mister_system*expected_folder*release_type*license_status*) METADATA_LAYER_STATUS="MiSTer-aware";; *) METADATA_LAYER_STATUS="Legacy database - metadata fields unavailable";; esac
+  REQUIRED_DB_HEADER=$'sha1\tcanonical_title\tcanonical_rom_name\tdat_source\tsize\tcrc32\tmd5\tmister_system\tmister_core\texpected_folder\tregion\trelease_type\tlicense_status'
+  if [ "$DB_HEADER" = "$REQUIRED_DB_HEADER" ]; then
+    METADATA_LAYER_STATUS="MiSTer-aware"
+  else
+    METADATA_LAYER_STATUS="INVALID"
+    SELF_CHECK_STATUS="FAIL"
+    SELF_CHECK_NOTES="$SELF_CHECK_NOTES invalid:mister-aware-db-schema"
+  fi
   DB_LINE_COUNT=$(wc -l < "$HASH_DB_TSV" 2>/dev/null); DB_LINE_COUNT=${DB_LINE_COUNT//[[:space:]]/}
   [ "${DB_LINE_COUNT:-0}" -ge 1000 ] 2>/dev/null || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES suspiciously-small:hash-db"; }
 fi
@@ -338,6 +394,7 @@ if [ "$SELF_CHECK_STATUS" != "PASS" ]; then
 fi
 
 METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
+EXPORTER_BUILD_SHA1="$(hash_file "$0")"
 echo "MiSTer Game Library Export v1.2"
 echo "================================"
 
@@ -443,6 +500,10 @@ while IFS= read -r p; do
   [ -z "$p" ] && continue
   rel="${p#$GAMES/}"; system="${rel%%/*}"; [ "$system" = "$rel" ] && system="Unknown"
   file="${p##*/}"; ext="${file##*.}"; stem="${file%.*}"
+  case "${ext,,}" in
+    md|gen) system="MegaDrive" ;;
+    32x) system="S32X" ;;
+  esac
   if is_support_file "$p" "$file"; then SKIPPED=$((SKIPPED+1)); continue; fi
   region="$(region_of "$stem")"; kind="$(kind_of "$stem")"; clean="$(clean_title "$stem")"
   suffix="$(suffix_for "$region" "$kind")"; proposed="$clean$suffix.$ext"
@@ -495,7 +556,7 @@ printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_cor
 
 TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
 printf 'path\tsignature\tsha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
-declare -A SEEN_NAMES
+declare -A SEEN_NAMES FINAL_PROPOSAL_COUNTS
 
 echo "5/5 Building reports..."
 PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
@@ -544,11 +605,33 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
     HASHED=$((HASHED+1))
     printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >> "$HASH_ROWS"
     hkey="${sha1,,}"
+    matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey")"
+    if [ "$matched_hkey" != "$hkey" ]; then
+      hkey="$matched_hkey"
+      sha1="$matched_hkey"
+      dat_status="Normalized SHA-1"
+    fi
     if [ -n "${DAT_NAME_BY_SHA[$hkey]+x}" ]; then
       dat_name="${DAT_NAME_BY_SHA[$hkey]}"; dat_rom="${DAT_ROM_BY_SHA[$hkey]}"; dat_source="${DAT_SOURCE_BY_SHA[$hkey]}"
       meta_system="${DAT_SYSTEM_BY_SHA[$hkey]:-}"; meta_core="${DAT_CORE_BY_SHA[$hkey]:-}"; meta_folder="${DAT_FOLDER_BY_SHA[$hkey]:-}"; meta_region="${DAT_REGION_BY_SHA[$hkey]:-}"; meta_release="${DAT_RELEASE_BY_SHA[$hkey]:-}"; meta_license="${DAT_LICENSE_BY_SHA[$hkey]:-}"
+      # DAT identity wins over filename parsing. Canonical No-Intro ROM names
+      # preserve title, region, revision and other release metadata.
+      if [ -n "$dat_rom" ]; then
+        canonical_file="${dat_rom##*/}"
+        canonical_ext="${canonical_file##*.}"
+        canonical_stem="${canonical_file%.*}"
+        [ -n "$canonical_stem" ] && clean="$(clean_title "$canonical_stem")"
+        [ -n "$meta_region" ] && region="$meta_region"
+        [ -n "$meta_release" ] && kind="$meta_release"
+        proposed="$canonical_file"
+      elif [ -n "$dat_name" ]; then
+        clean="$(clean_title "$dat_name")"
+        [ -n "$meta_region" ] && region="$meta_region"
+        [ -n "$meta_release" ] && kind="$meta_release"
+        proposed="$clean$(suffix_for "$region" "$kind").$ext"
+      fi
       loc_status="$(location_status "$system" "$meta_folder")"
-      dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
+      [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_escape "$sha1" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$p" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$file" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_name" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_rom" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_source" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_core" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_folder" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_region" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_release" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_license" >> "$STAGE_DAT_MATCH"; printf '\n' >> "$STAGE_DAT_MATCH"
       csv_escape "$system" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$p" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$dat_name" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_system" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_core" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_folder" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$loc_status" >> "$STAGE_LOCATION_AUDIT"; printf '\n' >> "$STAGE_LOCATION_AUDIT"
     else
@@ -556,6 +639,15 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
       csv_escape "$sha1" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$system" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$p" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$file" >> "$STAGE_DAT_UNMATCHED"; printf '\n' >> "$STAGE_DAT_UNMATCHED"
     fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
+  fi
+
+  # DAT-driven canonical names can create a collision not visible to the
+  # filename-only first pass. Never invent a variant name for an Apply candidate.
+  final_key="${system,,}|${proposed,,}"
+  if [ -n "${FINAL_PROPOSAL_COUNTS[$final_key]+x}" ]; then
+    FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))
+  else
+    FINAL_PROPOSAL_COUNTS["$final_key"]=1
   fi
 
   save_count=0; save_key="${stem,,}"
@@ -637,15 +729,56 @@ IMPORTANT:
 - Nothing was renamed, moved, or deleted.
 - USA retail titles receive the cleanest preferred filename.
 - Regional and special variants retain identifying suffixes.
-- Duplicate proposals receive deterministic [Variant N] suffixes for review.
+- Exact DAT matches use canonical DAT filenames; filename parsing is fallback-only for unmatched ROMs.
 - Save matching still uses the original ROM basename and remains REVIEW ONLY.
 - SHA-1 hashes identify byte-for-byte duplicate files regardless of filename.
 - The bundled mister_hash_database.tsv is the single canonical hash lookup source.
 - Exact DAT matches add canonical DAT title, ROM/track name, and source DAT to library_catalog.csv.
-- Raw whole-file SHA-1 matching may not identify headered ROMs or container formats such as CHD/CUE when a DAT hashes normalized ROM data or individual disc tracks.
+- Raw SHA-1 is tried first; safe NES/SNES header normalization is attempted only after a DAT miss. Disc containers remain outside cartridge normalization.
 - Hashes are recorded locally only; no ROM data is uploaded.
 - CUE/BIN and other multi-file disc sets require coordinated renaming before any future apply step.
 EOF2
+
+# Final audit integrity verdict. PASS means the report set is internally
+# consistent. Warnings block Apply when cleanup would be unsafe or coverage is
+# abnormally weak; FAIL means the audit itself is not trustworthy.
+AUDIT_VERDICT="PASS"
+APPLY_RECOMMENDATION="SAFE TO PREVIEW"
+INTEGRITY_NOTES=""
+MISFILED_COUNT=0
+[ -s "$STAGE_LOCATION_AUDIT" ] && MISFILED_COUNT=$(grep -c ',"MISFILED"$' "$STAGE_LOCATION_AUDIT" 2>/dev/null || true)
+
+for required_report in "$STAGE_OUT" "$STAGE_CSV" "$STAGE_REN" "$STAGE_SAVE_REN" "$STAGE_HASH_DUP" "$STAGE_DAT_MATCH" "$STAGE_DAT_UNMATCHED" "$STAGE_LOCATION_AUDIT"; do
+  if [ ! -f "$required_report" ]; then
+    AUDIT_VERDICT="FAIL"
+    APPLY_RECOMMENDATION="DO NOT APPLY"
+    INTEGRITY_NOTES="$INTEGRITY_NOTES missing-report:${required_report##*/}"
+  fi
+done
+if [ "$TOTAL" -ne "$CLASSIFIED" ] 2>/dev/null; then
+  AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"
+  INTEGRITY_NOTES="$INTEGRITY_NOTES catalog-count-mismatch"
+fi
+if [ "$DAT_MATCHED" -gt "$HASHED" ] 2>/dev/null; then
+  AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"
+  INTEGRITY_NOTES="$INTEGRITY_NOTES impossible-dat-count"
+fi
+if [ "$METADATA_LAYER_STATUS" != "MiSTer-aware" ]; then
+  AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"
+  INTEGRITY_NOTES="$INTEGRITY_NOTES metadata-layer-invalid"
+fi
+
+MATCH_RATE_INT=100
+if [ "$HASHED" -gt 0 ]; then MATCH_RATE_INT=$((DAT_MATCHED * 100 / HASHED)); fi
+if [ "$AUDIT_VERDICT" != "FAIL" ]; then
+  if [ "$COLLISIONS" -gt 0 ] || [ "$MATCH_RATE_INT" -lt 50 ]; then
+    AUDIT_VERDICT="PASS WITH WARNINGS"
+    APPLY_RECOMMENDATION="DO NOT APPLY"
+    [ "$COLLISIONS" -gt 0 ] && INTEGRITY_NOTES="$INTEGRITY_NOTES collision-review-required"
+    [ "$MATCH_RATE_INT" -lt 50 ] && INTEGRITY_NOTES="$INTEGRITY_NOTES low-dat-match-rate"
+  fi
+fi
+[ -z "$INTEGRITY_NOTES" ] && INTEGRITY_NOTES="none"
 
 # Build one consolidated, upload-friendly report while preserving the individual
 # files used by the updater. No ROM/save contents are embedded; only audit metadata.
@@ -672,21 +805,28 @@ echo "Games/discs cataloged: $TOTAL"
   echo "Unsupported-format hashes skipped: $HASH_SKIPPED"
   echo "Hash database source: $HASH_DB_SOURCE"
   echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"
+  echo "Exporter build SHA-1: $EXPORTER_BUILD_SHA1"
+  echo "Audit integrity verdict: $AUDIT_VERDICT"
+  echo "Apply recommendation: $APPLY_RECOMMENDATION"
   echo "Hash records indexed: $HASH_INDEX_COUNT"
   echo "Exact DAT SHA-1 matches: $DAT_MATCHED"
   echo
   echo "[AUDIT_METADATA]"
   echo "schema_version=$AUDIT_SCHEMA_VERSION"
   echo "exporter_version=1.2"
+  echo "build_sha1=$EXPORTER_BUILD_SHA1"
   echo "audit_mode=$AUDIT_MODE"
   echo "database_sha1=$HASH_DB_FINGERPRINT"
   echo "metadata_layer=$METADATA_LAYER_STATUS"
   echo "library_files=$GAME_SCAN_COUNT"
   echo "cataloged_files=$TOTAL"
   echo "self_check=$SELF_CHECK_STATUS"
+  echo "integrity_verdict=$AUDIT_VERDICT"
+  echo "apply_recommendation=$APPLY_RECOMMENDATION"
+  echo "integrity_notes=$INTEGRITY_NOTES"
   echo
   echo "[DATABASE COVERAGE]"
-  echo "DAT-eligible Nintendo ROMs: $HASH_ELIGIBLE"
+  echo "DAT-eligible ROMs: $HASH_ELIGIBLE"
   echo "Matched: $DAT_MATCHED"
   echo "Unmatched: $((HASHED-DAT_MATCHED))"
   if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi
@@ -762,6 +902,9 @@ echo "Exact DAT matches:      $DAT_MATCHED"
 echo "DAT-eligible ROMs:      $HASH_ELIGIBLE"
 echo "Cache hit rate:         $CACHE_HIT_RATE%"
 echo "Self-check:             $SELF_CHECK_STATUS"
+echo "Integrity verdict:      $AUDIT_VERDICT"
+echo "Apply recommendation:   $APPLY_RECOMMENDATION"
+echo "Build SHA-1:             $EXPORTER_BUILD_SHA1"
 echo
 echo "Created in $AUDIT:"
 echo "  game_library.txt"
