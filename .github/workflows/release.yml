@@ -85,6 +85,41 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o /tmp/mister-db-build/db_operator.py
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
 
+      - name: Verify Downloader manifest matches release files
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+
+          expected = {
+              "Scripts/Export_Game_Library.sh": Path("Export_Game_Library.sh"),
+              "Scripts/Update_Game_Library.sh": Path("Update_Game_Library.sh"),
+              "Scripts/mister_hash_database.tsv": Path("mister_hash_database.tsv"),
+          }
+          db = json.loads(Path("db.json").read_text())
+          files = db.get("files", {})
+          errors = []
+          for target, source in expected.items():
+              entry = files.get(target)
+              if not entry:
+                  errors.append(f"missing Downloader entry: {target}")
+                  continue
+              data = source.read_bytes()
+              actual_size = len(data)
+              actual_md5 = hashlib.md5(data).hexdigest()
+              if entry.get("size") != actual_size:
+                  errors.append(f"{target}: size mismatch db={entry.get('size')} source={actual_size}")
+              if entry.get("hash", "").lower() != actual_md5:
+                  errors.append(f"{target}: MD5 mismatch db={entry.get('hash')} source={actual_md5}")
+          unexpected = sorted(k for k in files if k.startswith("Scripts/") and k not in expected)
+          if unexpected:
+              errors.append("unexpected distributed Scripts entries: " + ", ".join(unexpected))
+          if errors:
+              raise SystemExit("Downloader manifest reproducibility check failed:\n- " + "\n- ".join(errors))
+          print("Downloader manifest exactly matches the release runtime files.")
+          PY
+
       - name: Validate database with MiSTer Downloader
         run: |
           set -euo pipefail
@@ -106,12 +141,40 @@ jobs:
           git commit -m "Release v${VERSION}"
           git push origin HEAD:main
 
+      - name: Verify committed release contents
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)" || { echo "Working tree changed after release commit"; git status --short; exit 1; }
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          expected = {
+              "Scripts/Export_Game_Library.sh": "Export_Game_Library.sh",
+              "Scripts/Update_Game_Library.sh": "Update_Game_Library.sh",
+              "Scripts/mister_hash_database.tsv": "mister_hash_database.tsv",
+          }
+          db = json.loads(subprocess.check_output(["git", "show", "HEAD:db.json"], text=True))
+          errors = []
+          for target, path in expected.items():
+              data = subprocess.check_output(["git", "show", f"HEAD:{path}"])
+              entry = db["files"].get(target, {})
+              size = len(data)
+              md5 = hashlib.md5(data).hexdigest()
+              if entry.get("size") != size or entry.get("hash", "").lower() != md5:
+                  errors.append(f"{target} does not match committed source")
+          if errors:
+              raise SystemExit("Committed release verification failed:\n- " + "\n- ".join(errors))
+          print("Committed release files and db.json are byte-for-byte consistent.")
+          PY
+
       - name: Create tag
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
           git tag -a "$TAG" -m "MiSTer ROM Library Auditor $TAG"
+          TAGGED_COMMIT="$(git rev-parse "${TAG}^{commit}")"
+          HEAD_COMMIT="$(git rev-parse HEAD)"
+          [[ "$TAGGED_COMMIT" == "$HEAD_COMMIT" ]] || { echo "Tag target mismatch"; exit 1; }
           git push origin "$TAG"
 
       - name: Create GitHub release
