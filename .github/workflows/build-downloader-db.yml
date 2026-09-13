@@ -1,0 +1,95 @@
+name: Build MiSTer Downloader Database
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Export_Game_Library.sh"
+      - "Update_Game_Library.sh"
+      - "mister_hash_database.tsv"
+      - ".github/workflows/build-downloader-db.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-downloader-db
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Downloader database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p /tmp/mister-db-build
+
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
+          CSV="/tmp/mister-db-build/external_files.csv"
+
+          printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
+
+          add_file() {
+            local source="$1"
+            local target="$2"
+            local size md5
+            size=$(stat -c '%s' "$source")
+            md5=$(md5sum "$source" | awk '{print $1}')
+            printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "mister-game-library-audit" >> "$CSV"
+          }
+
+          add_file "Export_Game_Library.sh" "Scripts/Export_Game_Library.sh"
+          add_file "Update_Game_Library.sh" "Scripts/Update_Game_Library.sh"
+          add_file "mister_hash_database.tsv" "Scripts/mister_hash_database.tsv"
+
+          curl -fsSL \
+            https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
+            -o /tmp/mister-db-build/db_operator.py
+
+          mkdir -p /tmp/mister-db-build/source
+          cd /tmp/mister-db-build/source
+
+          DB_ID="jrampey/MiSTerFPGAGameLibraryAudit" \
+          DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
+          BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
+          EXTERNAL_FILES="$CSV" \
+          DB_JSON_NAME="db.json" \
+          python3 ../db_operator.py build .
+
+          cp db.json "$GITHUB_WORKSPACE/db.json"
+
+      - name: Validate database with MiSTer Downloader
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/downloader-test
+          curl -fsSL \
+            https://github.com/MiSTer-devel/Downloader_MiSTer/releases/download/latest/downloader_test.py \
+            -o /tmp/downloader-test/downloader_test.py
+          chmod +x /tmp/downloader-test/downloader_test.py
+          cd /tmp/downloader-test
+          ./downloader_test.py "jrampey/MiSTerFPGAGameLibraryAudit" "$GITHUB_WORKSPACE/db.json"
+
+      - name: Commit generated database
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add db.json
+
+          if git diff --cached --quiet; then
+            echo "Downloader database is already current."
+            exit 0
+          fi
+
+          git commit -m "Update MiSTer Downloader database"
+          git push
