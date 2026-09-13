@@ -16,7 +16,7 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner.
 
-`Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Apply is blocked when the audit says `DO NOT APPLY`, when integrity is not `PASS`, or when the exporter/database has changed since the audit was generated.
+`Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Hard integrity failures, non-collision warnings, or exporter/database fingerprint changes still block Apply. A `PASS WITH WARNINGS` audit whose only integrity note is `collision-review-required` is now eligible for safe Apply: the updater independently reproduces the exporter collision classification from `library_catalog.csv`, removes every blocking game row and its paired save rename from the mutation plan, and applies only the remaining safe rows after explicit confirmation.
 
 ## Final-target collision safety — Issue #7
 
@@ -27,9 +27,11 @@ For every pre-DAT collision group, the exporter records whether each row receive
 - **resolved canonical DAT variants** when every row is authoritative and all final canonical targets are unique;
 - **blocking collisions** when any row is unmatched/unsupported, two rows resolve to the same final target, or the group otherwise remains ambiguous.
 
-Only blocking collision rows contribute to `COLLISIONS`, `collision-review-required`, and `DO NOT APPLY`. Resolved canonical variants are reported separately and do not by themselves block Preview. The updater's own duplicate/existing-target validation remains an independent safety layer.
+Blocking collision rows still contribute to `COLLISIONS`, `collision-review-required`, and the audit's `DO NOT APPLY` recommendation. The updater treats that recommendation as a collision-only warning when `collision-review-required` is the sole integrity note, recomputes the exact blocking set from the catalog, writes those rows to `apply_skipped.tsv`, skips paired save renames, and continues with safe rows. Any non-collision warning remains a hard Apply block.
 
-Do not use filename-derived associative-array arithmetic for this logic. Issue #7 stores collision evidence in a temporary TSV and evaluates it with `awk`, preserving the Issue #6 apostrophe-bearing canonical-name regression.
+The updater's own duplicate/existing-target validation remains an independent safety layer, and it rebuilds the safe plan immediately before mutation.
+
+Do not use filename-derived associative-array arithmetic for collision classification. Both exporter and updater evaluate collision grouping/counting through temporary TSV data and `awk`, preserving the Issue #6 apostrophe-bearing canonical-name regression.
 
 ## Hash database
 
@@ -70,7 +72,10 @@ The distribution workflow is **ChatGPT/Codex → GitHub → VS Code → MiSTer U
 
 - Auditing is read-only.
 - ROM/save mutation stays in the separate Preview / Apply / Rollback workflow.
-- Never automatically rename, move, or delete ROMs or saves.
+- Blocking collision rows are never mutated; they are skipped and recorded in `apply_skipped.tsv`.
+- A paired save rename is skipped whenever its game row is collision-blocked.
+- Non-collision integrity warnings remain hard Apply blocks.
+- Existing/duplicate mutation targets remain independent hard skips.
 - Update All distributes project software/data only; it must not manage audit output or user library content.
 - Do not increment the release version unless explicitly instructed.
 - Keep the separate MiSTer Health Check project logically separate and read-only by default.
@@ -87,5 +92,4 @@ The exporter reads `$PLAN` through a dedicated file descriptor. Integrity enforc
 
 Real MiSTer evidence localized the 267-row catalog loss to the second source file resolving to `Super Noah's Ark 3D (USA) (Unl).sfc`. The cause was dead `FINAL_PROPOSAL_COUNTS` bookkeeping that performed Bash arithmetic through a filename-derived associative subscript. That bookkeeping was removed. Issue #7 must preserve this regression: canonical filenames, including apostrophes, are treated strictly as text.
 
-
-Issue #7 records every final target, not only pre-DAT collision groups, so identical canonical targets from differently named sources remain blocking.
+Issue #7 records every final target, not only pre-DAT collision groups, so identical canonical targets from differently named sources remain blocking. The updater mirrors that classification when generating the Apply plan so those rows can be left untouched without preventing unrelated safe renames.
