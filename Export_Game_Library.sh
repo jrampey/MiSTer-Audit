@@ -621,7 +621,11 @@ declare -A SEEN_NAMES FINAL_PROPOSAL_COUNTS
 
 echo "[5/5] Building audit reports..."
 PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
-while IFS=$'\t' read -r system p file ext stem clean region kind; do
+
+# Read the report plan through a dedicated descriptor. This prevents commands
+# executed inside the loop from accidentally consuming PLAN records from stdin.
+exec 3< "$PLAN"
+while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind; do
   [ -z "$p" ] && continue
   suffix="$(suffix_for "$region" "$kind")"; base="$clean$suffix"; proposed="$base.$ext"
   key="${system,,}|${proposed,,}"; collision="None"
@@ -730,7 +734,8 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   csv_escape "$system" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$p" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$proposed" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"
   csv_escape "$region" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$kind" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "REVIEW ONLY" >> "$STAGE_REN"; printf '\n' >> "$STAGE_REN"
   TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
-done < "$PLAN"
+done
+exec 3<&-
 
 # Build title-level regional completion reports.
 COMPLETION_REGION_LABEL="$(IFS=', '; echo "${COMPLETION_REGIONS[*]}")"
@@ -845,6 +850,13 @@ done
 if [ "$TOTAL" -ne "$CLASSIFIED" ] 2>/dev/null; then
   AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"
   INTEGRITY_NOTES="$INTEGRITY_NOTES catalog-count-mismatch"
+fi
+
+# Every discovered game-library file must be accounted for as either a
+# cataloged game/disc or an intentionally skipped BIOS/support file.
+if [ $((TOTAL + SKIPPED)) -ne "$GAME_SCAN_COUNT" ] 2>/dev/null; then
+  AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"
+  INTEGRITY_NOTES="$INTEGRITY_NOTES discovery-accounting-mismatch"
 fi
 if [ "$DAT_MATCHED" -gt "$HASHED" ] 2>/dev/null; then
   AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"
