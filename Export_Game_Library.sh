@@ -28,7 +28,10 @@ HASH_ROWS="$WORK.hashrows"
 HASH_CACHE="$AUDIT/hash_cache.tsv"
 HASH_CACHE_NEW="$WORK.hashcache_new"
 CACHE_META="$AUDIT/hash_cache.meta"
-CACHE_FORMAT="2"
+CACHE_FORMAT="3"
+AUDIT_SCHEMA_VERSION="3"
+FULL_VERIFY_WORKERS=2
+PREHASH_RESULTS="$WORK.prehash_results"
 STAGE_DIR="$AUDIT/.staging.$$"
 STAGE_OUT="$STAGE_DIR/game_library.txt"
 STAGE_CSV="$STAGE_DIR/library_catalog.csv"
@@ -39,7 +42,7 @@ STAGE_DAT_MATCH="$STAGE_DIR/dat_matches.csv"
 STAGE_DAT_UNMATCHED="$STAGE_DIR/unmatched_hashes.csv"
 STAGE_BUNDLE="$STAGE_DIR/MiSTer_Library_Audit.txt"
 
-cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$HASH_CACHE_NEW" "$WORK.duphashes"; rm -rf "$STAGE_DIR"; }
+cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$HASH_CACHE_NEW" "$PREHASH_RESULTS" "$WORK.duphashes" "$WORK.hashjobs"; rm -rf "$STAGE_DIR"; }
 
 if [ ! -d "$GAMES" ]; then
   echo "ERROR: $GAMES was not found."
@@ -71,6 +74,7 @@ file_signature() {
 }
 
 declare -A CACHE_SHA CACHE_DAT_STATUS CACHE_DAT_NAME CACHE_DAT_ROM CACHE_DAT_SOURCE
+CACHE_ENTRIES_LOADED=0
 cache_lookup() {
   local p="$1" sig="$2" k="$p|$sig"
   printf '%s' "${CACHE_SHA[$k]:-}"
@@ -78,15 +82,17 @@ cache_lookup() {
 
 should_hash() {
   local system="${1,,}" ext="${2,,}"
-  # The bundled v1.2 reference database currently identifies Nintendo cartridge/disk
-  # formats. Avoid expensive hashing of large unsupported CHD/computer/disc containers.
-  case "$ext" in
-    nes|fds|sfc|smc|gb|gbc|gba|n64|z64|v64) return 0 ;;
-  esac
-  # Existing library exporter may classify N64 files under generic .rom in some sets.
+  # System-aware eligibility: only hash formats covered by the bundled Nintendo DB.
+  # Extension remains a fallback for clearly Nintendo-specific cartridge formats.
   case "$system" in
-    *n64*|*nintendo*64*) [ "$ext" = "rom" ] && return 0 ;;
+    nes|*nintendo*entertainment*|famicom|fds|*family*computer*) case "$ext" in nes|fds) return 0;; esac ;;
+    snes|sfc|*super*nintendo*|*super*famicom*) case "$ext" in sfc|smc) return 0;; esac ;;
+    gameboy|game\ boy|gb) [ "$ext" = "gb" ] && return 0 ;;
+    gbc|*game*boy*color*) [ "$ext" = "gbc" ] && return 0 ;;
+    gba|*game*boy*advance*) [ "$ext" = "gba" ] && return 0 ;;
+    n64|*nintendo*64*) case "$ext" in n64|z64|v64|rom) return 0;; esac ;;
   esac
+  case "$ext" in nes|fds|sfc|smc|gb|gbc|gba|n64|z64|v64) return 0;; esac
   return 1
 }
 
@@ -103,7 +109,7 @@ build_dat_index() {
   if [ -f "$HASH_DB_TSV" ]; then
     echo "    Using bundled hash database: $HASH_DB_TSV"
     HASH_DB_SOURCE="mister_hash_database.tsv"
-    HASH_DB_FINGERPRINT="$(file_signature "$HASH_DB_TSV")"
+    HASH_DB_FINGERPRINT="$(hash_file "$HASH_DB_TSV")"
     while IFS=$'\t' read -r h title rom source rest; do
       [ "$h" = "sha1" ] && continue
       h="${h,,}"
@@ -139,6 +145,7 @@ load_hash_cache() {
     [ "$p" = "path" ] && continue
     k="$p|$sig"
     CACHE_SHA["$k"]="$sha"
+    CACHE_ENTRIES_LOADED=$((CACHE_ENTRIES_LOADED+1))
     # DAT match metadata is valid only while the database fingerprint is unchanged.
     if [ "$old_db" = "$HASH_DB_FINGERPRINT" ]; then
       CACHE_DAT_STATUS["$k"]="$ds"
@@ -278,6 +285,27 @@ progress_check() {
 }
 
 echo
+SELF_CHECK_STATUS="PASS"
+SELF_CHECK_NOTES=""
+for cmd in find sort stat awk wc xargs; do
+  if ! command -v "$cmd" >/dev/null 2>&1; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES missing:$cmd"; fi
+done
+if ! command -v sha1sum >/dev/null 2>&1 && ! command -v openssl >/dev/null 2>&1; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES missing:sha1-tool"; fi
+if [ ! -f "$HASH_DB_TSV" ]; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES missing:hash-db"; fi
+if [ -f "$HASH_DB_TSV" ]; then
+  IFS=$'\t' read -r dbh _ < "$HASH_DB_TSV"
+  [ "$dbh" = "sha1" ] || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES invalid:hash-db-header"; }
+  DB_LINE_COUNT=$(wc -l < "$HASH_DB_TSV" 2>/dev/null); DB_LINE_COUNT=${DB_LINE_COUNT//[[:space:]]/}
+  [ "${DB_LINE_COUNT:-0}" -ge 1000 ] 2>/dev/null || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES suspiciously-small:hash-db"; }
+fi
+if [ ! -w "$AUDIT" ]; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES not-writable:audit-dir"; fi
+if [ "$SELF_CHECK_STATUS" != "PASS" ]; then
+  echo "ERROR: Startup self-check failed:$SELF_CHECK_NOTES"
+  echo "No audit was published."
+  read -p "Press Enter to exit..."
+  exit 1
+fi
+
 echo "MiSTer Game Library Export v1.2"
 echo "================================"
 echo "Select audit mode:"
@@ -356,7 +384,29 @@ while IFS= read -r p; do
 done < "$GAME_LIST"
 
 CLASSIFY_END=$(date +%s)
-REPORT_START=$CLASSIFY_END
+
+# Full Verification hashes eligible ROMs with two workers before report generation.
+declare -A PREHASH_SHA_BY_PATH SYSTEM_FILES SYSTEM_ELIGIBLE SYSTEM_MATCHED SYSTEM_UNMATCHED SYSTEM_SECONDS
+FULL_VERIFY_PARALLEL_SECONDS=0
+if [ "$USE_HASH_CACHE" -eq 0 ]; then
+  : > "$WORK.hashjobs"; : > "$PREHASH_RESULTS"
+  while IFS=$'\t' read -r psystem pp pfile pext prest; do
+    should_hash "$psystem" "$pext" && printf '%s\0' "$pp" >> "$WORK.hashjobs"
+  done < "$PLAN"
+  pv_start=$SECONDS
+  if [ -s "$WORK.hashjobs" ]; then
+    XARGS_PARALLEL_ARGS=""
+    if xargs --help 2>&1 | grep -q -- '-P'; then XARGS_PARALLEL_ARGS="-P $FULL_VERIFY_WORKERS"; fi
+    if command -v sha1sum >/dev/null 2>&1; then
+      xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(sha1sum "$p" 2>/dev/null); h=${h%% *}; printf "%s\t%s\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS"
+    else
+      xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(openssl sha1 "$p" 2>/dev/null); h=${h##* }; printf "%s\t%s\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS"
+    fi
+    while IFS=$'\t' read -r ph pp; do [ -n "$pp" ] && PREHASH_SHA_BY_PATH["$pp"]="$ph"; done < "$PREHASH_RESULTS"
+  fi
+  FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start))
+fi
+REPORT_START=$(date +%s)
 
 cat > "$STAGE_OUT" <<EOF2
 MiSTer Game Library v1.2
@@ -373,7 +423,7 @@ printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name",
 printf '%s\n' '"sha1","system","full_path","original_filename"' > "$STAGE_DAT_UNMATCHED"
 : > "$HASH_ROWS"
 
-TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0
+TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
 printf 'path\tsignature\tsha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
 declare -A SEEN_NAMES
 
@@ -390,8 +440,11 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
     COLLISIONS=$((COLLISIONS+1))
   fi
 
+  row_seconds_start=$SECONDS
+  SYSTEM_FILES["$system"]=$(( ${SYSTEM_FILES["$system"]:-0} + 1 ))
   sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""
   if should_hash "$system" "$ext"; then
+    HASH_ELIGIBLE=$((HASH_ELIGIBLE+1)); SYSTEM_ELIGIBLE["$system"]=$(( ${SYSTEM_ELIGIBLE["$system"]:-0} + 1 ))
     sig="$(file_signature "$p")"
     cache_key="$p|$sig"
     cached_sha=""
@@ -410,7 +463,7 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
         dat_status="No match"
       fi
     else
-      sha1="$(hash_file "$p")"
+      if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi
       [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1))
       dat_status="No match"
     fi
@@ -423,9 +476,10 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
     hkey="${sha1,,}"
     if [ -n "${DAT_NAME_BY_SHA[$hkey]+x}" ]; then
       dat_name="${DAT_NAME_BY_SHA[$hkey]}"; dat_rom="${DAT_ROM_BY_SHA[$hkey]}"; dat_source="${DAT_SOURCE_BY_SHA[$hkey]}"
-      dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1))
+      dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_escape "$sha1" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$p" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$file" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_name" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_rom" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_source" >> "$STAGE_DAT_MATCH"; printf '\n' >> "$STAGE_DAT_MATCH"
     else
+      SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 ))
       csv_escape "$sha1" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$system" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$p" >> "$STAGE_DAT_UNMATCHED"; printf ',' >> "$STAGE_DAT_UNMATCHED"; csv_escape "$file" >> "$STAGE_DAT_UNMATCHED"; printf '\n' >> "$STAGE_DAT_UNMATCHED"
     fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
@@ -448,8 +502,13 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   csv_escape "$p" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$save_count" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$collision" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$sha1" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_status" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_name" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_rom" >> "$STAGE_CSV"; printf ',' >> "$STAGE_CSV"; csv_escape "$dat_source" >> "$STAGE_CSV"; printf '\n' >> "$STAGE_CSV"
   csv_escape "$system" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$p" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$proposed" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"
   csv_escape "$region" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "$kind" >> "$STAGE_REN"; printf ',' >> "$STAGE_REN"; csv_escape "REVIEW ONLY" >> "$STAGE_REN"; printf '\n' >> "$STAGE_REN"
-  TOTAL=$((TOTAL+1)); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
+  TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done < "$PLAN"
+
+CACHE_REFRESHED=$HASH_CALCULATED
+CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 ))
+CACHE_HIT_RATE="0.0"
+if [ "$HASH_ELIGIBLE" -gt 0 ]; then CACHE_HIT_RATE=$(awk -v a="$HASH_REUSED" -v b="$HASH_ELIGIBLE" 'BEGIN{printf "%.1f", (a*100)/b}'); fi
 
 # Refresh the cache from the CURRENT full-library scan only. Deleted files disappear;
 # new/changed files have freshly calculated hashes. Cache never defines report scope.
@@ -542,6 +601,44 @@ echo "Games/discs cataloged: $TOTAL"
   echo "Hash records indexed: $HASH_INDEX_COUNT"
   echo "Exact DAT SHA-1 matches: $DAT_MATCHED"
   echo
+  echo "[AUDIT_METADATA]"
+  echo "schema_version=$AUDIT_SCHEMA_VERSION"
+  echo "exporter_version=1.2"
+  echo "audit_mode=$AUDIT_MODE"
+  echo "database_sha1=$HASH_DB_FINGERPRINT"
+  echo "library_files=$GAME_SCAN_COUNT"
+  echo "cataloged_files=$TOTAL"
+  echo "self_check=$SELF_CHECK_STATUS"
+  echo
+  echo "[DATABASE COVERAGE]"
+  echo "DAT-eligible Nintendo ROMs: $HASH_ELIGIBLE"
+  echo "Matched: $DAT_MATCHED"
+  echo "Unmatched: $((HASHED-DAT_MATCHED))"
+  if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi
+  echo "Other/unsupported files cataloged: $HASH_SKIPPED"
+  echo
+  echo "[CACHE HEALTH]"
+  echo "Entries loaded: $CACHE_ENTRIES_LOADED"
+  echo "Entries reused: $HASH_REUSED"
+  echo "Entries refreshed: $CACHE_REFRESHED"
+  echo "Entries not reused/expired: $CACHE_NOT_REUSED"
+  echo "Cache hit rate: $CACHE_HIT_RATE%"
+  echo "Database fingerprint: $HASH_DB_FINGERPRINT"
+  echo
+  echo "[PER-SYSTEM PROCESSING]"
+  for sys in "${!SYSTEM_FILES[@]}"; do
+    echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"
+  done | LC_ALL=C sort
+  echo
+  echo "[TIMING]"
+  echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"
+  echo "save_index_seconds=$((SAVE_END-SAVE_START))"
+  echo "database_cache_seconds=$((DB_END-DB_START))"
+  echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"
+  echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"
+  echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"
+  echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"
+  echo
   for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv proposed_renames.csv proposed_save_renames.csv; do
     echo "============================================================"
     echo "[BEGIN $report]"
@@ -587,6 +684,9 @@ echo "Unsupported hash skips: $HASH_SKIPPED"
 echo "Hash DB source:          $HASH_DB_SOURCE"
 echo "Hash records indexed:    $HASH_INDEX_COUNT"
 echo "Exact DAT matches:      $DAT_MATCHED"
+echo "DAT-eligible ROMs:      $HASH_ELIGIBLE"
+echo "Cache hit rate:         $CACHE_HIT_RATE%"
+echo "Self-check:             $SELF_CHECK_STATUS"
 echo
 echo "Created in $AUDIT:"
 echo "  game_library.txt"
