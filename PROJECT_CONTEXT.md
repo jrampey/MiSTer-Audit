@@ -87,3 +87,7 @@ The integrity layer enforces both accounting invariants:
 Failure of the second invariant adds `discovery-accounting-mismatch`, sets the audit verdict to `FAIL`, and sets the Apply recommendation to `DO NOT APPLY`.
 
 This is a v1.3 reliability fix and does not change the release version or the exporter's read-only behavior.
+
+## Issue #6 canonical-collision regression
+
+Real MiSTer evidence localized the 267-row catalog loss to the second source file resolving to `Super Noah's Ark 3D (USA) (Unl).sfc`. The DAT-match row was emitted, but the catalog row was not. The cause was dead `FINAL_PROPOSAL_COUNTS` bookkeeping that performed Bash arithmetic through a filename-derived associative subscript. That bookkeeping was removed; canonical collision safety remains enforced by preview/apply validation, and the synthetic regression now covers duplicate canonical identities with apostrophe-bearing names.

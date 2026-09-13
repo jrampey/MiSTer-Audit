@@ -126,3 +126,7 @@ Audit integrity also verifies that every discovered game-library file is account
 - cataloged files plus intentionally skipped BIOS/support files must equal files discovered.
 
 An accounting mismatch produces a `FAIL` integrity verdict and `DO NOT APPLY` recommendation.
+
+### Issue #6 catalog-accounting hardening
+
+The v1.3 exporter avoids arithmetic evaluation of filename-derived associative-array subscripts during canonical proposal handling. A real MiSTer library exposed this when two SNES source files resolved to the same apostrophe-bearing canonical No-Intro name; the second row could truncate report generation. The synthetic Full Verification regression now includes that canonical-duplicate shape and still requires every discovered file to be accounted for.

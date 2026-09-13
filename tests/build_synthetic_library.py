@@ -36,6 +36,15 @@ def main() -> None:
             )
             created += 1
 
+    # Canonical-collision regression for Issue #6. The test harness adds the
+    # shared synthetic SHA-1 to its temporary hash database so both source names
+    # resolve to the same apostrophe-bearing canonical ROM name.
+    special = games / "SNES"
+    special_payload = b"synthetic canonical collision for issue 6\n"
+    for name in ("Super 3D Noah's Ark.sfc", "Super Noah's Ark 3D (U) .smc"):
+        (special / name).write_bytes(special_payload)
+        created += 1
+
     # The bulk profile uses an intentionally unsupported hash extension that is
     # still part of exporter discovery. This keeps the 6,575-file regression
     # test fast while exercising the same classification/report accounting path.

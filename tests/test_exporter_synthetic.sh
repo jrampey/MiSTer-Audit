@@ -29,6 +29,19 @@ TEST_BIN="$ROOT/test-bin"
 mkdir -p "$TEST_BIN"
 cp ./Export_Game_Library.sh "$TEST_BIN/Export_Game_Library.sh"
 cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
+
+# Add one synthetic DAT identity used by two source filenames. This mirrors the
+# real Super Noah's Ark 3D canonical collision without including ROM data.
+collision_sha=$(sha1sum "$ROOT/games/SNES/Super 3D Noah's Ark.sfc" | awk '{print $1}')
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "$collision_sha" \
+  "Super Noah's Ark 3D (USA) (Unl)" \
+  "Super Noah's Ark 3D (USA) (Unl).sfc" \
+  "Synthetic Issue #6 regression" \
+  "44" "00000000" "00000000000000000000000000000000" \
+  "SNES" "SNES" "SNES" "USA" "Homebrew/Unlicensed" "Unlicensed" \
+  >> "$TEST_BIN/mister_hash_database.tsv"
+
 python3 - "$TEST_BIN/Export_Game_Library.sh" "$ROOT" <<'PY'
 from pathlib import Path
 import sys
@@ -77,7 +90,15 @@ fi
 # generated profile so a truncated PLAN/report loop cannot pass on counts alone.
 grep -Fq 'Synthetic NES 0000' "$CATALOG" || fail "first-system sentinel missing"
 grep -Fq 'Synthetic TGFX16 0119' "$CATALOG" || fail "hashed-system sentinel missing"
-grep -Fq 'Synthetic GameGear 05748' "$CATALOG" || fail "tail sentinel missing"
+grep -Fq 'Super 3D Noah' "$CATALOG" || fail "first canonical-collision source missing"
+grep -Fq "Super Noah's Ark 3D (U) .smc" "$CATALOG" || fail "second canonical-collision source missing"
+grep -Fq 'Synthetic GameGear 05746' "$CATALOG" || fail "tail sentinel missing"
+
+# The MiSTer regression came from direct arithmetic evaluation of a filename-
+# derived associative-array subscript. Keep that unsafe pattern out permanently.
+if grep -Fq 'FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))' ./Export_Game_Library.sh; then
+    fail "unsafe filename-derived associative arithmetic returned"
+fi
 
 echo "Synthetic Full Verification regression test passed."
 echo "Accounting: $cataloged cataloged + $skipped skipped = $discovered discovered"

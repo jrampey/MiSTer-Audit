@@ -617,7 +617,7 @@ printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_cor
 
 TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
 printf 'path\tsignature\tsha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
-declare -A SEEN_NAMES FINAL_PROPOSAL_COUNTS
+declare -A SEEN_NAMES
 
 echo "[5/5] Building audit reports..."
 PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
@@ -707,14 +707,9 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind; do
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
   fi
 
-  # DAT-driven canonical names can create a collision not visible to the
-  # filename-only first pass. Never invent a variant name for an Apply candidate.
-  final_key="${system,,}|${proposed,,}"
-  if [ -n "${FINAL_PROPOSAL_COUNTS[$final_key]+x}" ]; then
-    FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))
-  else
-    FINAL_PROPOSAL_COUNTS["$final_key"]=1
-  fi
+  # Do not perform arithmetic on filename-derived associative-array
+  # subscripts here. Canonical duplicate safety is enforced later by the
+  # updater's preview/apply validation; the exporter only records proposals.
 
   save_count=0; save_key="${stem,,}"
   if [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then
