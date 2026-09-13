@@ -11,6 +11,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -27,11 +31,72 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${INPUT_VERSION#v}"
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || exit 1
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || { echo "Invalid version: $INPUT_VERSION"; exit 1; }
           TAG="v$VERSION"
-          ! git rev-parse "$TAG" >/dev/null 2>&1 || exit 1
+          ! git rev-parse "$TAG" >/dev/null 2>&1 || { echo "Tag $TAG already exists"; exit 1; }
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Bump runtime and documentation versions
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          v = os.environ["VERSION"]
+
+          def replace(path, substitutions):
+              p = Path(path)
+              text = p.read_text()
+              for pattern, replacement in substitutions:
+                  text = re.sub(pattern, replacement, text)
+              p.write_text(text)
+
+          replace("Export_Game_Library.sh", [
+              (r"# Export_Game_Library_v[0-9.]+\.sh", f"# Export_Game_Library_v{v}.sh"),
+              (r"exporter_version=[0-9.]+", f"exporter_version={v}"),
+              (r"MiSTer Game Library Audit v[0-9.]+", f"MiSTer ROM Library Auditor v{v}"),
+          ])
+
+          replace("Update_Game_Library.sh", [
+              (r"# Update_Game_Library_v[0-9.]+\.sh", f"# Update_Game_Library_v{v}.sh"),
+              (r"Companion updater for MiSTer Game Library Audit v[0-9.]+", f"Companion updater for MiSTer ROM Library Auditor v{v}"),
+              (r"v[0-9.]+ audit handshake", f"v{v} audit handshake"),
+              (r'EXPECTED_EXPORTER_VERSION="[0-9.]+"', f'EXPECTED_EXPORTER_VERSION="{v}"'),
+              (r"Run Export_Game_Library\.sh v[0-9.]+", f"Run Export_Game_Library.sh v{v}"),
+              (r"MiSTer Game Library Updater v[0-9.]+", f"MiSTer ROM Library Updater v{v}"),
+          ])
+
+          replace("README.md", [
+              (r"Current release: v[0-9.]+", f"Current release: v{v}"),
+              (r"`Export_Game_Library\.sh` v[0-9.]+", f"`Export_Game_Library.sh` v{v}"),
+              (r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),
+              (r"v[0-9.]+ uses DAT metadata", f"v{v} uses DAT metadata"),
+              (r"v[0-9.]+ updater safety handshake", f"v{v} updater safety handshake"),
+              (r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),
+              (r"v[0-9.]+ integrity checks", f"v{v} integrity checks"),
+              (r"passing v[0-9.]+ audit", f"passing v{v} audit"),
+              (r"release remains v[0-9.]+", f"release remains v{v}"),
+          ])
+
+          replace("PROJECT_CONTEXT.md", [
+              (r"current release is \*\*v[0-9.]+\*\*", f"current release is **v{v}**"),
+              (r"is the \*\*v[0-9.]+\*\* auditor", f"is the **v{v}** auditor"),
+              (r"is the \*\*v[0-9.]+\*\* companion updater", f"is the **v{v}** companion updater"),
+              (r"Important v[0-9.]+ work", f"Important v{v} work"),
+          ])
+
+          replace("wiki/Rename-Workflow.md", [
+              (r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),
+              (r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),
+              (r"exporter version `[0-9.]+`", f"exporter version `{v}`"),
+              (r"both \*\*v[0-9.]+\*\*", f"both **v{v}**"),
+              (r"auditor's v[0-9.]+ integrity metadata", f"auditor's v{v} integrity metadata"),
+          ])
+          PY
 
       - name: Validate release-ready source
         env:
@@ -43,16 +108,27 @@ jobs:
           grep -Fq "EXPECTED_EXPORTER_VERSION=\"${VERSION}\"" Update_Game_Library.sh
           grep -Fq "Current release: v${VERSION}" README.md
           grep -Fq "current release is **v${VERSION}**" PROJECT_CONTEXT.md
+          grep -Fq "both **v${VERSION}**" wiki/Rename-Workflow.md
           bash -n Export_Game_Library.sh
           bash -n Update_Game_Library.sh
+
+      - name: Commit release version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Export_Game_Library.sh Update_Game_Library.sh README.md PROJECT_CONTEXT.md wiki/Rename-Workflow.md
+          git diff --cached --quiet && { echo "No release version changes found"; exit 1; }
+          git commit -m "Release v${VERSION}"
+          git push origin HEAD:main
 
       - name: Create tag
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "MiSTer ROM Library Auditor $TAG"
           git push origin "$TAG"
 
