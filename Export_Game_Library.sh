@@ -32,6 +32,26 @@ CACHE_META="$AUDIT/hash_cache.meta"
 CACHE_FORMAT="4"
 AUDIT_SCHEMA_VERSION="4"
 FULL_VERIFY_WORKERS=2
+
+# ---------------------------------------------------------------------------
+# LIBRARY COMPLETION REGIONS
+# ---------------------------------------------------------------------------
+# Uncomment the regions you want included in library-completion reporting.
+# Default: U.S. retail releases only. World releases count toward USA, Europe,
+# and Japan because No-Intro uses World for releases spanning all three major
+# territories.
+COMPLETION_REGIONS=(
+  "USA"
+  # "Europe"
+  # "Japan"
+  # "Canada"
+  # "Australia"
+  # "Korea"
+  # "Brazil"
+)
+COMPLETION_RETAIL_ONLY=1
+COMPLETION_INCLUDE_WORLD=1
+
 PREHASH_RESULTS="$WORK.prehash_results"
 STAGE_DIR="$AUDIT/.staging.$$"
 STAGE_OUT="$STAGE_DIR/game_library.txt"
@@ -42,6 +62,8 @@ STAGE_HASH_DUP="$STAGE_DIR/hash_duplicates.csv"
 STAGE_DAT_MATCH="$STAGE_DIR/dat_matches.csv"
 STAGE_DAT_UNMATCHED="$STAGE_DIR/unmatched_hashes.csv"
 STAGE_LOCATION_AUDIT="$STAGE_DIR/location_audit.csv"
+STAGE_COMPLETION="$STAGE_DIR/library_completion.csv"
+STAGE_MISSING_COMPLETION="$STAGE_DIR/missing_library_titles.csv"
 STAGE_BUNDLE="$STAGE_DIR/MiSTer_Library_Audit.txt"
 
 cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$HASH_CACHE_NEW" "$PREHASH_RESULTS" "$WORK.duphashes" "$WORK.hashjobs"; rm -rf "$STAGE_DIR"; }
@@ -196,6 +218,66 @@ dat_lookup() {
   local h="${1,,}"
   [ -n "${DAT_NAME_BY_SHA[$h]+x}" ] || return 0
   printf '%s\t%s\t%s\n' "$h" "${DAT_NAME_BY_SHA[$h]}" "${DAT_ROM_BY_SHA[$h]}" "${DAT_SOURCE_BY_SHA[$h]}"
+}
+
+# Completion is title-based, so revisions, alternate dumps, and duplicate
+# hashes do not inflate the percentage.
+declare -A COMPLETION_REFERENCE_KEYS COMPLETION_OWNED_KEYS
+declare -A COMPLETION_TOTAL_BY_SYSTEM COMPLETION_OWNED_BY_SYSTEM
+declare -A COMPLETION_TITLE_REGION COMPLETION_TITLE_RELEASE COMPLETION_TITLE_LICENSE
+
+completion_region_selected() {
+  local meta="${1,,}" selected normalized
+  normalized="${meta// /}"
+  for selected in "${COMPLETION_REGIONS[@]}"; do
+    selected="${selected,,}"; selected="${selected// /}"
+    case ",$normalized," in *",$selected,"*) return 0 ;; esac
+    if [ "$COMPLETION_INCLUDE_WORLD" -eq 1 ] && [ "$normalized" = "world" ]; then
+      case "$selected" in usa|europe|japan) return 0 ;; esac
+    fi
+  done
+  return 1
+}
+
+completion_release_selected() {
+  local release="${1,,}" license="${2,,}"
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then
+    case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac
+    case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac
+  fi
+  return 0
+}
+
+completion_record_eligible() {
+  completion_region_selected "$1" && completion_release_selected "$2" "$3"
+}
+
+build_completion_reference() {
+  local h sys title region release license key
+  for h in "${!DAT_NAME_BY_SHA[@]}"; do
+    sys="${DAT_SYSTEM_BY_SHA[$h]:-}"; title="${DAT_NAME_BY_SHA[$h]:-}"
+    region="${DAT_REGION_BY_SHA[$h]:-}"; release="${DAT_RELEASE_BY_SHA[$h]:-}"; license="${DAT_LICENSE_BY_SHA[$h]:-}"
+    [ -n "$sys" ] && [ -n "$title" ] || continue
+    completion_record_eligible "$region" "$release" "$license" || continue
+    key="$sys|$title"
+    if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then
+      COMPLETION_REFERENCE_KEYS["$key"]=1
+      COMPLETION_TOTAL_BY_SYSTEM["$sys"]=$(( ${COMPLETION_TOTAL_BY_SYSTEM["$sys"]:-0} + 1 ))
+      COMPLETION_TITLE_REGION["$key"]="$region"; COMPLETION_TITLE_RELEASE["$key"]="$release"; COMPLETION_TITLE_LICENSE["$key"]="$license"
+    fi
+  done
+}
+
+record_completion_owned() {
+  local sys="$1" title="$2" region="$3" release="$4" license="$5" key
+  [ -n "$sys" ] && [ -n "$title" ] || return 0
+  completion_record_eligible "$region" "$release" "$license" || return 0
+  key="$sys|$title"
+  [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
+  if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
+    COMPLETION_OWNED_KEYS["$key"]=1
+    COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 ))
+  fi
 }
 
 load_hash_cache() {
@@ -487,6 +569,7 @@ echo "3/5 Loading bundled hash database..."
 build_dat_index
 echo "    Hash database source: $HASH_DB_SOURCE"
 echo "    Hash records indexed: $HASH_INDEX_COUNT"
+build_completion_reference
 load_hash_cache
 DB_END=$(date +%s)
 CLASSIFY_START=$DB_END
@@ -539,7 +622,7 @@ fi
 REPORT_START=$(date +%s)
 
 cat > "$STAGE_OUT" <<EOF2
-MiSTer Game Library v1.2
+MiSTer Game Library v1.3
 Generated: $(date)
 READ-ONLY EXPORT - no games or saves were modified.
 Reports folder: $AUDIT
@@ -631,6 +714,7 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
         proposed="$clean$(suffix_for "$region" "$kind").$ext"
       fi
       loc_status="$(location_status "$system" "$meta_folder")"
+      record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"
       [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_escape "$sha1" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$p" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$file" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_name" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_rom" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$dat_source" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_system" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_core" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_folder" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_region" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_release" >> "$STAGE_DAT_MATCH"; printf ',' >> "$STAGE_DAT_MATCH"; csv_escape "$meta_license" >> "$STAGE_DAT_MATCH"; printf '\n' >> "$STAGE_DAT_MATCH"
       csv_escape "$system" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$p" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$dat_name" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_system" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_core" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$meta_folder" >> "$STAGE_LOCATION_AUDIT"; printf ',' >> "$STAGE_LOCATION_AUDIT"; csv_escape "$loc_status" >> "$STAGE_LOCATION_AUDIT"; printf '\n' >> "$STAGE_LOCATION_AUDIT"
@@ -670,6 +754,29 @@ while IFS=$'\t' read -r system p file ext stem clean region kind; do
   TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done < "$PLAN"
 
+# Build title-level regional completion reports.
+COMPLETION_REGION_LABEL="$(IFS=', '; echo "${COMPLETION_REGIONS[*]}")"
+printf '%s\n' '"system","owned_titles","reference_titles","missing_titles","completion_percent","regions","scope"' > "$STAGE_COMPLETION"
+printf '%s\n' '"system","canonical_title","region","release_type","license_status"' > "$STAGE_MISSING_COMPLETION"
+while IFS= read -r c_sys; do
+  [ -n "$c_sys" ] || continue
+  c_total="${COMPLETION_TOTAL_BY_SYSTEM[$c_sys]:-0}"; c_owned="${COMPLETION_OWNED_BY_SYSTEM[$c_sys]:-0}"; c_missing=$((c_total-c_owned))
+  c_pct="$(awk -v a="$c_owned" -v b="$c_total" 'BEGIN{if(b>0) printf "%.2f", (a*100)/b; else printf "0.00"}')"
+  csv_escape "$c_sys" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$c_owned" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"
+  csv_escape "$c_total" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$c_missing" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"
+  csv_escape "$c_pct" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$COMPLETION_REGION_LABEL" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then csv_escape "Retail releases" >> "$STAGE_COMPLETION"; else csv_escape "All release types" >> "$STAGE_COMPLETION"; fi; printf '\n' >> "$STAGE_COMPLETION"
+done < <(printf '%s\n' "${!COMPLETION_TOTAL_BY_SYSTEM[@]}" | LC_ALL=C sort)
+
+for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do
+  [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue
+  c_sys="${c_key%%|*}"; c_title="${c_key#*|}"
+  csv_escape "$c_sys" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"; csv_escape "$c_title" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"
+  csv_escape "${COMPLETION_TITLE_REGION[$c_key]:-}" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"; csv_escape "${COMPLETION_TITLE_RELEASE[$c_key]:-}" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"
+  csv_escape "${COMPLETION_TITLE_LICENSE[$c_key]:-}" >> "$STAGE_MISSING_COMPLETION"; printf '\n' >> "$STAGE_MISSING_COMPLETION"
+done
+{ head -n 1 "$STAGE_MISSING_COMPLETION"; tail -n +2 "$STAGE_MISSING_COMPLETION" | LC_ALL=C sort; } > "$STAGE_MISSING_COMPLETION.tmp" && mv -f "$STAGE_MISSING_COMPLETION.tmp" "$STAGE_MISSING_COMPLETION"
+
 CACHE_REFRESHED=$HASH_CALCULATED
 CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 ))
 CACHE_HIT_RATE="0.0"
@@ -684,7 +791,7 @@ else
 fi
 {
   echo "CACHE_FORMAT=$CACHE_FORMAT"
-  echo "EXPORTER_VERSION=1.2"
+  echo "EXPORTER_VERSION=1.3"
   echo "HASH_DB_FINGERPRINT=$HASH_DB_FINGERPRINT"
   echo "UPDATED=$(date +%s)"
 } > "$CACHE_META.tmp" && mv -f "$CACHE_META.tmp" "$CACHE_META"
@@ -723,6 +830,8 @@ Created in $AUDIT:
   hash_duplicates.csv
   dat_matches.csv
   unmatched_hashes.csv
+  library_completion.csv
+  missing_library_titles.csv
   MiSTer_Library_Audit.txt  (single file to upload for review)
 
 IMPORTANT:
@@ -783,7 +892,7 @@ fi
 # Build one consolidated, upload-friendly report while preserving the individual
 # files used by the updater. No ROM/save contents are embedded; only audit metadata.
 {
-  echo "MiSTer Game Library Audit Bundle v1.2"
+  echo "MiSTer Game Library Audit Bundle v1.3"
   echo "Generated: $(date)"
   echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."
   echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."
@@ -832,6 +941,16 @@ echo "Games/discs cataloged: $TOTAL"
   if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi
   echo "Other/unsupported files cataloged: $HASH_SKIPPED"
   echo
+  echo "[LIBRARY COMPLETION]"
+  echo "Regions: $COMPLETION_REGION_LABEL"
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi
+  echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."
+  tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do
+    c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"
+    echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"
+  done
+  echo "Missing-title detail: missing_library_titles.csv"
+  echo
   echo "[CACHE HEALTH]"
   echo "Entries loaded: $CACHE_ENTRIES_LOADED"
   echo "Entries reused: $HASH_REUSED"
@@ -854,7 +973,7 @@ echo "Games/discs cataloged: $TOTAL"
   echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"
   echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"
   echo
-  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv location_audit.csv proposed_renames.csv proposed_save_renames.csv; do
+  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv location_audit.csv library_completion.csv missing_library_titles.csv proposed_renames.csv proposed_save_renames.csv; do
     echo "============================================================"
     echo "[BEGIN $report]"
     echo "============================================================"
@@ -874,7 +993,7 @@ PUBLISH_START=$REPORT_END
 
 # Publish reports atomically, one complete file at a time. Previous reports remain
 # intact until their fully generated replacements are ready.
-for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv location_audit.csv MiSTer_Library_Audit.txt; do
+for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv location_audit.csv library_completion.csv missing_library_titles.csv MiSTer_Library_Audit.txt; do
   [ -f "$STAGE_DIR/$report" ] || continue
   mv -f "$STAGE_DIR/$report" "$AUDIT/$report"
 done
@@ -886,7 +1005,7 @@ stop_spinner
 
 echo
 echo "========================================"
-echo " MiSTer LIBRARY EXPORT v1.2 COMPLETE"
+echo " MiSTer LIBRARY EXPORT v1.3 COMPLETE"
 echo "========================================"
 echo "Games/discs cataloged: $TOTAL"
 echo "Support files skipped: $SKIPPED"
@@ -916,6 +1035,8 @@ echo "  hash_duplicates.csv"
 echo "  dat_matches.csv"
 echo "  location_audit.csv"
 echo "  unmatched_hashes.csv"
+echo "  library_completion.csv"
+echo "  missing_library_titles.csv"
 echo "  MiSTer_Library_Audit.txt  <-- upload this one for review"
 echo
 echo "READ-ONLY: your ROMs and saves were not changed."
