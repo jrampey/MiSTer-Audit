@@ -1,0 +1,41 @@
+name: MiSTer Runtime Compatibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Export_Game_Library.sh"
+      - "tests/**"
+      - ".github/workflows/mister-compatibility.yml"
+  pull_request:
+    paths:
+      - "Export_Game_Library.sh"
+      - "tests/**"
+      - ".github/workflows/mister-compatibility.yml"
+  workflow_dispatch:
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax
+        run: bash -n Export_Game_Library.sh
+      - name: Guard MiSTer runtime dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Exporter must remain self-contained on MiSTer. Python/sqlite/jq/perl are
+          # intentionally forbidden runtime dependencies. CI/tests/tools may use them.
+          if grep -nE '(^|[;&|[:space:]])(python3?|sqlite3|jq|perl)([;&|[:space:]]|$)' Export_Game_Library.sh; then
+            echo "Unsupported MiSTer runtime dependency detected in exporter."
+            exit 1
+          fi
+          # Flag common GNU-only long options in the runtime script. Add an explicit
+          # exception only after confirming the option exists on the target MiSTer image.
+          if grep -nE -- '--(parallel|files0-from|zero-terminated|printf|time-style|sort=)' Export_Game_Library.sh; then
+            echo "Potential GNU-only runtime option detected."
+            exit 1
+          fi
+      - name: Synthetic compatibility regression
+        run: bash tests/test_exporter_synthetic.sh
