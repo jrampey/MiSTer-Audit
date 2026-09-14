@@ -31,6 +31,10 @@ HASH_CACHE="$AUDIT/hash_cache.tsv"
 HASH_CACHE_NEW="$WORK.hashcache_new"
 CLASS_CACHE="$AUDIT/classification_cache.tsv"
 CLASS_CACHE_NEW="$WORK.classification_cache_new"
+DISCOVERY_SNAPSHOT="$AUDIT/discovery_snapshot.tsv"
+DISCOVERY_SNAPSHOT_NEW="$WORK.discovery_snapshot_new"
+DISCOVERY_CHANGED="$WORK.discovery_changed"
+DISCOVERY_FORMAT="1"
 CACHE_META="$AUDIT/hash_cache.meta"
 DAT_CACHE_DIR="$AUDIT/dat_cache"
 DAT_CACHE_META="$DAT_CACHE_DIR/.database_signature"
@@ -68,7 +72,7 @@ STAGE_COMPLETION="$STAGE_DIR/library_completion.csv"
 STAGE_MISSING_COMPLETION="$STAGE_DIR/missing_library_titles.csv"
 STAGE_BUNDLE="$STAGE_DIR/MiSTer_Library_Audit.txt"
 
-cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$COLLISION_ROWS" "$HASH_CACHE_NEW" "$CLASS_CACHE_NEW" "$PREHASH_RESULTS" "$WORK.duphashes" "$WORK.hashjobs"; rm -rf "$STAGE_DIR"; }
+cleanup() { rm -f "$GAME_LIST" "$SAVE_LIST" "$SAVE_INDEX" "$PLAN" "$DAT_INDEX" "$HASH_ROWS" "$COLLISION_ROWS" "$HASH_CACHE_NEW" "$CLASS_CACHE_NEW" "$DISCOVERY_SNAPSHOT_NEW" "$DISCOVERY_CHANGED" "$PREHASH_RESULTS" "$WORK.duphashes" "$WORK.hashjobs"; rm -rf "$STAGE_DIR"; }
 
 if [ ! -d "$GAMES" ]; then
   echo "ERROR: $GAMES was not found."
@@ -128,6 +132,46 @@ file_signature() {
   sig="$(stat -c '%s|%Y' "$p" 2>/dev/null)"
   [ -z "$sig" ] && sig="$(stat -f '%z|%m' "$p" 2>/dev/null)"
   printf '%s' "$sig"
+}
+
+# Conservative incremental discovery: the full tree is still walked every audit.
+# Fast Audit compares cheap path+size+mtime state so later stages can distinguish
+# unchanged files from additions/modifications/removals without trusting directory mtimes.
+declare -A DISCOVERY_OLD_SIG DISCOVERY_CURRENT_PATH
+DISCOVERY_UNCHANGED=0; DISCOVERY_CHANGED_COUNT=0; DISCOVERY_ADDED=0; DISCOVERY_REMOVED=0
+load_discovery_snapshot() {
+  local fmt="" p sig
+  [ "$USE_HASH_CACHE" -eq 1 ] || return 0
+  [ -s "$DISCOVERY_SNAPSHOT" ] || return 0
+  while IFS=$'\t' read -r p sig; do
+    if [ "$p" = "format" ]; then fmt="$sig"; continue; fi
+    [ "$fmt" = "$DISCOVERY_FORMAT" ] || { DISCOVERY_OLD_SIG=(); return 0; }
+    [ -n "$p" ] && DISCOVERY_OLD_SIG["$p"]="$sig"
+  done < "$DISCOVERY_SNAPSHOT"
+}
+build_discovery_snapshot() {
+  local p sig old
+  printf 'format\t%s\n' "$DISCOVERY_FORMAT" > "$DISCOVERY_SNAPSHOT_NEW"
+  : > "$DISCOVERY_CHANGED"
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    sig="$(file_signature "$p")"
+    printf '%s\t%s\n' "$p" "$sig" >> "$DISCOVERY_SNAPSHOT_NEW"
+    DISCOVERY_CURRENT_PATH["$p"]=1
+    old="${DISCOVERY_OLD_SIG[$p]:-}"
+    if [ "$USE_HASH_CACHE" -eq 1 ] && [ -n "$old" ] && [ "$old" = "$sig" ]; then
+      DISCOVERY_UNCHANGED=$((DISCOVERY_UNCHANGED+1))
+    else
+      printf '%s\n' "$p" >> "$DISCOVERY_CHANGED"
+      DISCOVERY_CHANGED_COUNT=$((DISCOVERY_CHANGED_COUNT+1))
+      [ -z "$old" ] && DISCOVERY_ADDED=$((DISCOVERY_ADDED+1))
+    fi
+  done < "$GAME_LIST"
+  if [ "$USE_HASH_CACHE" -eq 1 ]; then
+    for p in "${!DISCOVERY_OLD_SIG[@]}"; do
+      [ -n "${DISCOVERY_CURRENT_PATH[$p]+x}" ] || DISCOVERY_REMOVED=$((DISCOVERY_REMOVED+1))
+    done
+  fi
 }
 
 declare -A CACHE_SHA CACHE_NORMALIZED_SHA CACHE_DAT_STATUS CACHE_DAT_NAME CACHE_DAT_ROM CACHE_DAT_SOURCE
@@ -377,20 +421,21 @@ if [ "$AUDIT_MENU_SELECTION" -eq 2 ]; then AUDIT_MODE="Full Verification"; USE_H
 echo; echo "Selected: $AUDIT_MODE"; echo "----------------------------------------------------"; echo
 DISCOVERY_START=$(date +%s); echo "[1/5] Scanning game library..."
 find "$GAMES" -type f \( -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" -o -iname "*.gb" -o -iname "*.gbc" -o -iname "*.gba" -o -iname "*.md" -o -iname "*.gen" -o -iname "*.32x" -o -iname "*.sms" -o -iname "*.gg" -o -iname "*.sg" -o -iname "*.pce" -o -iname "*.sgx" -o -iname "*.a26" -o -iname "*.a52" -o -iname "*.a78" -o -iname "*.col" -o -iname "*.int" -o -iname "*.cue" -o -iname "*.chd" -o -iname "*.d64" -o -iname "*.d81" -o -iname "*.g64" -o -iname "*.adf" -o -iname "*.hdf" -o -iname "*.dsk" -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" -o -iname "*.n64" -o -iname "*.z64" -o -iname "*.v64" \) -print 2>/dev/null | LC_ALL=C sort > "$GAME_LIST"
-GAME_SCAN_COUNT=$(wc -l < "$GAME_LIST" | tr -d "[:space:]"); echo "    Files discovered: $GAME_SCAN_COUNT"; DISCOVERY_END=$(date +%s); SAVE_START=$DISCOVERY_END
+GAME_SCAN_COUNT=$(wc -l < "$GAME_LIST" | tr -d "[:space:]"); load_discovery_snapshot; build_discovery_snapshot; echo "    Files discovered: $GAME_SCAN_COUNT"; if [ "$USE_HASH_CACHE" -eq 1 ]; then echo "    Unchanged: $DISCOVERY_UNCHANGED | Added: $DISCOVERY_ADDED | Changed: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) | Removed: $DISCOVERY_REMOVED"; else echo "    Full Verification: incremental discovery state ignored"; fi; DISCOVERY_END=$(date +%s); SAVE_START=$DISCOVERY_END
 
 echo "[2/5] Indexing save files..."; : > "$SAVE_LIST"; : > "$SAVE_INDEX"; declare -A SAVES_BY_STEM; SAVE_PROCESSED=0
 if [ -d "$SAVES" ]; then find "$SAVES" -type f \( -iname "*.sav" -o -iname "*.srm" -o -iname "*.ram" -o -iname "*.eep" -o -iname "*.fla" -o -iname "*.sra" -o -iname "*.mcd" -o -iname "*.nv" \) -print 2>/dev/null | sort > "$SAVE_LIST"; SAVE_SCAN_COUNT=$(wc -l < "$SAVE_LIST" | tr -d "[:space:]"); [ -z "$SAVE_SCAN_COUNT" ] && SAVE_SCAN_COUNT=0; while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sstem="${sf%.*}"; save_key_idx="${sstem,,}"; if [ -n "${SAVES_BY_STEM[$save_key_idx]:-}" ]; then SAVES_BY_STEM["$save_key_idx"]+=$'\n'"$sp"; else SAVES_BY_STEM["$save_key_idx"]="$sp"; fi; printf '%s\t%s\n' "$save_key_idx" "$sp" >> "$SAVE_INDEX"; SAVE_PROCESSED=$((SAVE_PROCESSED+1)); progress_check "Indexing saves" "$SAVE_PROCESSED" "$SAVE_SCAN_COUNT"; done < "$SAVE_LIST"; fi
 SAVE_END=$(date +%s); DB_START=$SAVE_END
 echo "[3/5] Loading hash database..."; build_active_dat_systems; build_dat_index; echo "    Hash database source: $HASH_DB_SOURCE"; echo "    Hash records indexed: $HASH_INDEX_COUNT"; build_completion_reference; load_hash_cache; load_classification_cache; DB_END=$(date +%s); CLASSIFY_START=$DB_END
 
+declare -A CLASS_DISCOVERY_SIG; while IFS=$'\t' read -r dp ds; do [ "$dp" = "format" ] && continue; [ -n "$dp" ] && CLASS_DISCOVERY_SIG["$dp"]="$ds"; done < "$DISCOVERY_SNAPSHOT_NEW"
 echo "[4/5] Classifying titles and collisions..."; : > "$PLAN"; : > "$WORK.hashjobs"; declare -A NAME_COUNTS; SKIPPED=0; CLASSIFIED=0
 printf 'format\t%s\n' "$CLASS_CACHE_FORMAT" > "$CLASS_CACHE_NEW"
 while IFS= read -r p; do
   [ -z "$p" ] && continue
   rel="${p#$GAMES/}"; system="${rel%%/*}"; [ "$system" = "$rel" ] && system="Unknown"; file="${p##*/}"; ext="${file##*.}"; stem="${file%.*}"; case "${ext,,}" in md|gen) system="MegaDrive" ;; 32x) system="S32X" ;; esac
   if is_support_file "$p" "$file"; then SKIPPED=$((SKIPPED+1)); continue; fi
-  sig="$(file_signature "$p")"; class_key="$p|$sig"
+  sig=""; if [ -s "$DISCOVERY_SNAPSHOT_NEW" ]; then sig="${CLASS_DISCOVERY_SIG[$p]:-}"; fi; [ -n "$sig" ] || sig="$(file_signature "$p")"; class_key="$p|$sig"
   if [ -n "${CLASS_CLEAN[$class_key]+x}" ]; then
     system="${CLASS_SYSTEM[$class_key]}"; file="${CLASS_FILE[$class_key]}"; ext="${CLASS_EXT[$class_key]}"; stem="${CLASS_STEM[$class_key]}"; clean="${CLASS_CLEAN[$class_key]}"; region="${CLASS_REGION[$class_key]}"; kind="${CLASS_KIND[$class_key]}"; proposed="${CLASS_PROPOSED[$class_key]}"; CLASS_CACHE_HITS=$((CLASS_CACHE_HITS+1))
   else
@@ -401,6 +446,7 @@ while IFS= read -r p; do
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$system" "$p" "$file" "$ext" "$stem" "$clean" "$region" "$kind" "$sig" "$proposed" >> "$PLAN"; CLASSIFIED=$((CLASSIFIED+1)); progress_check "Classifying titles" "$CLASSIFIED" "$GAME_SCAN_COUNT"
 done < "$GAME_LIST"
 if [ -s "$CLASS_CACHE_NEW" ]; then mv -f "$CLASS_CACHE_NEW" "$CLASS_CACHE"; fi
+if [ -s "$DISCOVERY_SNAPSHOT_NEW" ]; then mv -f "$DISCOVERY_SNAPSHOT_NEW" "$DISCOVERY_SNAPSHOT"; fi
 CLASSIFY_END=$(date +%s)
 
 declare -A PREHASH_SHA_BY_PATH SYSTEM_FILES SYSTEM_ELIGIBLE SYSTEM_MATCHED SYSTEM_UNMATCHED SYSTEM_SECONDS
