@@ -1,5 +1,5 @@
 name: Build MiSTer Downloader Database
-# Refresh Downloader manifest after the Issue #6 fix and generated-file cleanup.
+# Automatically publish a validated MiSTer Downloader manifest whenever a distributed file changes.
 
 on:
   push:
@@ -25,6 +25,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Pre-publish validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n Export_Game_Library.sh
+          bash -n Update_Game_Library.sh
+          python3 tools/validate_hash_database.py mister_hash_database.tsv
+          bash tests/test_exporter_synthetic.sh
 
       - name: Build Downloader database
         shell: bash
@@ -64,6 +73,31 @@ jobs:
           FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" \
           DB_JSON_NAME="db.json" \
           python3 /tmp/mister-db-build/db_operator.py build .
+
+      - name: Verify manifest matches distributed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          db=json.loads(Path('db.json').read_text())
+          expected={
+              'Scripts/Export_Game_Library.sh':'Export_Game_Library.sh',
+              'Scripts/Update_Game_Library.sh':'Update_Game_Library.sh',
+              'Scripts/mister_hash_database.tsv':'mister_hash_database.tsv',
+          }
+          files=db.get('files',{})
+          for target, source in expected.items():
+              entry=files.get(target)
+              if not entry:
+                  raise SystemExit(f'Missing manifest entry: {target}')
+              data=Path(source).read_bytes()
+              size=len(data); md5=hashlib.md5(data).hexdigest()
+              if entry.get('size') != size or entry.get('hash') != md5:
+                  raise SystemExit(f'Manifest mismatch for {target}: expected size={size} md5={md5}, got {entry}')
+          print('Manifest exactly matches all distributed files.')
+          PY
 
       - name: Validate database with MiSTer Downloader
         shell: bash
