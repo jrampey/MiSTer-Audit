@@ -56,3 +56,5 @@ That optimization must not turn Fast Audit into a partial-library audit. It must
 The consolidated report records audit schema version, exporter version, exporter build SHA-1, audit mode, database SHA-1, metadata-layer status, file counts, self-check result, integrity verdict, apply recommendation, and integrity notes.
 
 The audit-mode selector is controller-first: D-pad/arrow input selects and starts Fast Audit or Full Verification immediately, with no Enter confirmation required; keyboard 1/2 remains available and Fast Audit auto-starts after 15 seconds.
+
+Exporter performance: file signatures are captured once during classification and reused during report/hash-cache processing; Full Verification hash jobs are generated during classification instead of rereading the plan; hot-path CSV output is assembled and written once per row.
