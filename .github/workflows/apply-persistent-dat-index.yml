@@ -1,0 +1,36 @@
+name: Validate persistent DAT index
+on:
+  push:
+    branches: [perf/persistent-dat-index]
+    paths: ['.github/workflows/apply-persistent-dat-index.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply optimization
+        run: python3 .github/scripts/apply-persistent-dat-index.py
+      - name: Syntax validation
+        run: bash -n Export_Game_Library.sh
+      - name: Synthetic regression suite
+        run: bash tests/test_exporter_synthetic.sh
+      - name: Validate invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'DAT_CACHE_DIR="$AUDIT/dat_cache"' Export_Game_Library.sh
+          grep -q 'rebuild_dat_cache' Export_Game_Library.sh
+          grep -q 'Persistent DAT index:' Export_Game_Library.sh
+          grep -q 'Export_Game_Library_v1.3.sh' Export_Game_Library.sh
+          grep -q 'FULL_VERIFY_WORKERS=2' Export_Game_Library.sh
+      - name: Commit validated exporter
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Export_Game_Library.sh
+          git commit -m 'Add persistent per-system DAT index'
+          git push
