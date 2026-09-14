@@ -26,15 +26,17 @@ old='''build_dat_index() {
 '''
 new='''dat_cache_file() {
   local sys="$1" safe
+  sys="${sys,,}"
   safe="${sys//[^A-Za-z0-9._-]/_}"
   printf '%s/%s.tsv' "$DAT_CACHE_DIR" "$safe"
 }
 rebuild_dat_cache() {
-  local tmp="$DAT_CACHE_DIR/.build.$$" h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest out
+  local tmp="$DAT_CACHE_DIR/.build.$$" h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest out cache_system
   rm -rf "$tmp"; mkdir -p "$tmp" || return 1
   while IFS=$'\\t' read -r h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest; do
     [ "$h" = "sha1" ] && continue; h="${h,,}"; [[ "$h" =~ ^[0-9a-f]{40}$ ]] || continue; [ -n "$meta_system" ] || continue
-    out="$tmp/${meta_system//[^A-Za-z0-9._-]/_}.tsv"
+    cache_system="${meta_system,,}"
+    out="$tmp/${cache_system//[^A-Za-z0-9._-]/_}.tsv"
     printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' "$h" "$title" "$rom" "$source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" >> "$out"
   done < "$HASH_DB_TSV"
   find "$DAT_CACHE_DIR" -maxdepth 1 -type f -name '*.tsv' -delete 2>/dev/null || true
