@@ -21,7 +21,7 @@ EXPECTED_EXPORTER_VERSION="1.3"
 COLLISION_INPUT="/tmp/mister_updater_collision_input.$$"
 BLOCKLIST="/tmp/mister_updater_blocked.$$"
 HEARTBEAT_EVERY=500
-UPDATER_BUILD="collision-awk-2026-09-13a"
+UPDATER_BUILD="collision-awk-2026-09-13b"
 
 cleanup() { rm -f "$COLLISION_INPUT" "$BLOCKLIST"; }
 trap cleanup EXIT INT TERM
@@ -92,9 +92,6 @@ parse_csv() {
 safe_under() { case "$1" in "$2"/*) return 0;; *) return 1;; esac; }
 unsafe_name() { [[ -z "$1" || "$1" == */* || "$1" == "." || "$1" == ".." ]]; }
 
-# Parse and classify the entire catalog inside one awk process. Keeping CSV
-# parsing out of Bash removes the dominant per-character cost on MiSTer while
-# preserving the exporter's collision-group and final-target safety rules.
 classify_blocking_games() {
   : > "$BLOCKLIST"
   [[ -f "$CATALOG" ]] || { echo "Missing $CATALOG"; return 1; }
@@ -129,41 +126,30 @@ classify_blocking_games() {
       processed++
       if (heartbeat > 0 && processed % heartbeat == 0)
         print "  Processed " processed " / " total " catalog rows..." > "/dev/stderr"
-
-      system=tolower(f[1]); clean=f[2]; region=f[3]; kind=f[4]
+      sysname=tolower(f[1]); clean=f[2]; region=f[3]; kind=f[4]
       original=f[5]; proposed=f[6]; rowpath=f[7]; dat_status=f[11]
-      ext=original
-      sub(/^.*\./,"",ext)
-      ext=tolower(ext)
+      ext=original; sub(/^.*\./,"",ext); ext=tolower(ext)
       suffix=""
       if (region != "USA" && region != "Unknown") suffix=" [" region "]"
       if (region == "Unknown") suffix=" [Unknown Region]"
       if (kind != "Retail/Standard") suffix=suffix " [" kind "]"
       fallback=clean suffix "." ext
-      g=system "|" tolower(fallback)
+      g=sysname "|" tolower(fallback)
       authoritative=(dat_status=="Exact SHA-1" || dat_status=="Normalized SHA-1") ? 1 : 0
-      target=system "|" tolower(proposed)
-
-      r++
-      paths[r]=rowpath; groups[r]=g; targets[r]=target
-      final_count[target]++
-      group_rows[g]++
-      group_auth[g]+=authoritative
-      gt=g SUBSEP target
-      group_target_count[gt]++
+      target=sysname "|" tolower(proposed)
+      r++; paths[r]=rowpath; groups[r]=g; targets[r]=target
+      final_count[target]++; group_rows[g]++; group_auth[g]+=authoritative
+      gt=g SUBSEP target; group_target_count[gt]++
       if (group_target_count[gt] > 1) group_duplicate[g]=1
     }
     END {
       print "  Processed " processed " / " total " catalog rows." > "/dev/stderr"
       print "  Resolving global collision groups..." > "/dev/stderr"
       for (i=1; i<=r; i++) {
-        g=groups[i]; target=targets[i]
-        pre=(group_rows[g]>1)
+        g=groups[i]; target=targets[i]; pre=(group_rows[g]>1)
         safe=(group_auth[g]==group_rows[g] && !group_duplicate[g])
-        if (final_count[target]>1)
-          print paths[i] "\tblocking collision: duplicate final target"
-        else if (pre && !safe)
-          print paths[i] "\tblocking collision: unresolved pre-DAT group"
+        if (final_count[target]>1) print paths[i] "\tblocking collision: duplicate final target"
+        else if (pre && !safe) print paths[i] "\tblocking collision: unresolved pre-DAT group"
       }
     }
   ' "$CATALOG" > "$BLOCKLIST" || { echo "ERROR: Collision safety classification failed."; return 1; }
