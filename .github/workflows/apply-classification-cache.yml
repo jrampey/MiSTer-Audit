@@ -1,0 +1,37 @@
+name: Validate incremental classification cache
+on:
+  push:
+    branches: [perf/incremental-classification-cache]
+    paths: ['.github/workflows/apply-classification-cache.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply optimization
+        run: python3 .github/scripts/apply-classification-cache.py
+      - name: Syntax validation
+        run: bash -n Export_Game_Library.sh
+      - name: Synthetic regression suite
+        run: bash tests/test_exporter_synthetic.sh
+      - name: Validate cache invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'CLASS_CACHE="$AUDIT/classification_cache.tsv"' Export_Game_Library.sh
+          grep -q 'CLASS_CACHE_FORMAT="1"' Export_Game_Library.sh
+          grep -q 'CLASS_CACHE_HITS' Export_Game_Library.sh
+          grep -q 'fallback_proposed' Export_Game_Library.sh
+          grep -q 'Export_Game_Library_v1.3.sh' Export_Game_Library.sh
+          grep -q 'FULL_VERIFY_WORKERS=2' Export_Game_Library.sh
+      - name: Commit validated exporter
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Export_Game_Library.sh
+          git commit -m 'Add incremental ROM classification cache'
+          git push
