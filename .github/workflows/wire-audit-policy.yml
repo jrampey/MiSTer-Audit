@@ -1,0 +1,68 @@
+name: Validate audit policy wiring
+
+on:
+  push:
+    branches: [feature/arcade-organizer-lessons]
+    paths:
+      - "AUDIT_POLICY.conf"
+      - "Export_Game_Library.sh"
+      - ".github/scripts/wire-audit-policy.py"
+      - ".github/workflows/wire-audit-policy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/arcade-organizer-lessons
+
+      - name: Wire policy into exporter
+        run: python3 .github/scripts/wire-audit-policy.py
+
+      - name: Validate syntax
+        run: bash -n Export_Game_Library.sh
+
+      - name: Validate default policy contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -qx 'COMPLETION_REGIONS=USA' AUDIT_POLICY.conf
+          grep -qx 'COMPLETION_INCLUDE_WORLD=1' AUDIT_POLICY.conf
+          grep -qx 'COMPLETION_RETAIL_ONLY=1' AUDIT_POLICY.conf
+          grep -qx 'COMPLETION_INCLUDE_PROTOTYPES=0' AUDIT_POLICY.conf
+          grep -qx 'COMPLETION_INCLUDE_BETA=0' AUDIT_POLICY.conf
+          grep -qx 'COMPLETION_INCLUDE_DEMOS=0' AUDIT_POLICY.conf
+          grep -q 'COMPLETION_REGIONS=("USA")' Export_Game_Library.sh
+          grep -q 'COMPLETION_RETAIL_ONLY=1' Export_Game_Library.sh
+          grep -q 'COMPLETION_INCLUDE_WORLD=1' Export_Game_Library.sh
+          grep -q 'does not source/execute the file' Export_Game_Library.sh
+
+      - name: Validate v1.3 invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q '^# Export_Game_Library_v1.3.sh$' Export_Game_Library.sh
+          grep -q '^FULL_VERIFY_WORKERS=2$' Export_Game_Library.sh
+          git diff --exit-code HEAD -- Update_Game_Library.sh
+
+      - name: Synthetic regression
+        run: bash tests/test_exporter_synthetic.sh
+
+      - name: Commit validated exporter
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Export_Game_Library.sh
+          if git diff --cached --quiet; then
+            echo "Exporter already wired."
+            exit 0
+          fi
+          git commit -m "Wire audit policy into exporter"
+          git push origin HEAD:feature/arcade-organizer-lessons
