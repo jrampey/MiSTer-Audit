@@ -14,6 +14,8 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 `Export_Game_Library.sh` is the **v1.3** auditor. Important v1.3 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
 
+Fast Audit currently reuses valid path + size/mtime keyed SHA-1 cache entries and, while the database fingerprint is unchanged, cached DAT identification. It still performs a complete library rescan and repeats classification/report construction so cross-file safety state remains current. Full Verification bypasses hash reuse and recalculates supported hashes.
+
 The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner.
 
 `Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Hard integrity failures, non-collision warnings, or exporter/database fingerprint changes still block Apply. A `PASS WITH WARNINGS` audit whose only integrity note is `collision-review-required` is now eligible for safe Apply: the updater independently reproduces the exporter collision classification from `library_catalog.csv`, removes every blocking game row and its paired save rename from the mutation plan, and applies only the remaining safe rows after explicit confirmation.
@@ -37,7 +39,17 @@ Do not use filename-derived associative-array arithmetic for collision classific
 
 The bundled `mister_hash_database.tsv` contains roughly **42,259 unique SHA-1 records** and has expanded No-Intro coverage for Nintendo systems, Genesis/Mega Drive, 32X, Master System, Atari 2600, Intellivision, PC Engine/TurboGrafx-16, SuperGrafx, Amiga, C64, and Archimedes.
 
+The deterministic build tooling recognizes the current No-Intro `NEC - PC Engine - TurboGrafx-16` and `NEC - PC Engine SuperGrafx` DAT names. Production TSV replacement remains a deliberate reviewed action; validating additional source DATs does not automatically expand the shipped database.
+
 The current MiSTer-aware TSV schema is authoritative. SQLite has been discussed, but do not make that migration without reviewing the architecture first.
+
+## Future enhancement backlog
+
+Closed issues may remain documented here when the current product is healthy and the remaining work is optional enhancement rather than an active defect.
+
+- **Fast Audit deeper incrementality:** extend caching beyond SHA-1/DAT identity so unchanged files can reuse more filename classification and report-input work. Any implementation must still rescan/account for the complete library and freshly evaluate cross-file collisions, save pairing, completion, deletion/move effects, and integrity checks.
+- **Release/distribution orchestration (former Issue #2):** optionally coordinate Downloader regeneration, exact tagged-runtime validation, wiki/docs publishing, and final public-state smoke testing directly within a versioned release path rather than depending on secondary push-triggered workflows.
+- **No-Intro source automation (former Issue #5):** optionally automate upstream DAT/XML acquisition/refresh and review/promotion around the existing deterministic builder, source fingerprints/manifest, delta report, regression protection, and validator. Do not automatically replace the production TSV without deliberate review.
 
 ## Documentation synchronization
 
