@@ -23,6 +23,7 @@ EXPECTED_SCHEMA="4"
 EXPECTED_EXPORTER_VERSION="1.3"
 COLLISION_INPUT="/tmp/mister_updater_collision_input.$$"
 BLOCKLIST="/tmp/mister_updater_blocked.$$"
+HEARTBEAT_EVERY=500
 
 cleanup() { rm -f "$COLLISION_INPUT" "$BLOCKLIST"; }
 trap cleanup EXIT INT TERM
@@ -249,10 +250,21 @@ classify_blocking_games() {
   [[ -f "$CATALOG" ]] || { echo "Missing $CATALOG"; return 1; }
 
   local line system original proposed path dat_status ext stem clean region kind fallback group authoritative final_target
+  local processed=0 total=0
+  total=$(( $(wc -l < "$CATALOG") - 1 ))
+  (( total < 0 )) && total=0
+  echo
+  echo "Building collision safety map..."
+  echo "  Catalog rows: $total"
+
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" == '"system"'* ]] && continue
     parse_csv "$line"
     ((${#CSV_FIELDS[@]} >= 21)) || continue
+    processed=$((processed+1))
+    if (( processed % HEARTBEAT_EVERY == 0 )); then
+      echo "  Processed $processed / $total catalog rows..."
+    fi
 
     system="${CSV_FIELDS[0]}"
     original="${CSV_FIELDS[4]}"
@@ -275,6 +287,8 @@ classify_blocking_games() {
 
     printf '%s\t%s\t%s\t%s\n' "$path" "$group" "$authoritative" "$final_target" >> "$COLLISION_INPUT"
   done < "$CATALOG"
+  echo "  Processed $processed / $total catalog rows."
+  echo "  Resolving global collision groups..."
 
   awk -F '\t' '
     {
@@ -303,6 +317,7 @@ classify_blocking_games() {
       }
     }
   ' "$COLLISION_INPUT" > "$BLOCKLIST"
+  echo "  Collision safety map complete: $(wc -l < "$BLOCKLIST") blocking rows."
 }
 
 build_plan() {
@@ -311,6 +326,7 @@ build_plan() {
   printf 'type\tpath\treason\n' >> "$SKIPS"
   declare -A TARGETS BLOCKED_GAMES
   local line old proposed new dir ext type block_path block_reason game_path
+  local processed=0 total=0
 
   classify_blocking_games || return 1
   while IFS=$'\t' read -r block_path block_reason; do
@@ -319,9 +335,17 @@ build_plan() {
   done < "$BLOCKLIST"
 
   if [[ ! -f "$GAME_CSV" ]]; then echo "Missing $GAME_CSV"; return 1; fi
+  total=$(( $(wc -l < "$GAME_CSV") - 1 )); (( total < 0 )) && total=0
+  processed=0
+  echo "Building safe game rename plan..."
+  echo "  Game proposals: $total"
   while IFS= read -r line || [[ -n "$line" ]]; do
     [[ "$line" == '"system"'* ]] && continue
     parse_csv "$line"
+    processed=$((processed+1))
+    if (( processed % HEARTBEAT_EVERY == 0 )); then
+      echo "  Processed $processed / $total game proposals..."
+    fi
     old="${CSV_FIELDS[1]}"; proposed="${CSV_FIELDS[2]}"; type="GAME"
 
     if [[ -n "${BLOCKED_GAMES["$old"]+x}" ]]; then
@@ -341,11 +365,20 @@ build_plan() {
     TARGETS["$new"]="$old"
     printf '%s\t%s\t%s\n' "$type" "$old" "$new" >> "$PLAN"
   done < "$GAME_CSV"
+  echo "  Processed $processed / $total game proposals."
 
   if [[ -f "$SAVE_CSV" ]]; then
+    total=$(( $(wc -l < "$SAVE_CSV") - 1 )); (( total < 0 )) && total=0
+    processed=0
+    echo "Building paired save rename plan..."
+    echo "  Save proposals: $total"
     while IFS= read -r line || [[ -n "$line" ]]; do
       [[ "$line" == '"system"'* ]] && continue
       parse_csv "$line"
+      processed=$((processed+1))
+      if (( processed % HEARTBEAT_EVERY == 0 )); then
+        echo "  Processed $processed / $total save proposals..."
+      fi
       game_path="${CSV_FIELDS[1]}"; old="${CSV_FIELDS[2]}"; proposed="${CSV_FIELDS[3]}"; type="SAVE"
 
       if [[ -n "${BLOCKED_GAMES["$game_path"]+x}" ]]; then
@@ -363,7 +396,9 @@ build_plan() {
       TARGETS["$new"]="$old"
       printf '%s\t%s\t%s\n' "$type" "$old" "$new" >> "$PLAN"
     done < "$SAVE_CSV"
+    echo "  Processed $processed / $total save proposals."
   fi
+  echo "Rename plan build complete."
 }
 
 show_plan_summary() {
