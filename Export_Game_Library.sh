@@ -30,7 +30,7 @@ COLLISION_ROWS="$WORK.collisionrows"
 HASH_CACHE="$AUDIT/hash_cache.tsv"
 HASH_CACHE_NEW="$WORK.hashcache_new"
 CACHE_META="$AUDIT/hash_cache.meta"
-CACHE_FORMAT="4"
+CACHE_FORMAT="5"
 AUDIT_SCHEMA_VERSION="4"
 FULL_VERIFY_WORKERS=2
 
@@ -87,9 +87,9 @@ hash_file() {
 hash_stream_skip() {
   local p="$1" block="$2"
   if command -v sha1sum >/dev/null 2>&1; then
-    dd if="$p" bs="$block" skip=1 2>/dev/null | sha1sum 2>/dev/null | awk '{print $1}'
+    local digest rest; read -r digest rest < <(dd if="$p" bs="$block" skip=1 2>/dev/null | sha1sum 2>/dev/null); printf '%s' "$digest"
   elif command -v openssl >/dev/null 2>&1; then
-    dd if="$p" bs="$block" skip=1 2>/dev/null | openssl sha1 2>/dev/null | awk '{print $NF}'
+    local line digest; IFS= read -r line < <(dd if="$p" bs="$block" skip=1 2>/dev/null | openssl sha1 2>/dev/null); digest="${line##* }"; printf '%s' "$digest"
   else
     printf 'UNAVAILABLE'
   fi
@@ -125,7 +125,7 @@ file_signature() {
   printf '%s' "$sig"
 }
 
-declare -A CACHE_SHA CACHE_DAT_STATUS CACHE_DAT_NAME CACHE_DAT_ROM CACHE_DAT_SOURCE
+declare -A CACHE_SHA CACHE_NORMALIZED_SHA CACHE_DAT_STATUS CACHE_DAT_NAME CACHE_DAT_ROM CACHE_DAT_SOURCE
 CACHE_ENTRIES_LOADED=0
 cache_lookup() { local p="$1" sig="$2" k="$p|$sig"; printf '%s' "${CACHE_SHA[$k]:-}"; }
 
@@ -157,7 +157,7 @@ build_dat_index() {
   : > "$DAT_INDEX"; HASH_DB_SOURCE="None"; HASH_DB_FINGERPRINT="missing"; HASH_INDEX_COUNT=0
   if [ -f "$HASH_DB_TSV" ]; then
     echo "    Using bundled hash database: $HASH_DB_TSV"
-    HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(hash_file "$HASH_DB_TSV")"
+    HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(file_signature "$HASH_DB_TSV")"
     while IFS=$'\t' read -r h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest; do
       [ "$h" = "sha1" ] && continue; h="${h,,}"; [[ "$h" =~ ^[0-9a-f]{40}$ ]] || continue
       if [ -z "${DAT_NAME_BY_SHA[$h]+x}" ]; then
@@ -201,10 +201,10 @@ record_completion_owned() {
   if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then COMPLETION_OWNED_KEYS["$key"]=1; COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 )); fi
 }
 load_hash_cache() {
-  local old_format="" old_db="" p sig sha ds dn dr dsrc k
+  local old_format="" old_db="" p sig sha normalized_sha ds dn dr dsrc k
   if [ -s "$CACHE_META" ]; then while IFS='=' read -r k v; do case "$k" in CACHE_FORMAT) old_format="$v";; HASH_DB_FINGERPRINT) old_db="$v";; esac; done < "$CACHE_META"; fi
   [ "$old_format" = "$CACHE_FORMAT" ] || return 0; [ -s "$HASH_CACHE" ] || return 0
-  while IFS=$'\t' read -r p sig sha ds dn dr dsrc; do [ "$p" = "path" ] && continue; k="$p|$sig"; CACHE_SHA["$k"]="$sha"; CACHE_ENTRIES_LOADED=$((CACHE_ENTRIES_LOADED+1)); if [ "$old_db" = "$HASH_DB_FINGERPRINT" ]; then CACHE_DAT_STATUS["$k"]="$ds"; CACHE_DAT_NAME["$k"]="$dn"; CACHE_DAT_ROM["$k"]="$dr"; CACHE_DAT_SOURCE["$k"]="$dsrc"; fi; done < "$HASH_CACHE"
+  while IFS=$'\t' read -r p sig sha normalized_sha ds dn dr dsrc; do [ "$p" = "path" ] && continue; k="$p|$sig"; CACHE_SHA["$k"]="$sha"; CACHE_NORMALIZED_SHA["$k"]="$normalized_sha"; CACHE_ENTRIES_LOADED=$((CACHE_ENTRIES_LOADED+1)); if [ "$old_db" = "$HASH_DB_FINGERPRINT" ]; then CACHE_DAT_STATUS["$k"]="$ds"; CACHE_DAT_NAME["$k"]="$dn"; CACHE_DAT_ROM["$k"]="$dr"; CACHE_DAT_SOURCE["$k"]="$dsrc"; fi; done < "$HASH_CACHE"
 }
 
 csv_escape() { local s="$1"; s="${s//\"/\"\"}"; printf '"%s"' "$s"; }
@@ -311,7 +311,7 @@ printf '%s\n' '"sha1","system","full_path","original_filename"' > "$STAGE_DAT_UN
 printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","location_status"' > "$STAGE_LOCATION_AUDIT"
 : > "$HASH_ROWS"; : > "$COLLISION_ROWS"
 TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; RESOLVED_COLLISIONS=0; PRE_COLLISION_ROWS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
-printf 'path\tsignature\tsha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
+printf 'path\tsignature\tsha1\tnormalized_sha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
 declare -A SEEN_NAMES
 
 echo "[5/5] Building audit reports..."; PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
@@ -336,7 +336,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig; do
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$loc_status"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file"; fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
   fi
 
   # Record every final target so canonical duplicates are detected even when fallback names differ.
