@@ -1,5 +1,6 @@
 name: Build MiSTer Downloader Database
 # Automatically publish a validated MiSTer Downloader manifest whenever a distributed file changes.
+# A workflow-file change also intentionally refreshes stale manifest metadata.
 
 on:
   push:
