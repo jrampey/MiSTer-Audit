@@ -105,3 +105,5 @@ The exporter reads `$PLAN` through a dedicated file descriptor. Integrity enforc
 Real MiSTer evidence localized the 267-row catalog loss to the second source file resolving to `Super Noah's Ark 3D (USA) (Unl).sfc`. The cause was dead `FINAL_PROPOSAL_COUNTS` bookkeeping that performed Bash arithmetic through a filename-derived associative subscript. That bookkeeping was removed. Issue #7 must preserve this regression: canonical filenames, including apostrophes, are treated strictly as text.
 
 Issue #7 records every final target, not only pre-DAT collision groups, so identical canonical targets from differently named sources remain blocking. The updater mirrors that classification when generating the Apply plan so those rows can be left untouched without preventing unrelated safe renames.
+
+The audit-mode selector is controller-first: D-pad/arrow input selects and starts Fast Audit or Full Verification immediately, with no Enter confirmation required; keyboard 1/2 remains available and Fast Audit auto-starts after 15 seconds.

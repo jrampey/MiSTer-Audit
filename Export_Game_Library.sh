@@ -233,9 +233,48 @@ METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"; EXPORTER_BUILD_SHA1="
 echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.3                 |"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo
 
 AUDIT_MENU_SELECTION=1
-render_audit_menu() { local fast_prefix="  " full_prefix="  "; [ "$AUDIT_MENU_SELECTION" -eq 1 ] && fast_prefix="> " || full_prefix="> "; printf "+--------------------------------------------------+\n"; printf "| AUDIT MODE                                       |\n"; printf "+--------------------------------------------------+\n"; printf "%s1) Fast Audit - recommended\n" "$fast_prefix"; printf "     Reuse valid cached hashes.\n"; printf "%s2) Full Verification\n" "$full_prefix"; printf "     Recalculate every supported SHA-1.\n"; printf '%s\n' '----------------------------------------------------'; printf "1/2 or arrows select | Enter = Fast | Auto = 15s\n"; }
+render_audit_menu() {
+  printf "+--------------------------------------------------+\n"
+  printf "| SELECT AUDIT MODE                                |\n"
+  printf "+--------------------------------------------------+\n"
+  printf "|  UP / LEFT    FAST AUDIT                         |\n"
+  printf "|               Recommended - reuses cached hashes |\n"
+  printf "|                                                  |\n"
+  printf "|  DOWN / RIGHT FULL VERIFICATION                  |\n"
+  printf "|               Recalculates every supported SHA-1 |\n"
+  printf "+--------------------------------------------------+\n"
+  printf "| D-pad selects and starts immediately             |\n"
+  printf "| Keyboard: 1 = Fast | 2 = Full | Auto Fast: 15s  |\n"
+  printf "+--------------------------------------------------+\n"
+}
 render_audit_menu
-while :; do AUDIT_KEY=""; if ! IFS= read -rsn1 -t 15 AUDIT_KEY; then AUDIT_MENU_SELECTION=1; break; fi; case "$AUDIT_KEY" in "") AUDIT_MENU_SELECTION=1; break ;; 1) AUDIT_MENU_SELECTION=1; break ;; 2) AUDIT_MENU_SELECTION=2; break ;; $'\x1b') IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""; if [ "$AUDIT_KEY2" = "[" ]; then IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""; case "$AUDIT_KEY3" in A) AUDIT_MENU_SELECTION=1; break ;; B) AUDIT_MENU_SELECTION=2; break ;; esac; fi ;; esac; done
+while :; do
+  AUDIT_KEY=""
+  if ! IFS= read -rsn1 -t 15 AUDIT_KEY; then
+    AUDIT_MENU_SELECTION=1
+    break
+  fi
+  case "$AUDIT_KEY" in
+    ""|1|f|F)
+      AUDIT_MENU_SELECTION=1
+      break
+      ;;
+    2|v|V)
+      AUDIT_MENU_SELECTION=2
+      break
+      ;;
+    $'\x1b')
+      IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
+      if [ "$AUDIT_KEY2" = "[" ]; then
+        IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
+        case "$AUDIT_KEY3" in
+          A|D) AUDIT_MENU_SELECTION=1; break ;;
+          B|C) AUDIT_MENU_SELECTION=2; break ;;
+        esac
+      fi
+      ;;
+  esac
+done
 if [ "$AUDIT_MENU_SELECTION" -eq 2 ]; then AUDIT_MODE="Full Verification"; USE_HASH_CACHE=0; else AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1; fi
 echo; echo "Selected: $AUDIT_MODE"; echo "----------------------------------------------------"; echo
 DISCOVERY_START=$(date +%s); echo "[1/5] Scanning game library..."
