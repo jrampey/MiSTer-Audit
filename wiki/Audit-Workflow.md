@@ -13,7 +13,7 @@ Before auditing, the exporter verifies required commands, SHA-1 support, the bun
 
 ## Audit modes
 
-**Fast Audit** is the default after the interactive timeout. It rescans the complete library but reuses cached SHA-1 values for unchanged files when the cache format is valid.
+**Fast Audit** is the default after the interactive timeout. It rescans the complete library but reuses cached SHA-1 and DAT-identification data for unchanged files when the cache format and database fingerprint allow it.
 
 **Full Verification** recalculates hashes for eligible ROMs rather than trusting cached hashes. The implementation can use two parallel hash workers when supported.
 
@@ -24,9 +24,9 @@ The MiSTer console UI is ASCII-only and uses static stage lines plus periodic pr
 1. Discover game and save files.
 2. Filter detected BIOS/support files from the game catalog.
 3. Build the in-memory index from the bundled TSV database.
-4. Load the incremental hash cache.
+4. Load the incremental hash/DAT cache.
 5. Classify each cataloged file by system and filename metadata.
-6. Hash eligible ROM formats and perform DAT lookup.
+6. Hash eligible ROM formats and perform DAT lookup, reusing valid Fast Audit cache entries where possible.
 7. On a DAT match, prefer DAT identity and canonical ROM naming over filename inference.
 8. Pair saves by original basename.
 9. Detect duplicate hashes, naming collisions, and expected-folder mismatches.
@@ -43,7 +43,13 @@ Raw SHA-1 is always attempted first. If it misses:
 
 ## Cache behavior
 
-The cache key is based on file path plus size/mtime signature. Cached SHA-1 values can survive database changes, but cached DAT metadata is reused only when the database fingerprint is unchanged. Every audit still rescans the complete library.
+The cache key is based on file path plus size/mtime signature. Cached SHA-1 values can survive database changes, but cached DAT metadata is reused only when the database fingerprint is unchanged. Every audit still rescans the complete library so collision, save-pairing, completion, and integrity checks remain current.
+
+## Future Fast Audit optimization
+
+Fast Audit currently avoids the expensive hash work for unchanged ROMs, but it still repeats much of the shell-side classification and report construction required for a complete audit. A future optimization may add a second incremental layer for unchanged classification/report inputs keyed by stable file identity/signature.
+
+That optimization must not turn Fast Audit into a partial-library audit. It must still account for every discovered file and freshly evaluate cross-file state that can change independently, including collisions, save pairing, completion, missing/deleted files, and integrity invariants. Full Verification remains the authoritative from-scratch hash pass.
 
 ## Integrity metadata
 
