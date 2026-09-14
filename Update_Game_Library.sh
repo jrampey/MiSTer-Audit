@@ -1,7 +1,6 @@
 #!/bin/bash
 # Update_Game_Library_v1.3.sh
 # Companion updater for MiSTer ROM Library Auditor v1.3
-# Diagnostic build marker helps confirm which installed updater copy is executing.
 
 ROOT="/media/fat"
 GAMES="$ROOT/games"
@@ -22,7 +21,7 @@ EXPECTED_EXPORTER_VERSION="1.3"
 COLLISION_INPUT="/tmp/mister_updater_collision_input.$$"
 BLOCKLIST="/tmp/mister_updater_blocked.$$"
 HEARTBEAT_EVERY=500
-UPDATER_BUILD="collision-fastpath-2026-09-13a"
+UPDATER_BUILD="collision-awk-2026-09-13a"
 
 cleanup() { rm -f "$COLLISION_INPUT" "$BLOCKLIST"; }
 trap cleanup EXIT INT TERM
@@ -93,54 +92,81 @@ parse_csv() {
 safe_under() { case "$1" in "$2"/*) return 0;; *) return 1;; esac; }
 unsafe_name() { [[ -z "$1" || "$1" == */* || "$1" == "." || "$1" == ".." ]]; }
 
-# Rebuild the exporter's collision groups from fields already materialized in
-# library_catalog.csv. This avoids re-running filename parsing functions for
-# every ROM on the MiSTer while preserving the same final-target safety rules.
+# Parse and classify the entire catalog inside one awk process. Keeping CSV
+# parsing out of Bash removes the dominant per-character cost on MiSTer while
+# preserving the exporter's collision-group and final-target safety rules.
 classify_blocking_games() {
-  : > "$COLLISION_INPUT"; : > "$BLOCKLIST"
+  : > "$BLOCKLIST"
   [[ -f "$CATALOG" ]] || { echo "Missing $CATALOG"; return 1; }
-  local line system clean region kind original proposed path dat_status ext suffix fallback group authoritative final_target
-  local processed=0 total=0
+  local total=0
   total=$(( $(wc -l < "$CATALOG") - 1 )); (( total < 0 )) && total=0
-  echo; echo "Building collision safety map (optimized)..."; echo "  Catalog rows: $total"
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ "$line" == '"system"'* ]] && continue
-    parse_csv "$line"; ((${#CSV_FIELDS[@]} >= 21)) || continue
-    processed=$((processed+1)); (( processed % HEARTBEAT_EVERY == 0 )) && echo "  Processed $processed / $total catalog rows..."
-    system="${CSV_FIELDS[0]}"; clean="${CSV_FIELDS[1]}"; region="${CSV_FIELDS[2]}"; kind="${CSV_FIELDS[3]}"
-    original="${CSV_FIELDS[4]}"; proposed="${CSV_FIELDS[5]}"; path="${CSV_FIELDS[6]}"; dat_status="${CSV_FIELDS[10]}"
-    ext="${original##*.}"; ext="${ext,,}"; suffix=""
-    [[ "$region" != "USA" && "$region" != "Unknown" ]] && suffix=" [$region]"
-    [[ "$region" == "Unknown" ]] && suffix=" [Unknown Region]"
-    [[ "$kind" != "Retail/Standard" ]] && suffix="$suffix [$kind]"
-    fallback="$clean$suffix.$ext"
-    group="${system,,}|${fallback,,}"; authoritative=0
-    case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") authoritative=1 ;; esac
-    final_target="${system,,}|${proposed,,}"
-    printf '%s\t%s\t%s\t%s\n' "$path" "$group" "$authoritative" "$final_target" >> "$COLLISION_INPUT"
-  done < "$CATALOG"
-  echo "  Processed $processed / $total catalog rows."; echo "  Resolving global collision groups..."
-  awk -F '\t' '
+  echo; echo "Building collision safety map (single-pass awk)..."; echo "  Catalog rows: $total"
+  awk -v heartbeat="$HEARTBEAT_EVERY" -v total="$total" '
+    function csv_parse(s, a,    i,c,n,field,quoted,nextc,k) {
+      for (k in a) delete a[k]
+      n=1; field=""; quoted=0
+      for (i=1; i<=length(s); i++) {
+        c=substr(s,i,1)
+        if (quoted) {
+          if (c=="\"") {
+            nextc=substr(s,i+1,1)
+            if (nextc=="\"") { field=field "\""; i++ }
+            else quoted=0
+          } else field=field c
+        } else {
+          if (c=="\"") quoted=1
+          else if (c==",") { a[n++]=field; field="" }
+          else field=field c
+        }
+      }
+      a[n]=field
+      return n
+    }
+    NR==1 { next }
     {
-      path[NR]=$1; group[NR]=$2; auth[NR]=$3+0; target[NR]=$4
-      final_count[$4]++
-      group_rows[$2]++
-      group_auth[$2]+=auth[NR]
-      gt=$2 SUBSEP $4
+      nf=csv_parse($0,f)
+      if (nf < 21) next
+      processed++
+      if (heartbeat > 0 && processed % heartbeat == 0)
+        print "  Processed " processed " / " total " catalog rows..." > "/dev/stderr"
+
+      system=tolower(f[1]); clean=f[2]; region=f[3]; kind=f[4]
+      original=f[5]; proposed=f[6]; rowpath=f[7]; dat_status=f[11]
+      ext=original
+      sub(/^.*\./,"",ext)
+      ext=tolower(ext)
+      suffix=""
+      if (region != "USA" && region != "Unknown") suffix=" [" region "]"
+      if (region == "Unknown") suffix=" [Unknown Region]"
+      if (kind != "Retail/Standard") suffix=suffix " [" kind "]"
+      fallback=clean suffix "." ext
+      g=system "|" tolower(fallback)
+      authoritative=(dat_status=="Exact SHA-1" || dat_status=="Normalized SHA-1") ? 1 : 0
+      target=system "|" tolower(proposed)
+
+      r++
+      paths[r]=rowpath; groups[r]=g; targets[r]=target
+      final_count[target]++
+      group_rows[g]++
+      group_auth[g]+=authoritative
+      gt=g SUBSEP target
       group_target_count[gt]++
-      if (group_target_count[gt] > 1) group_duplicate[$2]=1
+      if (group_target_count[gt] > 1) group_duplicate[g]=1
     }
     END {
-      for (i=1; i<=NR; i++) {
-        pre=(group_rows[group[i]]>1)
-        safe=(group_auth[group[i]]==group_rows[group[i]] && !group_duplicate[group[i]])
-        if (final_count[target[i]]>1)
-          print path[i] "\tblocking collision: duplicate final target"
+      print "  Processed " processed " / " total " catalog rows." > "/dev/stderr"
+      print "  Resolving global collision groups..." > "/dev/stderr"
+      for (i=1; i<=r; i++) {
+        g=groups[i]; target=targets[i]
+        pre=(group_rows[g]>1)
+        safe=(group_auth[g]==group_rows[g] && !group_duplicate[g])
+        if (final_count[target]>1)
+          print paths[i] "\tblocking collision: duplicate final target"
         else if (pre && !safe)
-          print path[i] "\tblocking collision: unresolved pre-DAT group"
+          print paths[i] "\tblocking collision: unresolved pre-DAT group"
       }
     }
-  ' "$COLLISION_INPUT" > "$BLOCKLIST"
+  ' "$CATALOG" > "$BLOCKLIST" || { echo "ERROR: Collision safety classification failed."; return 1; }
   echo "  Collision safety map complete: $(wc -l < "$BLOCKLIST") blocking rows."
 }
 
