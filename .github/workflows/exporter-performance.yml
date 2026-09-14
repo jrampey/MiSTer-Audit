@@ -1,0 +1,43 @@
+name: Exporter Performance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Export_Game_Library.sh"
+      - "tests/**"
+      - ".github/workflows/exporter-performance.yml"
+  pull_request:
+    paths:
+      - "Export_Game_Library.sh"
+      - "tests/**"
+      - ".github/workflows/exporter-performance.yml"
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run synthetic exporter workload
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/test_exporter_synthetic.sh 2>&1 | tee benchmark-run.log
+      - name: Collect performance telemetry
+        run: python3 tests/benchmark_exporter.py .
+      - name: Benchmark summary
+        shell: bash
+        run: |
+          echo '## Exporter benchmark' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat benchmark-results.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: exporter-benchmark-${{ github.sha }}
+          path: |
+            benchmark-results.json
+            benchmark-run.log
+          retention-days: 30
