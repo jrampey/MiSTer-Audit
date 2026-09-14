@@ -13,7 +13,7 @@ s=s.replace("printf 'path\\tsignature\\tsha1\\tdat_status\\tdat_name\\tdat_rom\\
 # Use cached normalized hash when available; otherwise compute once and persist.
 s=s.replace('hkey="${sha1,,}"; matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")";', 'hkey="${sha1,,}"; matched_hkey="${CACHE_NORMALIZED_SHA[$cache_key]:-}"; [ -n "$matched_hkey" ] || matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")";')
 s=s.replace("printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$p\" \"$sig\" \"${sha1,,}\" \"$dat_status\" \"$dat_name\" \"$dat_rom\" \"$dat_source\" >> \"$HASH_CACHE_NEW\"", "printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$p\" \"$sig\" \"${sha1,,}\" \"${matched_hkey:-${sha1,,}}\" \"$dat_status\" \"$dat_name\" \"$dat_rom\" \"$dat_source\" >> \"$HASH_CACHE_NEW\"")
-# Replace awk in hash_stream_skip with shell token parsing, avoiding one process per normalization.
-s=s.replace("dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | sha1sum 2>/dev/null | awk '{print $1}'", "set -- $(dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | sha1sum 2>/dev/null); printf '%s' \"$1\"")
-s=s.replace("dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | openssl sha1 2>/dev/null | awk '{print $NF}'", "set -- $(dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | openssl sha1 2>/dev/null); eval 'printf %s \\\"\\${'$'#'}\\\"'")
+# Replace awk in hash_stream_skip with shell parsing, avoiding one process per normalization.
+s=s.replace("dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | sha1sum 2>/dev/null | awk '{print $1}'", "local digest rest; read -r digest rest < <(dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | sha1sum 2>/dev/null); printf '%s' \"$digest\"")
+s=s.replace("dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | openssl sha1 2>/dev/null | awk '{print $NF}'", "local line digest; IFS= read -r line < <(dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | openssl sha1 2>/dev/null); digest=\"${line##* }\"; printf '%s' \"$digest\"")
 p.write_text(s)
