@@ -33,7 +33,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 ## Audit modes
 
-- **Fast Audit** rescans the complete library while reusing valid cached hashes where possible.
+- **Fast Audit** rescans the complete library while reusing valid cached hashes and cached DAT identification where possible.
 - **Full Verification** recalculates supported hashes rather than relying on the cache.
 
 The exporter uses an ASCII-only MiSTer console UI with static stage lines and periodic progress heartbeats. Background carriage-return spinners are intentionally avoided because they can overlap normal output on MiSTer hardware.
@@ -110,6 +110,16 @@ GitHub is the source of truth. The intended development/distribution flow is:
 ```text
 ChatGPT / Codex → GitHub → VS Code → MiSTer Update All
 ```
+
+## Future enhancements
+
+The following are intentionally tracked as future improvements rather than active defects:
+
+- **More aggressive Fast Audit incrementality:** extend the existing path + size/mtime hash/DAT cache so unchanged ROMs can also reuse more classification/report work, reducing shell parsing and report-generation overhead while preserving full-library collision, save-pairing, completion, and integrity checks. Full Verification remains the authoritative from-scratch hash pass.
+- **Release/distribution orchestration:** further harden versioned releases so Downloader regeneration, wiki/documentation publishing, exact tagged-artifact validation, and final public-state smoke testing are coordinated without relying on secondary push-triggered workflows. This is the former Issue #2 follow-up.
+- **No-Intro source automation:** optionally automate acquisition/refresh and review/promotion of upstream DAT/XML sources around the existing deterministic builder, manifest, delta report, regression protection, and validator. Production `mister_hash_database.tsv` remains deliberately reviewed rather than automatically replaced. This is the former Issue #5 follow-up.
+
+These enhancements should preserve the current v1.3 safety model and do not by themselves require a release-version bump.
 
 ## Safety invariants
 
