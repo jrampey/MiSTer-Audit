@@ -97,19 +97,19 @@ hash_stream_skip() {
 
 normalized_dat_hash() {
   local p="$1" ext="${2,,}" raw="${3,,}" size="${4:-}" alt=""
-  [ -n "${DAT_NAME_BY_SHA[$raw]+x}" ] && { printf '%s' "$raw"; return; }
+  [ -n "${DAT_RECORD_BY_SHA[$raw]+x}" ] && { printf '%s' "$raw"; return; }
   if [ -z "$size" ]; then size=$(stat -c '%s' "$p" 2>/dev/null); [ -z "$size" ] && size=$(stat -f '%z' "$p" 2>/dev/null); fi
   case "$ext" in
     nes)
       if [ "${size:-0}" -gt 16 ] 2>/dev/null; then
         alt="$(hash_stream_skip "$p" 16)"
-        [ -n "${DAT_NAME_BY_SHA[${alt,,}]+x}" ] && { printf '%s' "${alt,,}"; return; }
+        [ -n "${DAT_RECORD_BY_SHA[${alt,,}]+x}" ] && { printf '%s' "${alt,,}"; return; }
       fi
       ;;
     sfc|smc)
       if [ "${size:-0}" -gt 512 ] 2>/dev/null && [ $((size % 32768)) -eq 512 ]; then
         alt="$(hash_stream_skip "$p" 512)"
-        [ -n "${DAT_NAME_BY_SHA[${alt,,}]+x}" ] && { printf '%s' "${alt,,}"; return; }
+        [ -n "${DAT_RECORD_BY_SHA[${alt,,}]+x}" ] && { printf '%s' "${alt,,}"; return; }
       fi
       ;;
     z64|v64) ;;
@@ -152,18 +152,55 @@ should_hash() {
   return 1
 }
 
-declare -A DAT_NAME_BY_SHA DAT_ROM_BY_SHA DAT_SOURCE_BY_SHA DAT_SYSTEM_BY_SHA DAT_CORE_BY_SHA DAT_FOLDER_BY_SHA DAT_REGION_BY_SHA DAT_RELEASE_BY_SHA DAT_LICENSE_BY_SHA
+declare -A ACTIVE_DAT_SYSTEMS DAT_RECORD_BY_SHA
+DAT_SEP=$'\x1f'
+canonical_dat_system() {
+  local s="${1,,}"
+  case "$s" in
+    nes|fds|famicom) printf 'NES' ;;
+    snes|sfc|super\ nintendo*|super\ famicom*) printf 'SNES' ;;
+    n64|nintendo64|nintendo\ 64) printf 'N64' ;;
+    gameboy|game\ boy|gb) printf 'GAMEBOY' ;;
+    gbc|gameboycolor|game\ boy\ color) printf 'GBC' ;;
+    gba|gameboyadvance|game\ boy\ advance) printf 'GBA' ;;
+    megadrive|mega\ drive|genesis) printf 'Genesis' ;;
+    s32x|32x) printf 'S32X' ;;
+    sms|master\ system*) printf 'SMS' ;;
+    atari2600|atari\ 2600) printf 'Atari2600' ;;
+    intellivision) printf 'Intellivision' ;;
+    tgfx16|turbografx16|turbografx\ 16|pcengine|pc\ engine) printf 'TGFX16' ;;
+    amiga) printf 'Amiga' ;;
+    c64|commodore64|commodore\ 64) printf 'C64' ;;
+    archie|archimedes) printf 'ARCHIE' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+build_active_dat_systems() {
+  local p rel system file ext canonical
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    rel="${p#$GAMES/}"; system="${rel%%/*}"; [ "$system" = "$rel" ] && system="Unknown"
+    file="${p##*/}"; ext="${file##*.}"
+    case "${ext,,}" in md|gen) system="MegaDrive" ;; 32x) system="S32X" ;; esac
+    should_hash "$system" "$ext" || continue
+    canonical="$(canonical_dat_system "$system")"
+    [ -n "$canonical" ] && ACTIVE_DAT_SYSTEMS["${canonical,,}"]=1
+  done < "$GAME_LIST"
+}
+dat_unpack() {
+  local record="$1"
+  IFS="$DAT_SEP" read -r DAT_TITLE DAT_ROM DAT_SOURCE DAT_SYSTEM DAT_CORE DAT_FOLDER DAT_REGION DAT_RELEASE DAT_LICENSE <<< "$record"
+}
 build_dat_index() {
-  : > "$DAT_INDEX"; HASH_DB_SOURCE="None"; HASH_DB_FINGERPRINT="missing"; HASH_INDEX_COUNT=0
+  : > "$DAT_INDEX"; HASH_DB_SOURCE="None"; HASH_DB_FINGERPRINT="missing"; HASH_INDEX_COUNT=0; HASH_DB_SKIPPED_SYSTEM_RECORDS=0
   if [ -f "$HASH_DB_TSV" ]; then
     echo "    Using bundled hash database: $HASH_DB_TSV"
     HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(file_signature "$HASH_DB_TSV")"
     while IFS=$'\t' read -r h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest; do
       [ "$h" = "sha1" ] && continue; h="${h,,}"; [[ "$h" =~ ^[0-9a-f]{40}$ ]] || continue
-      if [ -z "${DAT_NAME_BY_SHA[$h]+x}" ]; then
-        DAT_NAME_BY_SHA["$h"]="$title"; DAT_ROM_BY_SHA["$h"]="$rom"; DAT_SOURCE_BY_SHA["$h"]="$source"
-        DAT_SYSTEM_BY_SHA["$h"]="$meta_system"; DAT_CORE_BY_SHA["$h"]="$meta_core"; DAT_FOLDER_BY_SHA["$h"]="$meta_folder"
-        DAT_REGION_BY_SHA["$h"]="$meta_region"; DAT_RELEASE_BY_SHA["$h"]="$meta_release"; DAT_LICENSE_BY_SHA["$h"]="$meta_license"
+      if [ -z "${ACTIVE_DAT_SYSTEMS[${meta_system,,}]+x}" ]; then HASH_DB_SKIPPED_SYSTEM_RECORDS=$((HASH_DB_SKIPPED_SYSTEM_RECORDS+1)); continue; fi
+      if [ -z "${DAT_RECORD_BY_SHA[$h]+x}" ]; then
+        DAT_RECORD_BY_SHA["$h"]="$title$DAT_SEP$rom$DAT_SEP$source$DAT_SEP$meta_system$DAT_SEP$meta_core$DAT_SEP$meta_folder$DAT_SEP$meta_region$DAT_SEP$meta_release$DAT_SEP$meta_license"
         HASH_INDEX_COUNT=$((HASH_INDEX_COUNT+1))
       fi
     done < "$HASH_DB_TSV"
@@ -172,7 +209,7 @@ build_dat_index() {
   fi
 }
 
-dat_lookup() { local h="${1,,}"; [ -n "${DAT_NAME_BY_SHA[$h]+x}" ] || return 0; printf '%s\t%s\t%s\n' "$h" "${DAT_NAME_BY_SHA[$h]}" "${DAT_ROM_BY_SHA[$h]}" "${DAT_SOURCE_BY_SHA[$h]}"; }
+dat_lookup() { local h="${1,,}"; [ -n "${DAT_RECORD_BY_SHA[$h]+x}" ] || return 0; dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; printf '%s\t%s\t%s\t%s\n' "$h" "$DAT_TITLE" "$DAT_ROM" "$DAT_SOURCE"; }
 
 declare -A COMPLETION_REFERENCE_KEYS COMPLETION_OWNED_KEYS
 declare -A COMPLETION_TOTAL_BY_SYSTEM COMPLETION_OWNED_BY_SYSTEM
@@ -189,8 +226,8 @@ completion_release_selected() { local release="${1,,}" license="${2,,}"; if [ "$
 completion_record_eligible() { completion_region_selected "$1" && completion_release_selected "$2" "$3"; }
 build_completion_reference() {
   local h sys title region release license key
-  for h in "${!DAT_NAME_BY_SHA[@]}"; do
-    sys="${DAT_SYSTEM_BY_SHA[$h]:-}"; title="${DAT_NAME_BY_SHA[$h]:-}"; region="${DAT_REGION_BY_SHA[$h]:-}"; release="${DAT_RELEASE_BY_SHA[$h]:-}"; license="${DAT_LICENSE_BY_SHA[$h]:-}"
+  for h in "${!DAT_RECORD_BY_SHA[@]}"; do
+    dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; sys="$DAT_SYSTEM"; title="$DAT_TITLE"; region="$DAT_REGION"; release="$DAT_RELEASE"; license="$DAT_LICENSE"
     [ -n "$sys" ] && [ -n "$title" ] || continue; completion_record_eligible "$region" "$release" "$license" || continue; key="$sys|$title"
     if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then COMPLETION_REFERENCE_KEYS["$key"]=1; COMPLETION_TOTAL_BY_SYSTEM["$sys"]=$(( ${COMPLETION_TOTAL_BY_SYSTEM["$sys"]:-0} + 1 )); COMPLETION_TITLE_REGION["$key"]="$region"; COMPLETION_TITLE_RELEASE["$key"]="$release"; COMPLETION_TITLE_LICENSE["$key"]="$license"; fi
   done
@@ -284,7 +321,7 @@ GAME_SCAN_COUNT=$(wc -l < "$GAME_LIST" | tr -d "[:space:]"); echo "    Files dis
 echo "[2/5] Indexing save files..."; : > "$SAVE_LIST"; : > "$SAVE_INDEX"; declare -A SAVES_BY_STEM; SAVE_PROCESSED=0
 if [ -d "$SAVES" ]; then find "$SAVES" -type f \( -iname "*.sav" -o -iname "*.srm" -o -iname "*.ram" -o -iname "*.eep" -o -iname "*.fla" -o -iname "*.sra" -o -iname "*.mcd" -o -iname "*.nv" \) -print 2>/dev/null | sort > "$SAVE_LIST"; SAVE_SCAN_COUNT=$(wc -l < "$SAVE_LIST" | tr -d "[:space:]"); [ -z "$SAVE_SCAN_COUNT" ] && SAVE_SCAN_COUNT=0; while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sstem="${sf%.*}"; save_key_idx="${sstem,,}"; if [ -n "${SAVES_BY_STEM[$save_key_idx]:-}" ]; then SAVES_BY_STEM["$save_key_idx"]+=$'\n'"$sp"; else SAVES_BY_STEM["$save_key_idx"]="$sp"; fi; printf '%s\t%s\n' "$save_key_idx" "$sp" >> "$SAVE_INDEX"; SAVE_PROCESSED=$((SAVE_PROCESSED+1)); progress_check "Indexing saves" "$SAVE_PROCESSED" "$SAVE_SCAN_COUNT"; done < "$SAVE_LIST"; fi
 SAVE_END=$(date +%s); DB_START=$SAVE_END
-echo "[3/5] Loading hash database..."; build_dat_index; echo "    Hash database source: $HASH_DB_SOURCE"; echo "    Hash records indexed: $HASH_INDEX_COUNT"; build_completion_reference; load_hash_cache; DB_END=$(date +%s); CLASSIFY_START=$DB_END
+echo "[3/5] Loading hash database..."; build_active_dat_systems; build_dat_index; echo "    Hash database source: $HASH_DB_SOURCE"; echo "    Hash records indexed: $HASH_INDEX_COUNT"; build_completion_reference; load_hash_cache; DB_END=$(date +%s); CLASSIFY_START=$DB_END
 
 echo "[4/5] Classifying titles and collisions..."; : > "$PLAN"; : > "$WORK.hashjobs"; declare -A NAME_COUNTS; SKIPPED=0; CLASSIFIED=0
 while IFS= read -r p; do [ -z "$p" ] && continue; rel="${p#$GAMES/}"; system="${rel%%/*}"; [ "$system" = "$rel" ] && system="Unknown"; file="${p##*/}"; ext="${file##*.}"; stem="${file%.*}"; case "${ext,,}" in md|gen) system="MegaDrive" ;; 32x) system="S32X" ;; esac; if is_support_file "$p" "$file"; then SKIPPED=$((SKIPPED+1)); continue; fi; region="$(region_of "$stem")"; kind="$(kind_of "$stem")"; clean="$(clean_title "$stem")"; suffix="$(suffix_for "$region" "$kind")"; proposed="$clean$suffix.$ext"; key="${system,,}|${proposed,,}"; NAME_COUNTS["$key"]=$(( ${NAME_COUNTS["$key"]:-0} + 1 )); sig=""; if should_hash "$system" "$ext"; then sig="$(file_signature "$p")"; [ "$USE_HASH_CACHE" -eq 0 ] && printf '%s\0' "$p" >> "$WORK.hashjobs"; fi; printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$system" "$p" "$file" "$ext" "$stem" "$clean" "$region" "$kind" "$sig" >> "$PLAN"; CLASSIFIED=$((CLASSIFIED+1)); progress_check "Classifying titles" "$CLASSIFIED" "$GAME_SCAN_COUNT"; done < "$GAME_LIST"
@@ -329,8 +366,8 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig; do
   else HASH_SKIPPED=$((HASH_SKIPPED+1)); fi
   if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
     HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >> "$HASH_ROWS"; hkey="${sha1,,}"; file_size="${sig%%|*}"; matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
-    if [ -n "${DAT_NAME_BY_SHA[$hkey]+x}" ]; then
-      dat_name="${DAT_NAME_BY_SHA[$hkey]}"; dat_rom="${DAT_ROM_BY_SHA[$hkey]}"; dat_source="${DAT_SOURCE_BY_SHA[$hkey]}"; meta_system="${DAT_SYSTEM_BY_SHA[$hkey]:-}"; meta_core="${DAT_CORE_BY_SHA[$hkey]:-}"; meta_folder="${DAT_FOLDER_BY_SHA[$hkey]:-}"; meta_region="${DAT_REGION_BY_SHA[$hkey]:-}"; meta_release="${DAT_RELEASE_BY_SHA[$hkey]:-}"; meta_license="${DAT_LICENSE_BY_SHA[$hkey]:-}"
+    if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then
+      dat_unpack "${DAT_RECORD_BY_SHA[$hkey]}"; dat_name="$DAT_TITLE"; dat_rom="$DAT_ROM"; dat_source="$DAT_SOURCE"; meta_system="$DAT_SYSTEM"; meta_core="$DAT_CORE"; meta_folder="$DAT_FOLDER"; meta_region="$DAT_REGION"; meta_release="$DAT_RELEASE"; meta_license="$DAT_LICENSE"
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && clean="$(clean_title "$canonical_stem")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$clean$(suffix_for "$region" "$kind").$ext"; fi
       loc_status="$(location_status "$system" "$meta_folder")"; record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
@@ -370,8 +407,8 @@ fi
 COMPLETION_REGION_LABEL="$(IFS=', '; echo "${COMPLETION_REGIONS[*]}")"
 printf '%s\n' '"system","owned_titles","reference_titles","missing_titles","completion_percent","regions","scope"' > "$STAGE_COMPLETION"
 printf '%s\n' '"system","canonical_title","region","release_type","license_status"' > "$STAGE_MISSING_COMPLETION"
-while IFS= read -r c_sys; do [ -n "$c_sys" ] || continue; c_total="${COMPLETION_TOTAL_BY_SYSTEM[$c_sys]:-0}"; c_owned="${COMPLETION_OWNED_BY_SYSTEM[$c_sys]:-0}"; c_missing=$((c_total-c_owned)); c_pct="$(awk -v a="$c_owned" -v b="$c_total" 'BEGIN{if(b>0) printf "%.2f", (a*100)/b; else printf "0.00"}')"; csv_escape "$c_sys" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$c_owned" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$c_total" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$c_missing" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$c_pct" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; csv_escape "$COMPLETION_REGION_LABEL" >> "$STAGE_COMPLETION"; printf ',' >> "$STAGE_COMPLETION"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then csv_escape "Retail releases" >> "$STAGE_COMPLETION"; else csv_escape "All release types" >> "$STAGE_COMPLETION"; fi; printf '\n' >> "$STAGE_COMPLETION"; done < <(printf '%s\n' "${!COMPLETION_TOTAL_BY_SYSTEM[@]}" | LC_ALL=C sort)
-for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue; c_sys="${c_key%%|*}"; c_title="${c_key#*|}"; csv_escape "$c_sys" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"; csv_escape "$c_title" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"; csv_escape "${COMPLETION_TITLE_REGION[$c_key]:-}" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"; csv_escape "${COMPLETION_TITLE_RELEASE[$c_key]:-}" >> "$STAGE_MISSING_COMPLETION"; printf ',' >> "$STAGE_MISSING_COMPLETION"; csv_escape "${COMPLETION_TITLE_LICENSE[$c_key]:-}" >> "$STAGE_MISSING_COMPLETION"; printf '\n' >> "$STAGE_MISSING_COMPLETION"; done
+while IFS= read -r c_sys; do [ -n "$c_sys" ] || continue; c_total="${COMPLETION_TOTAL_BY_SYSTEM[$c_sys]:-0}"; c_owned="${COMPLETION_OWNED_BY_SYSTEM[$c_sys]:-0}"; c_missing=$((c_total-c_owned)); c_pct="$(awk -v a="$c_owned" -v b="$c_total" 'BEGIN{if(b>0) printf "%.2f", (a*100)/b; else printf "0.00"}')"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then c_scope="Retail releases"; else c_scope="All release types"; fi; csv_row "$STAGE_COMPLETION" "$c_sys" "$c_owned" "$c_total" "$c_missing" "$c_pct" "$COMPLETION_REGION_LABEL" "$c_scope"; done < <(printf '%s\n' "${!COMPLETION_TOTAL_BY_SYSTEM[@]}" | LC_ALL=C sort)
+for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue; c_sys="${c_key%%|*}"; c_title="${c_key#*|}"; csv_row "$STAGE_MISSING_COMPLETION" "$c_sys" "$c_title" "${COMPLETION_TITLE_REGION[$c_key]:-}" "${COMPLETION_TITLE_RELEASE[$c_key]:-}" "${COMPLETION_TITLE_LICENSE[$c_key]:-}"; done
 { head -n 1 "$STAGE_MISSING_COMPLETION"; tail -n +2 "$STAGE_MISSING_COMPLETION" | LC_ALL=C sort; } > "$STAGE_MISSING_COMPLETION.tmp" && mv -f "$STAGE_MISSING_COMPLETION.tmp" "$STAGE_MISSING_COMPLETION"
 
 CACHE_REFRESHED=$HASH_CALCULATED; CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 )); CACHE_HIT_RATE="0.0"; if [ "$HASH_ELIGIBLE" -gt 0 ]; then CACHE_HIT_RATE=$(awk -v a="$HASH_REUSED" -v b="$HASH_ELIGIBLE" 'BEGIN{printf "%.1f", (a*100)/b}'); fi
@@ -431,7 +468,7 @@ if [ "$AUDIT_VERDICT" != "FAIL" ]; then if [ "$COLLISIONS" -gt 0 ] || [ "$MATCH_
 [ -z "$INTEGRITY_NOTES" ] && INTEGRITY_NOTES="none"
 
 {
-  echo "MiSTer Game Library Audit Bundle v1.3"; echo "Generated: $(date)"; echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."; echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."; echo "============================================================"; echo; echo "[RUN SUMMARY]"; echo "Report scope: FULL LIBRARY"; echo "Audit mode: $AUDIT_MODE"; echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"; echo "Files discovered: $GAME_SCAN_COUNT"; echo "Games/discs cataloged: $TOTAL"; echo "BIOS/support files skipped: $SKIPPED"; echo "Pre-DAT collision rows: $PRE_COLLISION_ROWS"; echo "Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS"; echo "Blocking collision rows: $COLLISIONS"; echo "Save matches: $SAVE_MATCHES"; echo "Files with SHA-1 available: $HASHED"; echo "Hashes reused from cache: $HASH_REUSED"; echo "Hashes calculated this run: $HASH_CALCULATED"; echo "Unsupported-format hashes skipped: $HASH_SKIPPED"; echo "Hash database source: $HASH_DB_SOURCE"; echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"; echo "Exporter build SHA-1: $EXPORTER_BUILD_SHA1"; echo "Audit integrity verdict: $AUDIT_VERDICT"; echo "Apply recommendation: $APPLY_RECOMMENDATION"; echo "Hash records indexed: $HASH_INDEX_COUNT"; echo "Exact DAT SHA-1 matches: $DAT_MATCHED"; echo; echo "[AUDIT_METADATA]"; echo "schema_version=$AUDIT_SCHEMA_VERSION"; echo "exporter_version=1.3"; echo "build_sha1=$EXPORTER_BUILD_SHA1"; echo "audit_mode=$AUDIT_MODE"; echo "database_sha1=$HASH_DB_FINGERPRINT"; echo "metadata_layer=$METADATA_LAYER_STATUS"; echo "library_files=$GAME_SCAN_COUNT"; echo "cataloged_files=$TOTAL"; echo "self_check=$SELF_CHECK_STATUS"; echo "integrity_verdict=$AUDIT_VERDICT"; echo "apply_recommendation=$APPLY_RECOMMENDATION"; echo "integrity_notes=$INTEGRITY_NOTES"; echo; echo "[DATABASE COVERAGE]"; echo "DAT-eligible ROMs: $HASH_ELIGIBLE"; echo "Matched: $DAT_MATCHED"; echo "Unmatched: $((HASHED-DAT_MATCHED))"; if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi; echo "Other/unsupported files cataloged: $HASH_SKIPPED"; echo; echo "[LIBRARY COMPLETION]"; echo "Regions: $COMPLETION_REGION_LABEL"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi; echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."; tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"; echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"; done; echo "Missing-title detail: missing_library_titles.csv"; echo; echo "[CACHE HEALTH]"; echo "Entries loaded: $CACHE_ENTRIES_LOADED"; echo "Entries reused: $HASH_REUSED"; echo "Entries refreshed: $CACHE_REFRESHED"; echo "Entries not reused/expired: $CACHE_NOT_REUSED"; echo "Cache hit rate: $CACHE_HIT_RATE%"; echo "Database fingerprint: $HASH_DB_FINGERPRINT"; echo; echo "[PER-SYSTEM PROCESSING]"; for sys in "${!SYSTEM_FILES[@]}"; do echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"; done | LC_ALL=C sort; echo; echo "[TIMING]"; echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"; echo "save_index_seconds=$((SAVE_END-SAVE_START))"; echo "database_cache_seconds=$((DB_END-DB_START))"; echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"; echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"; echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"; echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"; echo
+  echo "MiSTer Game Library Audit Bundle v1.3"; echo "Generated: $(date)"; echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."; echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."; echo "============================================================"; echo; echo "[RUN SUMMARY]"; echo "Report scope: FULL LIBRARY"; echo "Audit mode: $AUDIT_MODE"; echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"; echo "Files discovered: $GAME_SCAN_COUNT"; echo "Games/discs cataloged: $TOTAL"; echo "BIOS/support files skipped: $SKIPPED"; echo "Pre-DAT collision rows: $PRE_COLLISION_ROWS"; echo "Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS"; echo "Blocking collision rows: $COLLISIONS"; echo "Save matches: $SAVE_MATCHES"; echo "Files with SHA-1 available: $HASHED"; echo "Hashes reused from cache: $HASH_REUSED"; echo "Hashes calculated this run: $HASH_CALCULATED"; echo "Unsupported-format hashes skipped: $HASH_SKIPPED"; echo "Hash database source: $HASH_DB_SOURCE"; echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"; echo "Exporter build SHA-1: $EXPORTER_BUILD_SHA1"; echo "Audit integrity verdict: $AUDIT_VERDICT"; echo "Apply recommendation: $APPLY_RECOMMENDATION"; echo "Hash records indexed: $HASH_INDEX_COUNT"; echo "Hash records skipped for absent systems: ${HASH_DB_SKIPPED_SYSTEM_RECORDS:-0}"; echo "Exact DAT SHA-1 matches: $DAT_MATCHED"; echo; echo "[AUDIT_METADATA]"; echo "schema_version=$AUDIT_SCHEMA_VERSION"; echo "exporter_version=1.3"; echo "build_sha1=$EXPORTER_BUILD_SHA1"; echo "audit_mode=$AUDIT_MODE"; echo "database_sha1=$HASH_DB_FINGERPRINT"; echo "metadata_layer=$METADATA_LAYER_STATUS"; echo "library_files=$GAME_SCAN_COUNT"; echo "cataloged_files=$TOTAL"; echo "self_check=$SELF_CHECK_STATUS"; echo "integrity_verdict=$AUDIT_VERDICT"; echo "apply_recommendation=$APPLY_RECOMMENDATION"; echo "integrity_notes=$INTEGRITY_NOTES"; echo; echo "[DATABASE COVERAGE]"; echo "DAT-eligible ROMs: $HASH_ELIGIBLE"; echo "Matched: $DAT_MATCHED"; echo "Unmatched: $((HASHED-DAT_MATCHED))"; if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi; echo "Other/unsupported files cataloged: $HASH_SKIPPED"; echo; echo "[LIBRARY COMPLETION]"; echo "Regions: $COMPLETION_REGION_LABEL"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi; echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."; tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"; echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"; done; echo "Missing-title detail: missing_library_titles.csv"; echo; echo "[CACHE HEALTH]"; echo "Entries loaded: $CACHE_ENTRIES_LOADED"; echo "Entries reused: $HASH_REUSED"; echo "Entries refreshed: $CACHE_REFRESHED"; echo "Entries not reused/expired: $CACHE_NOT_REUSED"; echo "Cache hit rate: $CACHE_HIT_RATE%"; echo "Database fingerprint: $HASH_DB_FINGERPRINT"; echo; echo "[PER-SYSTEM PROCESSING]"; for sys in "${!SYSTEM_FILES[@]}"; do echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"; done | LC_ALL=C sort; echo; echo "[TIMING]"; echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"; echo "save_index_seconds=$((SAVE_END-SAVE_START))"; echo "database_cache_seconds=$((DB_END-DB_START))"; echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"; echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"; echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"; echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"; echo
   for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv location_audit.csv library_completion.csv missing_library_titles.csv proposed_renames.csv proposed_save_renames.csv; do echo "============================================================"; echo "[BEGIN $report]"; echo "============================================================"; if [ -f "$STAGE_DIR/$report" ]; then cat "$STAGE_DIR/$report"; else echo "(report not generated)"; fi; echo; echo "[END $report]"; echo; done
 } > "$STAGE_BUNDLE"
 
