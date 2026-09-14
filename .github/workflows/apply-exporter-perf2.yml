@@ -23,3 +23,4 @@ jobs:
           git add Export_Game_Library.sh
           git commit -m 'Optimize exporter cache and database hot paths'
           git push
+# rerun corrected migration
