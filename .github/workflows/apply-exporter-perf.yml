@@ -1,0 +1,28 @@
+name: Apply exporter performance optimizations
+on:
+  push:
+    paths:
+      - .github/workflows/apply-exporter-perf.yml
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply optimizations
+        run: python3 tools/apply_exporter_perf_once.py
+      - name: Validate syntax and synthetic regression
+        run: |
+          bash -n Export_Game_Library.sh
+          bash tests/test_exporter_synthetic.sh
+      - name: Commit optimized exporter
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-exporter-perf.yml tools/apply_exporter_perf_once.py
+          git add Export_Game_Library.sh README.md PROJECT_CONTEXT.md wiki/Audit-Workflow.md
+          git commit -m "Optimize exporter hot paths"
+          git push
