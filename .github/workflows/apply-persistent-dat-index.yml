@@ -22,6 +22,7 @@ jobs:
           set -euo pipefail
           grep -q 'DAT_CACHE_DIR="$AUDIT/dat_cache"' Export_Game_Library.sh
           grep -q 'rebuild_dat_cache' Export_Game_Library.sh
+          grep -q 'cache_system="${meta_system,,}"' Export_Game_Library.sh
           grep -q 'Persistent DAT index:' Export_Game_Library.sh
           grep -q 'Export_Game_Library_v1.3.sh' Export_Game_Library.sh
           grep -q 'FULL_VERIFY_WORKERS=2' Export_Game_Library.sh
