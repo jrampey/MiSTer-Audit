@@ -68,9 +68,17 @@ jobs:
             https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
             -o "$BUILD_DIR/db_operator.py"
 
-          # db_operator scans only this empty staging tree. All distributed files
-          # are explicitly declared in EXTERNAL_FILES above.
+          # db_operator requires Git context to resolve the commit used in
+          # BASE_FILES_URL. Give the isolated staging tree a commit whose HEAD
+          # is the exact checked-out repository commit without exposing the
+          # rest of the repository to its file scanner.
           cd "$STAGE_DIR"
+          git init -q
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -q -m "Downloader staging"
+          git replace HEAD "$GITHUB_SHA"
+
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
           BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
