@@ -44,7 +44,8 @@ jobs:
           BUILD_DIR="$GITHUB_WORKSPACE/.downloader-build"
           STAGE_DIR="$BUILD_DIR/stage"
           CSV="$BUILD_DIR/external_files.csv"
-          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
+          PUBLISH_SHA="$GITHUB_SHA"
+          RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISH_SHA}"
 
           rm -rf "$BUILD_DIR"
           mkdir -p "$STAGE_DIR"
@@ -68,12 +69,9 @@ jobs:
             https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
             -o "$BUILD_DIR/db_operator.py"
 
-          # Keep the staging directory inside the checked-out repository so
-          # db_operator can resolve the real Git HEAD while scanning only the
-          # controlled staging tree passed to it.
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
-          BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
+          BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISH_SHA}/" \
           EXTERNAL_FILES="$CSV" \
           DB_JSON_NAME="db.json" \
           python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
@@ -86,9 +84,10 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import hashlib, json
+          import hashlib, json, os
           from pathlib import Path
           db=json.loads(Path('db.json').read_text())
+          publish_sha=os.environ['GITHUB_SHA']
           expected={
               'Scripts/Export_Game_Library.sh':'Export_Game_Library.sh',
               'Scripts/Update_Game_Library.sh':'Update_Game_Library.sh',
@@ -103,7 +102,10 @@ jobs:
               size=len(data); md5=hashlib.md5(data).hexdigest()
               if entry.get('size') != size or entry.get('hash') != md5:
                   raise SystemExit(f'Manifest mismatch for {target}: expected size={size} md5={md5}, got {entry}')
-          print('Manifest exactly matches all distributed files.')
+              url=entry.get('url','')
+              if f'/{publish_sha}/' not in url:
+                  raise SystemExit(f'Manifest URL is not pinned to {publish_sha}: {target} -> {url}')
+          print('Manifest exactly matches and pins all distributed files to the publishing commit.')
           PY
 
       - name: Validate database with MiSTer Downloader
@@ -135,4 +137,4 @@ jobs:
           git commit -m "Update MiSTer Downloader database"
           git push
 
-# Refresh trigger: audit correctness and collision-preview publication.
+# Publication invariant: manifest checksums and file URLs always reference the same immutable commit.
