@@ -56,3 +56,5 @@ EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
           git add Export_Game_Library.sh
           git commit -m "Show exporter runtime build ID"
           git push
+
+# Triggered after workflow registration.
