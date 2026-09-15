@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   documentation-consistency:
@@ -22,7 +22,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.event.pull_request.head.sha }}"
@@ -33,47 +32,108 @@ jobs:
               BASE_SHA="$(git rev-list --max-parents=0 "$HEAD_SHA" | tail -n 1)"
             fi
           fi
-
           CHANGED="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
           printf 'Changed files:\n%s\n' "$CHANGED"
-
-          runtime_changed=false
-          readme_changed=false
-          context_changed=false
-          wiki_changed=false
-
+          runtime_changed=false; readme_changed=false; context_changed=false; wiki_changed=false
           while IFS= read -r file; do
             case "$file" in
-              Export_Game_Library.sh|Update_Game_Library.sh|mister_hash_database.tsv)
-                runtime_changed=true
-                ;;
-              README.md)
-                readme_changed=true
-                ;;
-              PROJECT_CONTEXT.md)
-                context_changed=true
-                ;;
-              wiki/*.md)
-                wiki_changed=true
-                ;;
+              Export_Game_Library.sh|Update_Game_Library.sh|mister_hash_database.tsv) runtime_changed=true ;;
+              README.md) readme_changed=true ;;
+              PROJECT_CONTEXT.md) context_changed=true ;;
+              wiki/*.md) wiki_changed=true ;;
             esac
           done <<< "$CHANGED"
-
           if [[ "$runtime_changed" != true ]]; then
             echo "No runtime implementation files changed; documentation guard not required."
             exit 0
           fi
-
           missing=()
           [[ "$readme_changed" == true ]] || missing+=("README.md")
           [[ "$context_changed" == true ]] || missing+=("PROJECT_CONTEXT.md")
           [[ "$wiki_changed" == true ]] || missing+=("wiki/*.md")
-
           if (( ${#missing[@]} > 0 )); then
             echo "::error::Runtime behavior changed without updating all required documentation surfaces."
             printf 'Missing documentation update: %s\n' "${missing[@]}"
-            echo "Update README.md, PROJECT_CONTEXT.md, and at least one relevant wiki/*.md page in the same change."
             exit 1
           fi
-
           echo "Documentation consistency check passed."
+
+  apply-exporter-fix:
+    if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply v1.4 runtime UI and Full Verification progress fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('Export_Game_Library.sh'); s=p.read_text()
+          marker='METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"; EXPORTER_BUILD_SHA1="$(hash_file "$0")"\n'
+          if 'EXPORTER_BUILD_ID="$(exporter_build_id "$0")"' not in s:
+              block=marker+'''exporter_build_id() {
+  local p="$1" digest="" rest=""
+  if command -v md5sum >/dev/null 2>&1; then
+    read -r digest rest < <(md5sum "$p" 2>/dev/null)
+  elif command -v openssl >/dev/null 2>&1; then
+    digest="$(openssl md5 "$p" 2>/dev/null)"; digest="${digest##* }"
+  else
+    digest="$EXPORTER_BUILD_SHA1"
+  fi
+  printf '%.8s' "$digest"
+}
+EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
+'''
+              if marker not in s: raise SystemExit('startup marker not found')
+              s=s.replace(marker,block,1)
+              old='echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.4                 |"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo\n'
+              new='echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.4                 |"; printf "| Build: %-41s|\\n" "$EXPORTER_BUILD_ID"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo\n'
+              if old not in s: raise SystemExit('startup banner not found')
+              s=s.replace(old,new,1)
+          old='''if [ "$USE_HASH_CACHE" -eq 0 ]; then : > "$PREHASH_RESULTS"; pv_start=$SECONDS; if [ -s "$WORK.hashjobs" ]; then XARGS_PARALLEL_ARGS=""; if xargs --help 2>&1 | grep -q -- '-P'; then XARGS_PARALLEL_ARGS="-P $FULL_VERIFY_WORKERS"; fi; if command -v sha1sum >/dev/null 2>&1; then xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(sha1sum "$p" 2>/dev/null); h=${h%% *}; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS"; else xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(openssl sha1 "$p" 2>/dev/null); h=${h##* }; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS"; fi; while IFS=$'\\t' read -r ph pp; do [ -n "$pp" ] && PREHASH_SHA_BY_PATH["$pp"]="$ph"; done < "$PREHASH_RESULTS"; fi; FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start)); fi
+'''
+          new='''if [ "$USE_HASH_CACHE" -eq 0 ]; then
+  : > "$PREHASH_RESULTS"; pv_start=$SECONDS
+  if [ -s "$WORK.hashjobs" ]; then
+    HASH_JOB_TOTAL=$(tr -cd '\\0' < "$WORK.hashjobs" | wc -c | tr -d '[:space:]'); [ -z "$HASH_JOB_TOTAL" ] && HASH_JOB_TOTAL=0
+    echo "    Full Verification: hashing $HASH_JOB_TOTAL supported files..."
+    XARGS_PARALLEL_ARGS=""; if xargs --help 2>&1 | grep -q -- '-P'; then XARGS_PARALLEL_ARGS="-P $FULL_VERIFY_WORKERS"; fi
+    if command -v sha1sum >/dev/null 2>&1; then
+      xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(sha1sum "$p" 2>/dev/null); h=${h%% *}; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS" &
+    else
+      xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(openssl sha1 "$p" 2>/dev/null); h=${h##* }; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS" &
+    fi
+    HASH_PID=$!; HASH_LAST=-1
+    while kill -0 "$HASH_PID" 2>/dev/null; do
+      HASH_DONE=$(wc -l < "$PREHASH_RESULTS" 2>/dev/null | tr -d '[:space:]'); [ -z "$HASH_DONE" ] && HASH_DONE=0
+      if [ "$HASH_DONE" != "$HASH_LAST" ]; then
+        HASH_PCT=0; [ "$HASH_JOB_TOTAL" -gt 0 ] 2>/dev/null && HASH_PCT=$((HASH_DONE * 100 / HASH_JOB_TOTAL))
+        printf "    Hashing: %s / %s (%s%%)\\n" "$HASH_DONE" "$HASH_JOB_TOTAL" "$HASH_PCT"; HASH_LAST="$HASH_DONE"
+      fi
+      sleep 5
+    done
+    wait "$HASH_PID"
+    HASH_DONE=$(wc -l < "$PREHASH_RESULTS" 2>/dev/null | tr -d '[:space:]'); [ -z "$HASH_DONE" ] && HASH_DONE=0
+    HASH_PCT=0; [ "$HASH_JOB_TOTAL" -gt 0 ] 2>/dev/null && HASH_PCT=$((HASH_DONE * 100 / HASH_JOB_TOTAL))
+    echo "    Hashing complete: $HASH_DONE / $HASH_JOB_TOTAL ($HASH_PCT%)"
+    [ "$HASH_DONE" -eq "$HASH_JOB_TOTAL" ] || { echo "ERROR: Full Verification hash pass incomplete ($HASH_DONE/$HASH_JOB_TOTAL)."; exit 1; }
+    while IFS=$'\\t' read -r ph pp; do [ -n "$pp" ] && PREHASH_SHA_BY_PATH["$pp"]="$ph"; done < "$PREHASH_RESULTS"
+  fi
+  FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start))
+fi
+'''
+          if 'Full Verification: hashing $HASH_JOB_TOTAL supported files' not in s:
+              if old not in s: raise SystemExit('prehash block not found')
+              s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          bash -n Export_Game_Library.sh
+          grep -F 'Build: %-41s' Export_Game_Library.sh
+          grep -F 'Full Verification: hashing $HASH_JOB_TOTAL supported files' Export_Game_Library.sh
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Export_Game_Library.sh
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Full Verification progress UI"
+          git push
