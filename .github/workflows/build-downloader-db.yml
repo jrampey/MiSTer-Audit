@@ -1,6 +1,6 @@
 name: Build MiSTer Downloader Database
 # Automatically publish a validated MiSTer Downloader manifest whenever a distributed file changes.
-# Build from an isolated staging directory so repository-only files cannot affect db_operator.
+# Build from a controlled staging directory while retaining the real repository Git context.
 
 on:
   push:
@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          BUILD_DIR="/tmp/mister-db-build"
+          BUILD_DIR="$GITHUB_WORKSPACE/.downloader-build"
           STAGE_DIR="$BUILD_DIR/stage"
           CSV="$BUILD_DIR/external_files.csv"
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
@@ -68,25 +68,18 @@ jobs:
             https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
             -o "$BUILD_DIR/db_operator.py"
 
-          # db_operator requires Git context to resolve the commit used in
-          # BASE_FILES_URL. Give the isolated staging tree a commit whose HEAD
-          # is the exact checked-out repository commit without exposing the
-          # rest of the repository to its file scanner.
-          cd "$STAGE_DIR"
-          git init -q
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit --allow-empty -q -m "Downloader staging"
-          git replace HEAD "$GITHUB_SHA"
-
+          # Keep the staging directory inside the checked-out repository so
+          # db_operator can resolve the real Git HEAD while scanning only the
+          # controlled staging tree passed to it.
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
           BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
           EXTERNAL_FILES="$CSV" \
           DB_JSON_NAME="db.json" \
-          python3 "$BUILD_DIR/db_operator.py" build .
+          python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
 
           cp "$STAGE_DIR/db.json" "$GITHUB_WORKSPACE/db.json"
+          rm -rf "$BUILD_DIR"
 
       - name: Verify manifest matches distributed files
         shell: bash
