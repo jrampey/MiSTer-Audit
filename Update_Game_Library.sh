@@ -1,12 +1,12 @@
 #!/bin/bash
-# Update_Game_Library_v1.3.sh
-# Companion updater for MiSTer ROM Library Auditor v1.3
+# Update_Game_Library_v1.4.sh
+# Companion updater for MiSTer ROM Library Auditor v1.4
 
 ROOT="/media/fat"; GAMES="$ROOT/games"; SAVES="$ROOT/saves"; AUDIT="$ROOT/GameLibraryAudit"
 GAME_CSV="$AUDIT/proposed_renames.csv"; SAVE_CSV="$AUDIT/proposed_save_renames.csv"; CATALOG="$AUDIT/library_catalog.csv"; BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 HISTORY="$AUDIT/RenameHistory"; PLAN="$AUDIT/apply_preview.tsv"; SKIPS="$AUDIT/apply_skipped.tsv"; PLAN_META="$AUDIT/apply_preview.meta"
 SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"; EXPORTER="$SCRIPT_DIR/Export_Game_Library.sh"; HASH_DB="$SCRIPT_DIR/mister_hash_database.tsv"
-EXPECTED_SCHEMA="4"; EXPECTED_EXPORTER_VERSION="1.3"; BLOCKLIST="/tmp/mister_updater_blocked.$$"; HEARTBEAT_EVERY=500
+EXPECTED_SCHEMA="4"; EXPECTED_EXPORTER_VERSION="1.4"; BLOCKLIST="/tmp/mister_updater_blocked.$$"; HEARTBEAT_EVERY=500
 UPDATER_BUILD="preview-summary-2026-09-13a"
 STAGE_PREFIX=""; STAGE_COLLISION=""; STAGE_RESOLVE=""; STAGE_GAME=""; STAGE_SAVE=""
 cleanup(){ rm -f "$BLOCKLIST"; }; trap cleanup EXIT INT TERM; mkdir -p "$HISTORY" || exit 1
@@ -16,7 +16,7 @@ audit_meta(){ local key="$1"; awk -F= -v k="$key" '/^\[AUDIT_METADATA\]$/{inmeta
 trim_spaces(){ local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
 validate_audit(){
  local mode="${1:-preview}" schema exporter_version build_sha database_sha metadata_layer self_check verdict recommendation notes notes_trimmed current_exporter_sha current_database_sha errors=0 collision_only=0
- [[ -f "$BUNDLE" ]]||{ echo "ERROR: Missing $BUNDLE"; echo "Run Export_Game_Library.sh v1.3 first."; return 1; }
+ [[ -f "$BUNDLE" ]]||{ echo "ERROR: Missing $BUNDLE"; echo "Run Export_Game_Library.sh v1.4 first."; return 1; }
  schema="$(audit_meta schema_version)"; exporter_version="$(audit_meta exporter_version)"; build_sha="$(audit_meta build_sha1)"; database_sha="$(audit_meta database_sha1)"; metadata_layer="$(audit_meta metadata_layer)"; self_check="$(audit_meta self_check)"; verdict="$(audit_meta integrity_verdict)"; recommendation="$(audit_meta apply_recommendation)"; notes="$(audit_meta integrity_notes)"; notes_trimmed="$(trim_spaces "$notes")"
  [[ "$verdict" == "PASS WITH WARNINGS" && "$notes_trimmed" == "collision-review-required" ]]&&collision_only=1
  [[ "$recommendation" == "APPLY WITH SKIPS" && "$notes_trimmed" == *collision* ]]&&collision_only=1
@@ -76,4 +76,4 @@ review_skips(){
 preview(){ STAGE_COLLISION="2/6";STAGE_RESOLVE="3/6";STAGE_GAME="4/6";STAGE_SAVE="5/6";stage "1/6" "Validating audit compatibility...";validate_audit preview||return 1;build_plan||return 1;write_plan_meta;stage "6/6" "Finalizing preview...";show_plan_summary;echo;echo "Preview complete.";echo "Press Enter to review the last preview, or Ctrl+C to close.";read -r _;review_preview; }
 apply_plan(){ STAGE_COLLISION="2/8";STAGE_RESOLVE="3/8";STAGE_GAME="4/8";STAGE_SAVE="5/8";stage "1/8" "Validating audit compatibility...";validate_audit apply||return 1;build_plan||return 1;write_plan_meta;stage "6/8" "Reviewing safe rename plan...";local n stamp manifest type old new;n=$(( $(wc -l <"$PLAN")-1));((n>0))||{ echo "Nothing safe to rename.";return 0;};show_plan_summary;echo;echo "This will rename $n safe files. Collision-blocked rows and their saves remain untouched.";echo "Type APPLY exactly to continue:";read -r confirm;[[ "$confirm" == APPLY ]]||{ echo "Cancelled.";return 0;};stage "7/8" "Revalidating and rebuilding safe plan...";validate_audit apply||return 1;STAGE_COLLISION="7a/8";STAGE_RESOLVE="7b/8";STAGE_GAME="7c/8";STAGE_SAVE="7d/8";build_plan||return 1;write_plan_meta;stage "8/8" "Applying safe renames and writing rollback manifest...";stamp=$(date +%Y%m%d-%H%M%S);manifest="$HISTORY/rename-$stamp.tsv";printf 'type\told_path\tnew_path\tresult\n'>"$manifest";tail -n +2 "$PLAN"|while IFS=$'\t' read -r type old new;do if [[ -e "$old" && ! -e "$new" ]];then if mv -- "$old" "$new";then printf '%s\t%s\t%s\tOK\n' "$type" "$old" "$new">>"$manifest";else printf '%s\t%s\t%s\tFAILED\n' "$type" "$old" "$new">>"$manifest";fi;else printf '%s\t%s\t%s\tSKIPPED_AT_APPLY\n' "$type" "$old" "$new">>"$manifest";fi;done;cp "$manifest" "$HISTORY/last_manifest.tsv";echo "Finished. Rollback manifest: $manifest"; }
 rollback(){ local manifest="$HISTORY/last_manifest.tsv" type old new result;[[ -f "$manifest" ]]||{ echo "No last rollback manifest found.";return 1;};echo "Rollback will restore successful renames from:";echo "$manifest";echo "Type ROLLBACK exactly to continue:";read -r confirm;[[ "$confirm" == ROLLBACK ]]||{ echo "Cancelled.";return 0;};tail -n +2 "$manifest"|tac|while IFS=$'\t' read -r type old new result;do [[ "$result" == OK ]]||continue;if [[ -e "$new" && ! -e "$old" ]];then mv -- "$new" "$old"||echo "FAILED: $new";else echo "SKIP: cannot safely restore $old";fi;done;echo "Rollback pass finished. Re-run the auditor to verify the library."; }
-echo "MiSTer ROM Library Updater v1.3";echo "=================================";echo "Updater build: $UPDATER_BUILD";echo "Script path:   $0";echo "1) Preview safe renames";echo "2) Apply safe renames (blocking collisions auto-skipped)";echo "3) View last preview summary";echo "4) Review last preview";echo "5) Review skipped items";echo "6) Roll back last applied cleanup";echo "7) Exit";read -r choice;case "$choice" in 1)preview;;2)apply_plan;;3)view_summary;;4)review_preview;;5)review_skips;;6)rollback;;*)exit 0;;esac
+echo "MiSTer ROM Library Updater v1.4";echo "=================================";echo "Updater build: $UPDATER_BUILD";echo "Script path:   $0";echo "1) Preview safe renames";echo "2) Apply safe renames (blocking collisions auto-skipped)";echo "3) View last preview summary";echo "4) Review last preview";echo "5) Review skipped items";echo "6) Roll back last applied cleanup";echo "7) Exit";read -r choice;case "$choice" in 1)preview;;2)apply_plan;;3)view_summary;;4)review_preview;;5)review_skips;;6)rollback;;*)exit 0;;esac

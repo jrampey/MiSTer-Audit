@@ -2,7 +2,7 @@
 
 ## Catalog accounting integrity
 
-The v1.3 auditor verifies that report generation accounts for the complete discovered library.
+The v1.4 auditor verifies that report generation accounts for the complete discovered library.
 
 The report-generation loop reads its plan through a dedicated file descriptor so commands executed while processing one game cannot accidentally consume subsequent plan records.
 
@@ -32,7 +32,7 @@ The exporter still reports blocking rows conservatively as `PASS WITH WARNINGS`,
 
 ## Apply with blocking rows skipped
 
-`Update_Game_Library.sh` v1.3 can proceed when the audit's **only** warning is `collision-review-required`.
+`Update_Game_Library.sh` v1.4 can proceed when the audit's **only** warning is `collision-review-required`.
 
 Before Preview or Apply, the updater reads `library_catalog.csv` and independently reconstructs the exporter's collision decision:
 

@@ -2,7 +2,9 @@
 
 The GitHub repository `jrampey/MiSTer-ROM-Library-Auditor` is the source of truth. Before making changes, inspect the current repository files and understand the existing implementation.
 
-The current release is **v1.3**. Do not increment the release version unless explicitly instructed.
+The current release is **v1.4**. Do not increment the release version unless explicitly instructed.
+
+v1.4 adds `AUDIT_POLICY.conf` as a non-executable, whitelist-parsed user policy layer. Default policy preserves prior USA + World-compatible retail completion behavior; comma-separated completion regions are supported.
 
 ## Project purpose
 
@@ -12,13 +14,13 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 ## Current implementation
 
-`Export_Game_Library.sh` is the **v1.3** auditor. Important v1.3 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
+`Export_Game_Library.sh` is the **v1.4** auditor. Important v1.4 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
 
 Fast Audit currently reuses valid path + size/mtime keyed SHA-1 cache entries and, while the database fingerprint is unchanged, cached DAT identification. It still performs a complete library rescan and repeats classification/report construction so cross-file safety state remains current. Full Verification bypasses hash reuse and recalculates supported hashes.
 
 The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner.
 
-`Update_Game_Library.sh` is the **v1.3** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Hard integrity failures, non-collision warnings, or exporter/database fingerprint changes still block Apply. A `PASS WITH WARNINGS` audit whose only integrity note is `collision-review-required` is now eligible for safe Apply: the updater independently reproduces the exporter collision classification from `library_catalog.csv`, removes every blocking game row and its paired save rename from the mutation plan, and applies only the remaining safe rows after explicit confirmation.
+`Update_Game_Library.sh` is the **v1.4** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Hard integrity failures, non-collision warnings, or exporter/database fingerprint changes still block Apply. A `PASS WITH WARNINGS` audit whose only integrity note is `collision-review-required` is now eligible for safe Apply: the updater independently reproduces the exporter collision classification from `library_catalog.csv`, removes every blocking game row and its paired save rename from the mutation plan, and applies only the remaining safe rows after explicit confirmation.
 
 ## Final-target collision safety — Issue #7
 
@@ -96,7 +98,7 @@ The distribution workflow is **ChatGPT/Codex → GitHub → VS Code → MiSTer U
 
 GitHub is authoritative. Do not assume an old chat artifact is newer than the repository. A direct request to change a specific file or feature is authorization for that specific change; documentation synchronization is included when runtime behavior changes.
 
-## v1.3 catalog accounting integrity
+## v1.4 catalog accounting integrity
 
 The exporter reads `$PLAN` through a dedicated file descriptor. Integrity enforces `TOTAL == CLASSIFIED` and `TOTAL + SKIPPED == GAME_SCAN_COUNT`. Failure adds `discovery-accounting-mismatch`, sets `FAIL`, and blocks Apply.
 
