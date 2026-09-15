@@ -71,7 +71,7 @@ jobs:
 
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
-          BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISH_SHA}/" \
+          BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
           EXTERNAL_FILES="$CSV" \
           DB_JSON_NAME="db.json" \
           python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
@@ -105,6 +105,9 @@ jobs:
               url=entry.get('url','')
               if f'/{publish_sha}/' not in url:
                   raise SystemExit(f'Manifest URL is not pinned to {publish_sha}: {target} -> {url}')
+          expected_base=f"https://raw.githubusercontent.com/{os.environ['GITHUB_REPOSITORY']}/{publish_sha}/"
+          if db.get('base_files_url') != expected_base:
+              raise SystemExit(f"Unexpected base_files_url: {db.get('base_files_url')} != {expected_base}")
           print('Manifest exactly matches and pins all distributed files to the publishing commit.')
           PY
 
@@ -138,4 +141,3 @@ jobs:
           git push
 
 # Publication invariant: manifest checksums and file URLs always reference the same immutable commit.
-# Refresh trigger: corrected publication after workflow cleanup.
