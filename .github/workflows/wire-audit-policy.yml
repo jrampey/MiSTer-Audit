@@ -31,16 +31,79 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -Fqx 'COMPLETION_REGIONS=USA' AUDIT_POLICY.conf
-          grep -Fqx 'COMPLETION_INCLUDE_WORLD=1' AUDIT_POLICY.conf
-          grep -Fqx 'COMPLETION_RETAIL_ONLY=1' AUDIT_POLICY.conf
-          grep -Fqx 'COMPLETION_INCLUDE_PROTOTYPES=0' AUDIT_POLICY.conf
-          grep -Fqx 'COMPLETION_INCLUDE_BETA=0' AUDIT_POLICY.conf
-          grep -Fqx 'COMPLETION_INCLUDE_DEMOS=0' AUDIT_POLICY.conf
-          grep -Fq 'COMPLETION_REGIONS=("USA")' Export_Game_Library.sh
-          grep -Fq 'COMPLETION_RETAIL_ONLY=1' Export_Game_Library.sh
-          grep -Fq 'COMPLETION_INCLUDE_WORLD=1' Export_Game_Library.sh
-          grep -Fq 'does not source/execute the file' Export_Game_Library.sh
+          python3 - <<'PY'
+          from pathlib import Path
+
+          policy = {}
+          for raw in Path("AUDIT_POLICY.conf").read_text().splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#") or "=" not in line:
+                  continue
+              key, value = line.split("=", 1)
+              policy[key.strip()] = value.strip()
+
+          expected = {
+              "COMPLETION_REGIONS": "USA",
+              "COMPLETION_INCLUDE_WORLD": "1",
+              "COMPLETION_RETAIL_ONLY": "1",
+              "COMPLETION_INCLUDE_PROTOTYPES": "0",
+              "COMPLETION_INCLUDE_BETA": "0",
+              "COMPLETION_INCLUDE_DEMOS": "0",
+          }
+          assert policy == expected, (policy, expected)
+          PY
+
+          # Extract and execute only the policy block so CI tests the parser's
+          # observable values without starting an audit or depending on grep text.
+          awk '/^# AUDIT POLICY$/{capture=1} capture{print} /^load_audit_policy$/{exit}' Export_Game_Library.sh > /tmp/policy-block.sh
+
+          run_policy() {
+            local policy_path="$1"
+            HASH_DB_SCRIPT_DIR="$(dirname "$policy_path")" \
+              bash -c 'source /tmp/policy-block.sh; printf "%s|%s|%s|%s|%s|%s\n" "${COMPLETION_REGIONS[*]}" "$COMPLETION_INCLUDE_WORLD" "$COMPLETION_RETAIL_ONLY" "$COMPLETION_INCLUDE_PROTOTYPES" "$COMPLETION_INCLUDE_BETA" "$COMPLETION_INCLUDE_DEMOS"'
+          }
+
+          actual="$(run_policy "$PWD/AUDIT_POLICY.conf")"
+          test "$actual" = 'USA|1|1|0|0|0'
+
+          mkdir -p /tmp/policy-missing
+          actual="$(run_policy /tmp/policy-missing/AUDIT_POLICY.conf)"
+          test "$actual" = 'USA|1|1|0|0|0'
+
+          mkdir -p /tmp/policy-invalid
+          cat > /tmp/policy-invalid/AUDIT_POLICY.conf <<'EOF'
+          COMPLETION_REGIONS=
+          COMPLETION_INCLUDE_WORLD=garbage
+          COMPLETION_RETAIL_ONLY=2
+          COMPLETION_INCLUDE_PROTOTYPES=no
+          COMPLETION_INCLUDE_BETA=-1
+          COMPLETION_INCLUDE_DEMOS=yes
+          EOF
+          actual="$(run_policy /tmp/policy-invalid/AUDIT_POLICY.conf)"
+          test "$actual" = 'USA|1|1|0|0|0'
+
+          mkdir -p /tmp/policy-custom
+          cat > /tmp/policy-custom/AUDIT_POLICY.conf <<'EOF'
+          COMPLETION_REGIONS=USA,Europe
+          COMPLETION_INCLUDE_WORLD=0
+          COMPLETION_RETAIL_ONLY=0
+          COMPLETION_INCLUDE_PROTOTYPES=1
+          COMPLETION_INCLUDE_BETA=1
+          COMPLETION_INCLUDE_DEMOS=1
+          EOF
+          actual="$(run_policy /tmp/policy-custom/AUDIT_POLICY.conf)"
+          test "$actual" = 'USA Europe|0|0|1|1|1'
+
+          mkdir -p /tmp/policy-safe
+          touch /tmp/policy-owned
+          rm /tmp/policy-owned
+          cat > /tmp/policy-safe/AUDIT_POLICY.conf <<'EOF'
+          COMPLETION_REGIONS=USA
+          EVIL=$(touch /tmp/policy-owned)
+          COMPLETION_INCLUDE_WORLD=1
+          EOF
+          run_policy /tmp/policy-safe/AUDIT_POLICY.conf >/dev/null
+          test ! -e /tmp/policy-owned
 
       - name: Validate v1.3 invariants
         shell: bash
