@@ -1,4 +1,4 @@
-name: Apply exporter performance pass 2
+name: Apply exporter runtime progress patch
 on:
   push:
     paths:
@@ -10,17 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply performance changes
+      - name: Patch exporter
         run: python3 .github/scripts/apply-exporter-perf2.py
-      - name: Validate syntax and regression suite
+      - name: Validate exporter
         run: |
           bash -n Export_Game_Library.sh
+          grep -F 'Build: %-41s' Export_Game_Library.sh
+          grep -F 'Full Verification: hashing $HASH_JOB_TOTAL supported files' Export_Game_Library.sh
           bash tests/test_exporter_synthetic.sh
-      - name: Commit optimized exporter
+      - name: Commit exporter fix
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add Export_Game_Library.sh
-          git commit -m 'Optimize exporter cache and database hot paths'
+          git diff --cached --quiet && exit 0
+          git commit -m 'Show exporter build ID and Full Verification hash progress'
           git push
-# rerun corrected migration
+# runtime-progress-patch
