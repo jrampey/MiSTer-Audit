@@ -32,7 +32,7 @@ SYSTEM_RULES = [
     ("Nintendo - Game Boy Color", "GBC", "Gameboy2P", "Gameboy"),
     ("Nintendo - Game Boy Advance", "GBA", "GBA", "GBA"),
     ("Nintendo - Game Boy", "GAMEBOY", "Gameboy2P", "Gameboy"),
-    ("Sega - Mega Drive - Genesis", "Genesis", "Genesis", "Genesis"),
+    ("Sega - Mega Drive - Genesis", "MegaDrive", "Genesis", "MegaDrive"),
     ("Sega - 32X", "S32X", "S32X", "S32X"),
     ("Sega - Master System - Mark III", "SMS", "SMS", "SMS"),
     ("Atari - Atari 2600", "Atari2600", "Atari2600", "Atari2600"),
@@ -135,12 +135,7 @@ def parse_dat(path: Path):
                 "release_type": release_type(title),
                 "license_status": license_status(title),
             })
-    return {
-        "name": dat_name,
-        "version": dat_version,
-        "system": system,
-        "records": records,
-    }
+    return {"name": dat_name, "version": dat_version, "system": system, "records": records}
 
 
 def record_key(r):
