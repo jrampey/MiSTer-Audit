@@ -266,7 +266,7 @@ canonical_dat_system() {
     gameboy|game\ boy|gb) printf 'GAMEBOY' ;;
     gbc|gameboycolor|game\ boy\ color) printf 'GBC' ;;
     gba|gameboyadvance|game\ boy\ advance) printf 'GBA' ;;
-    megadrive|mega\ drive|genesis) printf 'Genesis' ;;
+    megadrive|mega\ drive|genesis) printf 'MegaDrive' ;;
     s32x|32x) printf 'S32X' ;;
     sms|master\ system*) printf 'SMS' ;;
     atari2600|atari\ 2600) printf 'Atari2600' ;;
@@ -328,7 +328,7 @@ build_dat_index() {
   : > "$DAT_INDEX"; HASH_DB_SOURCE="None"; HASH_DB_FINGERPRINT="missing"; HASH_INDEX_COUNT=0; HASH_DB_SKIPPED_SYSTEM_RECORDS=0; DAT_CACHE_STATUS="Unavailable"
   if [ -f "$HASH_DB_TSV" ]; then
     echo "    Using bundled hash database: $HASH_DB_TSV"
-    HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(file_signature "$HASH_DB_TSV")"
+    HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(hash_file "$HASH_DB_TSV")"
     mkdir -p "$DAT_CACHE_DIR" || true
     local cached_sig="" sys cache_file
     [ -f "$DAT_CACHE_META" ] && IFS= read -r cached_sig < "$DAT_CACHE_META"
