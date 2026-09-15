@@ -19,7 +19,7 @@ COMPLETION_RETAIL_ONLY=1
 COMPLETION_INCLUDE_WORLD=1
 '''
 
-new = '''# ---------------------------------------------------------------------------
+new = r'''# ---------------------------------------------------------------------------
 # AUDIT POLICY
 # ---------------------------------------------------------------------------
 # Defaults intentionally preserve v1.3 behavior. AUDIT_POLICY.conf is optional;
@@ -41,7 +41,7 @@ trim_policy_value() {
 }
 
 load_audit_policy() {
-  local line key value region
+  local line key value region rest
   local -a parsed_regions=()
   [ -r "$AUDIT_POLICY_FILE" ] || return 0
   while IFS= read -r line || [ -n "$line" ]; do
@@ -54,10 +54,16 @@ load_audit_policy() {
     case "$key" in
       COMPLETION_REGIONS)
         parsed_regions=()
-        while IFS= read -r region; do
+        rest="$value"
+        while :; do
+          case "$rest" in
+            *,*) region="${rest%%,*}"; rest="${rest#*,}" ;;
+            *) region="$rest"; rest="" ;;
+          esac
           region="$(trim_policy_value "$region")"
           [ -n "$region" ] && parsed_regions+=("$region")
-        done < <(printf '%s' "$value" | tr ',' '\\n')
+          [ -n "$rest" ] || break
+        done
         [ "${#parsed_regions[@]}" -gt 0 ] && COMPLETION_REGIONS=("${parsed_regions[@]}")
         ;;
       COMPLETION_RETAIL_ONLY|COMPLETION_INCLUDE_WORLD|COMPLETION_INCLUDE_PROTOTYPES|COMPLETION_INCLUDE_BETA|COMPLETION_INCLUDE_DEMOS)
