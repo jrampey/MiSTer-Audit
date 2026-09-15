@@ -134,3 +134,5 @@ jobs:
 
           git commit -m "Update MiSTer Downloader database"
           git push
+
+# Refresh trigger: exporter runtime UI/build-ID publication.
