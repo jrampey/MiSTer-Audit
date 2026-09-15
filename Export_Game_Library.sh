@@ -305,7 +305,8 @@ rebuild_dat_cache() {
   rm -rf "$tmp"; mkdir -p "$tmp" || return 1
   while IFS=$'\t' read -r h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest; do
     [ "$h" = "sha1" ] && continue; h="${h,,}"; [[ "$h" =~ ^[0-9a-f]{40}$ ]] || continue; [ -n "$meta_system" ] || continue
-    cache_system="${meta_system,,}"
+    cache_system="$(canonical_dat_system "$meta_system")"
+    cache_system="${cache_system,,}"
     out="$tmp/${cache_system//[^A-Za-z0-9._-]/_}.tsv"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$h" "$title" "$rom" "$source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" >> "$out"
   done < "$HASH_DB_TSV"
@@ -342,7 +343,8 @@ build_dat_index() {
     else
       while IFS=$'\t' read -r h title rom source size crc32 md5 meta_system meta_core meta_folder meta_region meta_release meta_license rest; do
         [ "$h" = "sha1" ] && continue; h="${h,,}"; [[ "$h" =~ ^[0-9a-f]{40}$ ]] || continue
-        [ -n "${ACTIVE_DAT_SYSTEMS[${meta_system,,}]+x}" ] || { HASH_DB_SKIPPED_SYSTEM_RECORDS=$((HASH_DB_SKIPPED_SYSTEM_RECORDS+1)); continue; }
+        cache_system="$(canonical_dat_system "$meta_system")"; cache_system="${cache_system,,}"
+        [ -n "${ACTIVE_DAT_SYSTEMS[$cache_system]+x}" ] || { HASH_DB_SKIPPED_SYSTEM_RECORDS=$((HASH_DB_SKIPPED_SYSTEM_RECORDS+1)); continue; }
         [ -n "${DAT_RECORD_BY_SHA[$h]+x}" ] || { DAT_RECORD_BY_SHA["$h"]="$title$DAT_SEP$rom$DAT_SEP$source$DAT_SEP$meta_system$DAT_SEP$meta_core$DAT_SEP$meta_folder$DAT_SEP$meta_region$DAT_SEP$meta_release$DAT_SEP$meta_license"; HASH_INDEX_COUNT=$((HASH_INDEX_COUNT+1)); }
       done < "$HASH_DB_TSV"
     fi
@@ -399,8 +401,15 @@ kind_of_set() { local s="${1,,}"; if [[ "$s" =~ \((proto|prototype|beta|demo|sam
 trim_set() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; HOT_RESULT="$s"; }
 clean_title_set() { local s="$1" original="$1" before; local re_region='^(.*)[[:space:]]+\((USA|US|U|World|W|Europe|EUR|E|Japan|JPN|J|Canada|CAN|Australia|AUS|Korea|KOR|Brazil|BRA|UE|U,E|U\+E)\)(.*)$'; local re_meta='^(.*)[[:space:]]+\((Rev(ision)?[[:space:]._-]*[0-9A-Za-z]+|Proto(type)?|Beta|Demo|Sample|Unl(icensed)?|Homebrew|Aftermarket|Translation|Translated|Eng(lish)?[^)]*)\)(.*)$'; local re_bracket='^(.*)[[:space:]]+\[([tThH][^]]*|!|[bBoOfFpPaA][0-9]*|[cCxX])\](.*)$'; while :; do before="$s"; if [[ "$s" =~ $re_region ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; elif [[ "$s" =~ $re_meta ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[7]}"; elif [[ "$s" =~ $re_bracket ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; else break; fi; done; trim_set "$s"; s="$HOT_RESULT"; while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done; s="${s% -}"; s="${s% _}"; trim_set "$s"; s="$HOT_RESULT"; [ -z "$s" ] && s="$original"; HOT_RESULT="$s"; }
 suffix_for_set() { local region="$1" kind="$2" suffix=""; [ "$region" != "USA" ] && [ "$region" != "Unknown" ] && suffix=" [$region]"; [ "$region" = "Unknown" ] && suffix=" [Unknown Region]"; [ "$kind" != "Retail/Standard" ] && suffix="$suffix [$kind]"; HOT_RESULT="$suffix"; }
-location_status_set() { local current="${1,,}" expected="${2,,}"; if [ -z "$expected" ]; then HOT_RESULT=Unknown; return; fi; if [ "$current" = "$expected" ]; then HOT_RESULT=OK; return; fi; case "$expected" in nes) case "$current" in nes|fds|famicom) HOT_RESULT='OK (compatible folder)'; return;; esac ;; gameboy) case "$current" in gameboy|game\ boy|gb) HOT_RESULT='OK (compatible folder)'; return;; esac ;; n64) case "$current" in n64|nintendo64|nintendo\ 64) HOT_RESULT='OK (compatible folder)'; return;; esac ;; esac; HOT_RESULT=MISFILED; }
-location_status() { local current="${1,,}" expected="${2,,}"; [ -z "$expected" ] && { echo "Unknown"; return; }; [ "$current" = "$expected" ] && { echo "OK"; return; }; case "$expected" in nes) case "$current" in nes|fds|famicom) echo "OK (compatible folder)"; return;; esac ;; gameboy) case "$current" in gameboy|game\ boy|gb) echo "OK (compatible folder)"; return;; esac ;; n64) case "$current" in n64|nintendo64|nintendo\ 64) echo "OK (compatible folder)"; return;; esac ;; esac; echo "MISFILED"; }
+location_status_set() { local current="${1,,}" expected="${2,,}"; if [ -z "$expected" ]; then HOT_RESULT=Unknown; return; fi; if [ "$current" = "$expected" ]; then HOT_RESULT=OK; return; fi; case "$expected" in nes) case "$current" in nes|fds|famicom) HOT_RESULT='OK (compatible folder)'; return;; esac ;; gameboy) case "$current" in gameboy|game\ boy|gb|gbc|gameboycolor|game\ boy\ color) HOT_RESULT='OK (compatible folder)'; return;; esac ;; snes) case "$current" in snes|sfc|sgb|supergameboy|super\ game\ boy) HOT_RESULT='OK (compatible folder)'; return;; esac ;; n64) case "$current" in n64|nintendo64|nintendo\ 64) HOT_RESULT='OK (compatible folder)'; return;; esac ;; esac; HOT_RESULT=MISFILED; }
+location_status() { local current="${1,,}" expected="${2,,}"; [ -z "$expected" ] && { echo "Unknown"; return; }; [ "$current" = "$expected" ] && { echo "OK"; return; }; case "$expected" in nes) case "$current" in nes|fds|famicom) echo "OK (compatible folder)"; return;; esac ;; gameboy) case "$current" in gameboy|game\ boy|gb|gbc|gameboycolor|game\ boy\ color) echo "OK (compatible folder)"; return;; esac ;; snes) case "$current" in snes|sfc|sgb|supergameboy|super\ game\ boy) echo "OK (compatible folder)"; return;; esac ;; n64) case "$current" in n64|nintendo64|nintendo\ 64) echo "OK (compatible folder)"; return;; esac ;; esac; echo "MISFILED"; }
+expected_unmatched_class() {
+  local name="${1,,}" kind="${2,,}"
+  case "$kind" in *homebrew*|*unlicensed*|*prototype*|*demo*|*beta*) printf 'Expected non-retail'; return ;; esac
+  case "$name" in *test*suite*|*test*rom*|*diagnostic*|*benchmark*|*homebrew*|*unlicensed*|*prototype*|*proto*|*beta*|*demo*) printf 'Expected support/non-retail'; return ;; esac
+  printf 'Review unmatched retail/unknown'
+}
+
 
 START_TIME=$(date +%s); LAST_PROGRESS_TIME=$START_TIME
 on_exit() { cleanup; }; trap on_exit EXIT INT TERM
@@ -553,7 +562,7 @@ printf '%s\n' '"system","current_path","proposed_filename","region","version_typ
 printf '%s\n' '"system","game_path","save_path","proposed_save_filename","match_type","status"' > "$STAGE_SAVE_REN"
 printf '%s\n' '"sha1","system","full_path","original_filename","clean_title"' > "$STAGE_HASH_DUP"
 printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status"' > "$STAGE_DAT_MATCH"
-printf '%s\n' '"sha1","system","full_path","original_filename"' > "$STAGE_DAT_UNMATCHED"
+printf '%s\n' '"sha1","system","full_path","original_filename","unmatched_class"' > "$STAGE_DAT_UNMATCHED"
 printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","location_status"' > "$STAGE_LOCATION_AUDIT"
 : > "$HASH_ROWS"; : > "$COLLISION_ROWS"
 TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; RESOLVED_COLLISIONS=0; PRE_COLLISION_ROWS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
@@ -574,14 +583,14 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     else if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi; [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1)); dat_status="No match"; fi
   else HASH_SKIPPED=$((HASH_SKIPPED+1)); fi
   if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
-    HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >> "$HASH_ROWS"; hkey="${sha1,,}"; file_size="${sig%%|*}"; matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
+    HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >> "$HASH_ROWS"; hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
     if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then
       dat_unpack "${DAT_RECORD_BY_SHA[$hkey]}"; dat_name="$DAT_TITLE"; dat_rom="$DAT_ROM"; dat_source="$DAT_SOURCE"; meta_system="$DAT_SYSTEM"; meta_core="$DAT_CORE"; meta_folder="$DAT_FOLDER"; meta_region="$DAT_REGION"; meta_release="$DAT_RELEASE"; meta_license="$DAT_LICENSE"
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi
       location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$loc_status"
-    else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file"; fi
+    else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; fi
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
   fi
 
@@ -616,8 +625,8 @@ fi
 COMPLETION_REGION_LABEL="$(IFS=', '; echo "${COMPLETION_REGIONS[*]}")"
 printf '%s\n' '"system","owned_titles","reference_titles","missing_titles","completion_percent","regions","scope"' > "$STAGE_COMPLETION"
 printf '%s\n' '"system","canonical_title","region","release_type","license_status"' > "$STAGE_MISSING_COMPLETION"
-while IFS= read -r c_sys; do [ -n "$c_sys" ] || continue; c_total="${COMPLETION_TOTAL_BY_SYSTEM[$c_sys]:-0}"; c_owned="${COMPLETION_OWNED_BY_SYSTEM[$c_sys]:-0}"; c_missing=$((c_total-c_owned)); c_pct="$(awk -v a="$c_owned" -v b="$c_total" 'BEGIN{if(b>0) printf "%.2f", (a*100)/b; else printf "0.00"}')"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then c_scope="Retail releases"; else c_scope="All release types"; fi; csv_row "$STAGE_COMPLETION" "$c_sys" "$c_owned" "$c_total" "$c_missing" "$c_pct" "$COMPLETION_REGION_LABEL" "$c_scope"; done < <(printf '%s\n' "${!COMPLETION_TOTAL_BY_SYSTEM[@]}" | LC_ALL=C sort)
-for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue; c_sys="${c_key%%|*}"; c_title="${c_key#*|}"; csv_row "$STAGE_MISSING_COMPLETION" "$c_sys" "$c_title" "${COMPLETION_TITLE_REGION[$c_key]:-}" "${COMPLETION_TITLE_RELEASE[$c_key]:-}" "${COMPLETION_TITLE_LICENSE[$c_key]:-}"; done
+while IFS= read -r c_sys; do [ -n "$c_sys" ] || continue; present_matches=0; for present_sys in "${!SYSTEM_MATCHED[@]}"; do [ "$(canonical_dat_system "$present_sys")" = "$c_sys" ] && present_matches=$((present_matches + ${SYSTEM_MATCHED[$present_sys]:-0})); done; [ "$present_matches" -gt 0 ] || continue; c_total="${COMPLETION_TOTAL_BY_SYSTEM[$c_sys]:-0}"; c_owned="${COMPLETION_OWNED_BY_SYSTEM[$c_sys]:-0}"; c_missing=$((c_total-c_owned)); c_pct="$(awk -v a="$c_owned" -v b="$c_total" 'BEGIN{if(b>0) printf "%.2f", (a*100)/b; else printf "0.00"}')"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then c_scope="Retail releases"; else c_scope="All release types"; fi; csv_row "$STAGE_COMPLETION" "$c_sys" "$c_owned" "$c_total" "$c_missing" "$c_pct" "$COMPLETION_REGION_LABEL" "$c_scope"; done < <(printf '%s\n' "${!COMPLETION_TOTAL_BY_SYSTEM[@]}" | LC_ALL=C sort)
+for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue; c_sys="${c_key%%|*}"; present_matches=0; for present_sys in "${!SYSTEM_MATCHED[@]}"; do [ "$(canonical_dat_system "$present_sys")" = "$c_sys" ] && present_matches=$((present_matches + ${SYSTEM_MATCHED[$present_sys]:-0})); done; [ "$present_matches" -gt 0 ] || continue; c_title="${c_key#*|}"; csv_row "$STAGE_MISSING_COMPLETION" "$c_sys" "$c_title" "${COMPLETION_TITLE_REGION[$c_key]:-}" "${COMPLETION_TITLE_RELEASE[$c_key]:-}" "${COMPLETION_TITLE_LICENSE[$c_key]:-}"; done
 { head -n 1 "$STAGE_MISSING_COMPLETION"; tail -n +2 "$STAGE_MISSING_COMPLETION" | LC_ALL=C sort; } > "$STAGE_MISSING_COMPLETION.tmp" && mv -f "$STAGE_MISSING_COMPLETION.tmp" "$STAGE_MISSING_COMPLETION"
 
 CACHE_REFRESHED=$HASH_CALCULATED; CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 )); CACHE_HIT_RATE="0.0"; if [ "$HASH_ELIGIBLE" -gt 0 ]; then CACHE_HIT_RATE=$(awk -v a="$HASH_REUSED" -v b="$HASH_ELIGIBLE" 'BEGIN{printf "%.1f", (a*100)/b}'); fi
@@ -673,7 +682,10 @@ if [ $((TOTAL + SKIPPED)) -ne "$GAME_SCAN_COUNT" ] 2>/dev/null; then AUDIT_VERDI
 if [ "$DAT_MATCHED" -gt "$HASHED" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES impossible-dat-count"; fi
 if [ "$METADATA_LAYER_STATUS" != "MiSTer-aware" ]; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES metadata-layer-invalid"; fi
 MATCH_RATE_INT=100; if [ "$HASHED" -gt 0 ]; then MATCH_RATE_INT=$((DAT_MATCHED * 100 / HASHED)); fi
-if [ "$AUDIT_VERDICT" != "FAIL" ]; then if [ "$COLLISIONS" -gt 0 ] || [ "$MATCH_RATE_INT" -lt 50 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; APPLY_RECOMMENDATION="DO NOT APPLY"; [ "$COLLISIONS" -gt 0 ] && INTEGRITY_NOTES="$INTEGRITY_NOTES collision-review-required"; [ "$MATCH_RATE_INT" -lt 50 ] && INTEGRITY_NOTES="$INTEGRITY_NOTES low-dat-match-rate"; fi; fi
+if [ "$AUDIT_VERDICT" != "FAIL" ]; then
+  if [ "$MATCH_RATE_INT" -lt 50 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES low-dat-match-rate"; fi
+  if [ "$COLLISIONS" -gt 0 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; INTEGRITY_NOTES="$INTEGRITY_NOTES collision-rows-will-be-skipped"; [ "$APPLY_RECOMMENDATION" != "DO NOT APPLY" ] && APPLY_RECOMMENDATION="SAFE TO PREVIEW (COLLISIONS SKIPPED)"; fi
+fi
 [ -z "$INTEGRITY_NOTES" ] && INTEGRITY_NOTES="none"
 
 {
