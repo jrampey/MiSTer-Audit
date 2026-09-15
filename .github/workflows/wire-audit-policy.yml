@@ -31,23 +31,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -qx 'COMPLETION_REGIONS=USA' AUDIT_POLICY.conf
-          grep -qx 'COMPLETION_INCLUDE_WORLD=1' AUDIT_POLICY.conf
-          grep -qx 'COMPLETION_RETAIL_ONLY=1' AUDIT_POLICY.conf
-          grep -qx 'COMPLETION_INCLUDE_PROTOTYPES=0' AUDIT_POLICY.conf
-          grep -qx 'COMPLETION_INCLUDE_BETA=0' AUDIT_POLICY.conf
-          grep -qx 'COMPLETION_INCLUDE_DEMOS=0' AUDIT_POLICY.conf
-          grep -q 'COMPLETION_REGIONS=("USA")' Export_Game_Library.sh
-          grep -q 'COMPLETION_RETAIL_ONLY=1' Export_Game_Library.sh
-          grep -q 'COMPLETION_INCLUDE_WORLD=1' Export_Game_Library.sh
-          grep -q 'does not source/execute the file' Export_Game_Library.sh
+          grep -Fqx 'COMPLETION_REGIONS=USA' AUDIT_POLICY.conf
+          grep -Fqx 'COMPLETION_INCLUDE_WORLD=1' AUDIT_POLICY.conf
+          grep -Fqx 'COMPLETION_RETAIL_ONLY=1' AUDIT_POLICY.conf
+          grep -Fqx 'COMPLETION_INCLUDE_PROTOTYPES=0' AUDIT_POLICY.conf
+          grep -Fqx 'COMPLETION_INCLUDE_BETA=0' AUDIT_POLICY.conf
+          grep -Fqx 'COMPLETION_INCLUDE_DEMOS=0' AUDIT_POLICY.conf
+          grep -Fq 'COMPLETION_REGIONS=("USA")' Export_Game_Library.sh
+          grep -Fq 'COMPLETION_RETAIL_ONLY=1' Export_Game_Library.sh
+          grep -Fq 'COMPLETION_INCLUDE_WORLD=1' Export_Game_Library.sh
+          grep -Fq 'does not source/execute the file' Export_Game_Library.sh
 
       - name: Validate v1.3 invariants
         shell: bash
         run: |
           set -euo pipefail
-          grep -q '^# Export_Game_Library_v1.3.sh$' Export_Game_Library.sh
-          grep -q '^FULL_VERIFY_WORKERS=2$' Export_Game_Library.sh
+          grep -Fqx '# Export_Game_Library_v1.3.sh' Export_Game_Library.sh
+          grep -Fqx 'FULL_VERIFY_WORKERS=2' Export_Game_Library.sh
           git diff --exit-code HEAD -- Update_Game_Library.sh
 
       - name: Synthetic regression
