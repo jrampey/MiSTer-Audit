@@ -1,0 +1,17 @@
+name: Distributed Files Pipeline
+on:
+  push:
+    branches: [main]
+    paths:
+      - Export_Game_Library.sh
+      - Update_Game_Library.sh
+      - mister_hash_database.tsv
+permissions:
+  contents: write
+jobs:
+  publish:
+    uses: ./.github/workflows/publish-downloader.yml
+    with:
+      ref: ${{ github.sha }}
+    permissions:
+      contents: write
