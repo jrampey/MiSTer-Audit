@@ -1,7 +1,6 @@
 name: Build MiSTer Downloader Database
 # Automatically publish a validated MiSTer Downloader manifest whenever a distributed file changes.
-# A workflow-file change also intentionally refreshes stale manifest metadata.
-# Release refresh: v1.4
+# Build from an isolated staging directory so repository-only files cannot affect db_operator.
 
 on:
   push:
@@ -42,10 +41,13 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p /tmp/mister-db-build
-
+          BUILD_DIR="/tmp/mister-db-build"
+          STAGE_DIR="$BUILD_DIR/stage"
+          CSV="$BUILD_DIR/external_files.csv"
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
-          CSV="/tmp/mister-db-build/external_files.csv"
+
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$STAGE_DIR"
 
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
 
@@ -64,17 +66,19 @@ jobs:
 
           curl -fsSL \
             https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py \
-            -o /tmp/mister-db-build/db_operator.py
+            -o "$BUILD_DIR/db_operator.py"
 
-          cd "$GITHUB_WORKSPACE"
-
+          # db_operator scans only this empty staging tree. All distributed files
+          # are explicitly declared in EXTERNAL_FILES above.
+          cd "$STAGE_DIR"
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" \
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
           BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
           EXTERNAL_FILES="$CSV" \
-          FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv AUDIT_POLICY.conf README.md PROJECT_CONTEXT.md wiki" \
           DB_JSON_NAME="db.json" \
-          python3 /tmp/mister-db-build/db_operator.py build .
+          python3 "$BUILD_DIR/db_operator.py" build .
+
+          cp "$STAGE_DIR/db.json" "$GITHUB_WORKSPACE/db.json"
 
       - name: Verify manifest matches distributed files
         shell: bash
