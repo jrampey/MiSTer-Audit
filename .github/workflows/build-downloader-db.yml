@@ -72,7 +72,7 @@ jobs:
           DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" \
           BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" \
           EXTERNAL_FILES="$CSV" \
-          FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" \
+          FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv AUDIT_POLICY.conf README.md PROJECT_CONTEXT.md wiki" \
           DB_JSON_NAME="db.json" \
           python3 /tmp/mister-db-build/db_operator.py build .
 
