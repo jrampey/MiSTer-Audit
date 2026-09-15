@@ -1,0 +1,27 @@
+name: Downloader Manifest Freshness
+on:
+  push:
+    branches: [main]
+    paths: [db.json]
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify immutable published files
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,re,urllib.request
+          from pathlib import Path
+          db=json.loads(Path('db.json').read_text())
+          expected={'Scripts/Export_Game_Library.sh':'Export_Game_Library.sh','Scripts/Update_Game_Library.sh':'Update_Game_Library.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv'}
+          for target,source in expected.items():
+              e=db['files'].get(target); assert e, f'missing {target}'
+              assert re.search(r'/[0-9a-f]{40}/'+re.escape(source)+r'$',e['url']), f'non-immutable URL: {target}'
+              data=urllib.request.urlopen(e['url'],timeout=30).read()
+              assert len(data)==e['size'], f'size mismatch: {target}'
+              assert hashlib.md5(data).hexdigest()==e['hash'], f'hash mismatch: {target}'
+          print('Downloader manifest is internally consistent and immutable.')
+          PY
