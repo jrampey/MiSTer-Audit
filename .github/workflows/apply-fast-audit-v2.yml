@@ -1,0 +1,55 @@
+name: Apply Fast Audit v2
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/apply-fast-audit-v2.yml']
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply Fast Audit improvements
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('Export_Game_Library.sh'); s=p.read_text()
+          s=s.replace('CACHE_FORMAT="5"','CACHE_FORMAT="6"')
+          old='cache_key="$p|$sig"; cached_sha=""; if [ "$USE_HASH_CACHE" -eq 1 ]; then cached_sha="${CACHE_SHA[$cache_key]:-}"; fi'
+          new='cache_key="$p|$sig"; cached_sha=""; cached_normalized_sha=""; if [ "$USE_HASH_CACHE" -eq 1 ]; then cached_sha="${CACHE_SHA[$cache_key]:-}"; cached_normalized_sha="${CACHE_NORMALIZED_SHA[$cache_key]:-}"; fi'
+          assert old in s; s=s.replace(old,new,1)
+          old='hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi'
+          new='hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "$cached_normalized_sha" ]; then matched_hkey="${cached_normalized_sha,,}"; elif [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi'
+          assert old in s; s=s.replace(old,new,1)
+          marker='echo "Entries reused: $HASH_REUSED";'
+          repl='echo "Entries reused: $HASH_REUSED"; echo "Unchanged library records: $DISCOVERY_UNCHANGED"; echo "New library records: $DISCOVERY_ADDED"; echo "Modified library records: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED))"; echo "Deleted library records: $DISCOVERY_REMOVED"; echo "Delta records analyzed: $DISCOVERY_CHANGED_COUNT";'
+          assert marker in s; s=s.replace(marker,repl,1)
+          marker='echo " Cache hit rate    : $CACHE_HIT_RATE%";'
+          repl='echo " Fast delta        : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Cache hit rate    : $CACHE_HIT_RATE%";'
+          assert marker in s; s=s.replace(marker,repl,1)
+          p.write_text(s)
+          PY
+          bash -n Export_Game_Library.sh
+          python3 tools/validate_hash_database.py mister_hash_database.tsv
+          bash tests/test_exporter_synthetic.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          for f in ['PROJECT_CONTEXT.md','README.md']:
+            p=Path(f); s=p.read_text()
+            note='\nFast Audit v1.4 now treats cached analysis as dependency-scoped state: unchanged path+size+mtime records reuse SHA-1, normalized SHA-1, and filename classification; DAT identity is reused only while the database fingerprint matches. New/modified/deleted discovery deltas are reported explicitly, while collision, save-pairing, completion, duplicate, location, integrity, and final report state are rebuilt from the complete current library on every run. Full Verification continues to bypass ROM hash reuse.\n'
+            if 'Fast Audit v1.4 now treats cached analysis as dependency-scoped state' not in s: s += note
+            p.write_text(s)
+          wiki=Path('wiki/Fast-Audit.md')
+          if wiki.exists():
+            s=wiki.read_text(); note='\n## Incremental dependency model\nUnchanged records reuse cached SHA-1, normalized SHA-1, and filename classification. DAT identity is valid only for the matching database fingerprint. Fast Audit still rebuilds all cross-file/global safety and reporting state. Run telemetry reports unchanged, new, modified, deleted, and delta-analyzed counts. Full Verification bypasses ROM hash reuse.\n'
+            if '## Incremental dependency model' not in s: wiki.write_text(s+note)
+          PY
+      - name: Commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add Export_Game_Library.sh PROJECT_CONTEXT.md README.md wiki/Fast-Audit.md 2>/dev/null || git add Export_Game_Library.sh PROJECT_CONTEXT.md README.md
+          git commit -m "Improve Fast Audit incremental processing" || exit 0
+          git push
