@@ -51,8 +51,7 @@ EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
               s = s.replace(old_banner, new_banner, 1)
 
           # Full Verification was hashing after classification with no UI output.
-          # Keep the same two-worker behavior, but run it in the background and
-          # report completed hashes while waiting so the UI cannot look frozen.
+          # Keep the same two-worker behavior, but report progress while waiting.
           old = '''if [ "$USE_HASH_CACHE" -eq 0 ]; then : > "$PREHASH_RESULTS"; pv_start=$SECONDS; if [ -s "$WORK.hashjobs" ]; then XARGS_PARALLEL_ARGS=""; if xargs --help 2>&1 | grep -q -- '-P'; then XARGS_PARALLEL_ARGS="-P $FULL_VERIFY_WORKERS"; fi; if command -v sha1sum >/dev/null 2>&1; then xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(sha1sum "$p" 2>/dev/null); h=${h%% *}; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS"; else xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(openssl sha1 "$p" 2>/dev/null); h=${h##* }; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS"; fi; while IFS=$'\\t' read -r ph pp; do [ -n "$pp" ] && PREHASH_SHA_BY_PATH["$pp"]="$ph"; done < "$PREHASH_RESULTS"; fi; FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start)); fi
 '''
           new = '''if [ "$USE_HASH_CACHE" -eq 0 ]; then
@@ -78,7 +77,9 @@ EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
     done
     wait "$HASH_PID"
     HASH_DONE=$(wc -l < "$PREHASH_RESULTS" 2>/dev/null | tr -d '[:space:]'); [ -z "$HASH_DONE" ] && HASH_DONE=0
-    echo "    Hashing complete: $HASH_DONE / $HASH_JOB_TOTAL (100%)"
+    HASH_PCT=0; [ "$HASH_JOB_TOTAL" -gt 0 ] 2>/dev/null && HASH_PCT=$((HASH_DONE * 100 / HASH_JOB_TOTAL))
+    echo "    Hashing complete: $HASH_DONE / $HASH_JOB_TOTAL ($HASH_PCT%)"
+    [ "$HASH_DONE" -eq "$HASH_JOB_TOTAL" ] || { echo "ERROR: Full Verification hash pass incomplete ($HASH_DONE/$HASH_JOB_TOTAL)."; exit 1; }
     while IFS=$'\\t' read -r ph pp; do [ -n "$pp" ] && PREHASH_SHA_BY_PATH["$pp"]="$ph"; done < "$PREHASH_RESULTS"
   fi
   FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start))
@@ -97,3 +98,5 @@ fi
           git add Export_Game_Library.sh
           git commit -m "Show Full Verification hash progress"
           git push
+
+# Trigger after workflow registration; also validate the final hash count.
