@@ -520,13 +520,13 @@ if [ "$USE_HASH_CACHE" -eq 0 ]; then
     else
       xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(openssl sha1 "$p" 2>/dev/null); h=${h##* }; printf "%s\t%s\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS" &
     fi
-    HASH_PID=$!; HASH_LAST=-1
+    HASH_PID=$!; HASH_NEXT_STATUS=500
     while kill -0 "$HASH_PID" 2>/dev/null; do
       HASH_DONE=$(wc -l < "$PREHASH_RESULTS" 2>/dev/null | tr -d '[:space:]'); [ -z "$HASH_DONE" ] && HASH_DONE=0
-      if [ "$HASH_DONE" != "$HASH_LAST" ]; then
+      if [ "$HASH_DONE" -ge "$HASH_NEXT_STATUS" ] 2>/dev/null; then
         HASH_PCT=0; [ "$HASH_JOB_TOTAL" -gt 0 ] 2>/dev/null && HASH_PCT=$((HASH_DONE * 100 / HASH_JOB_TOTAL))
         printf "    Hashing: %s / %s (%s%%)\n" "$HASH_DONE" "$HASH_JOB_TOTAL" "$HASH_PCT"
-        HASH_LAST="$HASH_DONE"
+        HASH_NEXT_STATUS=$(( (HASH_DONE / 500 + 1) * 500 ))
       fi
       sleep 5
     done
