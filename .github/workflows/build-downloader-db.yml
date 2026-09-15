@@ -2,6 +2,7 @@ name: Build MiSTer Downloader Database
 # Automatically publish a validated MiSTer Downloader manifest whenever a distributed file changes.
 # Build from a controlled staging directory while retaining the real repository Git context.
 # Manual refresh: touching this workflow republishes the manifest against the current commit.
+# Refresh requested after Fast Audit incremental-processing update.
 
 on:
   push:
