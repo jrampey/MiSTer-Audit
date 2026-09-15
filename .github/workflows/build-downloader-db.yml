@@ -138,3 +138,4 @@ jobs:
           git push
 
 # Publication invariant: manifest checksums and file URLs always reference the same immutable commit.
+# Refresh trigger: corrected publication after workflow cleanup.
