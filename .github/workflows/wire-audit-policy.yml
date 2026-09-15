@@ -51,10 +51,9 @@ jobs:
               "COMPLETION_INCLUDE_DEMOS": "0",
           }
           assert policy == expected, (policy, expected)
+          print("PASS policy-file defaults:", policy)
           PY
 
-          # Extract definitions only. Remove the startup load call so each fixture
-          # can explicitly select its policy path before invoking the real parser.
           awk '/^# AUDIT POLICY$/{capture=1} capture{print} /^load_audit_policy$/{exit}' Export_Game_Library.sh \
             | sed '$d' > /tmp/policy-block.sh
 
@@ -74,13 +73,22 @@ jobs:
             '
           }
 
-          actual="$(run_policy "$PWD/AUDIT_POLICY.conf")"
-          test "$actual" = 'USA|1|1|0|0|0'
+          assert_policy() {
+            local name="$1" expected="$2" policy_path="$3" actual
+            actual="$(run_policy "$policy_path")"
+            printf '%s: expected=[%s] actual=[%s]\n' "$name" "$expected" "$actual"
+            if [[ "$actual" != "$expected" ]]; then
+              echo "FAIL: $name policy behavior mismatch" >&2
+              return 1
+            fi
+            echo "PASS: $name"
+          }
+
+          assert_policy default 'USA|1|1|0|0|0' "$PWD/AUDIT_POLICY.conf"
 
           mkdir -p /tmp/policy-missing
           rm -f /tmp/policy-missing/AUDIT_POLICY.conf
-          actual="$(run_policy /tmp/policy-missing/AUDIT_POLICY.conf)"
-          test "$actual" = 'USA|1|1|0|0|0'
+          assert_policy missing 'USA|1|1|0|0|0' /tmp/policy-missing/AUDIT_POLICY.conf
 
           mkdir -p /tmp/policy-invalid
           cat > /tmp/policy-invalid/AUDIT_POLICY.conf <<'EOF'
@@ -91,8 +99,7 @@ jobs:
           COMPLETION_INCLUDE_BETA=-1
           COMPLETION_INCLUDE_DEMOS=yes
           EOF
-          actual="$(run_policy /tmp/policy-invalid/AUDIT_POLICY.conf)"
-          test "$actual" = 'USA|1|1|0|0|0'
+          assert_policy invalid 'USA|1|1|0|0|0' /tmp/policy-invalid/AUDIT_POLICY.conf
 
           mkdir -p /tmp/policy-custom
           cat > /tmp/policy-custom/AUDIT_POLICY.conf <<'EOF'
@@ -103,8 +110,7 @@ jobs:
           COMPLETION_INCLUDE_BETA=1
           COMPLETION_INCLUDE_DEMOS=1
           EOF
-          actual="$(run_policy /tmp/policy-custom/AUDIT_POLICY.conf)"
-          test "$actual" = 'USA Europe|0|0|1|1|1'
+          assert_policy custom 'USA Europe|0|0|1|1|1' /tmp/policy-custom/AUDIT_POLICY.conf
 
           mkdir -p /tmp/policy-safe
           rm -f /tmp/policy-owned
@@ -113,8 +119,13 @@ jobs:
           EVIL=$(touch /tmp/policy-owned)
           COMPLETION_INCLUDE_WORLD=1
           EOF
-          run_policy /tmp/policy-safe/AUDIT_POLICY.conf >/dev/null
-          test ! -e /tmp/policy-owned
+          safe_actual="$(run_policy /tmp/policy-safe/AUDIT_POLICY.conf)"
+          printf 'safe: actual=[%s] side_effect=%s\n' "$safe_actual" "$([[ -e /tmp/policy-owned ]] && echo present || echo absent)"
+          if [[ -e /tmp/policy-owned ]]; then
+            echo 'FAIL: policy parser executed untrusted shell content' >&2
+            exit 1
+          fi
+          echo 'PASS: safe/non-execution'
 
       - name: Validate v1.3 invariants
         shell: bash
