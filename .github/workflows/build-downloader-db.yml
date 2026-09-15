@@ -135,4 +135,4 @@ jobs:
           git commit -m "Update MiSTer Downloader database"
           git push
 
-# Refresh trigger: 500-file hash-progress publication.
+# Refresh trigger: audit correctness and collision-preview publication.
