@@ -1,19 +1,73 @@
 from pathlib import Path
-p=Path('Export_Game_Library.sh')
-s=p.read_text()
-# Cache format changes because normalized hash is now persisted.
-s=s.replace('CACHE_FORMAT="4"','CACHE_FORMAT="5"')
-# Avoid hashing the 11MB DB merely for cache invalidation.
-s=s.replace('HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(hash_file "$HASH_DB_TSV")"','HASH_DB_SOURCE="mister_hash_database.tsv"; HASH_DB_FINGERPRINT="$(file_signature "$HASH_DB_TSV")"')
-# Extend cache with normalized hash.
-s=s.replace('declare -A CACHE_SHA CACHE_DAT_STATUS CACHE_DAT_NAME CACHE_DAT_ROM CACHE_DAT_SOURCE','declare -A CACHE_SHA CACHE_NORMALIZED_SHA CACHE_DAT_STATUS CACHE_DAT_NAME CACHE_DAT_ROM CACHE_DAT_SOURCE')
-s=s.replace('local old_format="" old_db="" p sig sha ds dn dr dsrc k','local old_format="" old_db="" p sig sha normalized_sha ds dn dr dsrc k')
-s=s.replace("while IFS=$'\\t' read -r p sig sha ds dn dr dsrc; do [ \"$p\" = \"path\" ] && continue; k=\"$p|$sig\"; CACHE_SHA[\"$k\"]=\"$sha\"; CACHE_ENTRIES_LOADED=$((CACHE_ENTRIES_LOADED+1));", "while IFS=$'\\t' read -r p sig sha normalized_sha ds dn dr dsrc; do [ \"$p\" = \"path\" ] && continue; k=\"$p|$sig\"; CACHE_SHA[\"$k\"]=\"$sha\"; CACHE_NORMALIZED_SHA[\"$k\"]=\"$normalized_sha\"; CACHE_ENTRIES_LOADED=$((CACHE_ENTRIES_LOADED+1));")
-s=s.replace("printf 'path\\tsignature\\tsha1\\tdat_status\\tdat_name\\tdat_rom\\tdat_source\\n' > \"$HASH_CACHE_NEW\"", "printf 'path\\tsignature\\tsha1\\tnormalized_sha1\\tdat_status\\tdat_name\\tdat_rom\\tdat_source\\n' > \"$HASH_CACHE_NEW\"")
-# Use cached normalized hash when available; otherwise compute once and persist.
-s=s.replace('hkey="${sha1,,}"; matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")";', 'hkey="${sha1,,}"; matched_hkey="${CACHE_NORMALIZED_SHA[$cache_key]:-}"; [ -n "$matched_hkey" ] || matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")";')
-s=s.replace("printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$p\" \"$sig\" \"${sha1,,}\" \"$dat_status\" \"$dat_name\" \"$dat_rom\" \"$dat_source\" >> \"$HASH_CACHE_NEW\"", "printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \"$p\" \"$sig\" \"${sha1,,}\" \"${matched_hkey:-${sha1,,}}\" \"$dat_status\" \"$dat_name\" \"$dat_rom\" \"$dat_source\" >> \"$HASH_CACHE_NEW\"")
-# Replace awk in hash_stream_skip with shell parsing, avoiding one process per normalization.
-s=s.replace("dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | sha1sum 2>/dev/null | awk '{print $1}'", "local digest rest; read -r digest rest < <(dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | sha1sum 2>/dev/null); printf '%s' \"$digest\"")
-s=s.replace("dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | openssl sha1 2>/dev/null | awk '{print $NF}'", "local line digest; IFS= read -r line < <(dd if=\"$p\" bs=\"$block\" skip=1 2>/dev/null | openssl sha1 2>/dev/null); digest=\"${line##* }\"; printf '%s' \"$digest\"")
+
+p = Path('Export_Game_Library.sh')
+s = p.read_text()
+
+marker = 'METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"; EXPORTER_BUILD_SHA1="$(hash_file "$0")"\n'
+if 'EXPORTER_BUILD_ID="$(exporter_build_id "$0")"' not in s:
+    if marker not in s:
+        raise SystemExit('startup marker not found')
+    block = marker + '''exporter_build_id() {
+  local p="$1" digest="" rest=""
+  if command -v md5sum >/dev/null 2>&1; then
+    read -r digest rest < <(md5sum "$p" 2>/dev/null)
+  elif command -v openssl >/dev/null 2>&1; then
+    digest="$(openssl md5 "$p" 2>/dev/null)"
+    digest="${digest##* }"
+  else
+    digest="$EXPORTER_BUILD_SHA1"
+  fi
+  printf '%.8s' "$digest"
+}
+EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
+'''
+    s = s.replace(marker, block, 1)
+    old_banner = 'echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.4                 |"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo\n'
+    new_banner = 'echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.4                 |"; printf "| Build: %-41s|\\n" "$EXPORTER_BUILD_ID"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo\n'
+    if old_banner not in s:
+        raise SystemExit('startup banner not found')
+    s = s.replace(old_banner, new_banner, 1)
+
+start = 'if [ "$USE_HASH_CACHE" -eq 0 ]; then : > "$PREHASH_RESULTS"; pv_start=$SECONDS;'
+end = 'REPORT_START=$(date +%s)'
+if 'Full Verification: hashing $HASH_JOB_TOTAL supported files' not in s:
+    a = s.find(start)
+    b = s.find(end, a)
+    if a < 0 or b < 0:
+        raise SystemExit('Full Verification prehash block not found')
+    new = '''if [ "$USE_HASH_CACHE" -eq 0 ]; then
+  : > "$PREHASH_RESULTS"; pv_start=$SECONDS
+  if [ -s "$WORK.hashjobs" ]; then
+    HASH_JOB_TOTAL=$(tr -cd '\\0' < "$WORK.hashjobs" | wc -c | tr -d '[:space:]')
+    [ -z "$HASH_JOB_TOTAL" ] && HASH_JOB_TOTAL=0
+    echo "    Full Verification: hashing $HASH_JOB_TOTAL supported files..."
+    XARGS_PARALLEL_ARGS=""
+    if xargs --help 2>&1 | grep -q -- '-P'; then XARGS_PARALLEL_ARGS="-P $FULL_VERIFY_WORKERS"; fi
+    if command -v sha1sum >/dev/null 2>&1; then
+      xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(sha1sum "$p" 2>/dev/null); h=${h%% *}; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS" &
+    else
+      xargs -0 -n1 $XARGS_PARALLEL_ARGS sh -c 'p="$1"; h=$(openssl sha1 "$p" 2>/dev/null); h=${h##* }; printf "%s\\t%s\\n" "$h" "$p"' sh < "$WORK.hashjobs" > "$PREHASH_RESULTS" &
+    fi
+    HASH_PID=$!; HASH_LAST=-1
+    while kill -0 "$HASH_PID" 2>/dev/null; do
+      HASH_DONE=$(wc -l < "$PREHASH_RESULTS" 2>/dev/null | tr -d '[:space:]'); [ -z "$HASH_DONE" ] && HASH_DONE=0
+      if [ "$HASH_DONE" != "$HASH_LAST" ]; then
+        HASH_PCT=0; [ "$HASH_JOB_TOTAL" -gt 0 ] 2>/dev/null && HASH_PCT=$((HASH_DONE * 100 / HASH_JOB_TOTAL))
+        printf "    Hashing: %s / %s (%s%%)\\n" "$HASH_DONE" "$HASH_JOB_TOTAL" "$HASH_PCT"
+        HASH_LAST="$HASH_DONE"
+      fi
+      sleep 5
+    done
+    wait "$HASH_PID"
+    HASH_DONE=$(wc -l < "$PREHASH_RESULTS" 2>/dev/null | tr -d '[:space:]'); [ -z "$HASH_DONE" ] && HASH_DONE=0
+    HASH_PCT=0; [ "$HASH_JOB_TOTAL" -gt 0 ] 2>/dev/null && HASH_PCT=$((HASH_DONE * 100 / HASH_JOB_TOTAL))
+    echo "    Hashing complete: $HASH_DONE / $HASH_JOB_TOTAL ($HASH_PCT%)"
+    [ "$HASH_DONE" -eq "$HASH_JOB_TOTAL" ] || { echo "ERROR: Full Verification hash pass incomplete ($HASH_DONE/$HASH_JOB_TOTAL)."; exit 1; }
+    while IFS=$'\\t' read -r ph pp; do [ -n "$pp" ] && PREHASH_SHA_BY_PATH["$pp"]="$ph"; done < "$PREHASH_RESULTS"
+  fi
+  FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start))
+fi
+'''
+    s = s[:a] + new + s[b:]
+
 p.write_text(s)
