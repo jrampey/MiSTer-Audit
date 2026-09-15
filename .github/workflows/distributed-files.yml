@@ -6,6 +6,9 @@ on:
       - Export_Game_Library.sh
       - Update_Game_Library.sh
       - mister_hash_database.tsv
+      - .github/workflows/distributed-files.yml
+      - .github/workflows/publish-downloader.yml
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
