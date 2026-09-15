@@ -53,20 +53,32 @@ jobs:
           assert policy == expected, (policy, expected)
           PY
 
-          # Extract and execute only the policy block so CI tests the parser's
-          # observable values without starting an audit or depending on grep text.
-          awk '/^# AUDIT POLICY$/{capture=1} capture{print} /^load_audit_policy$/{exit}' Export_Game_Library.sh > /tmp/policy-block.sh
+          # Extract definitions only. Remove the startup load call so each fixture
+          # can explicitly select its policy path before invoking the real parser.
+          awk '/^# AUDIT POLICY$/{capture=1} capture{print} /^load_audit_policy$/{exit}' Export_Game_Library.sh \
+            | sed '$d' > /tmp/policy-block.sh
 
           run_policy() {
             local policy_path="$1"
-            HASH_DB_SCRIPT_DIR="$(dirname "$policy_path")" \
-              bash -c 'source /tmp/policy-block.sh; printf "%s|%s|%s|%s|%s|%s\n" "${COMPLETION_REGIONS[*]}" "$COMPLETION_INCLUDE_WORLD" "$COMPLETION_RETAIL_ONLY" "$COMPLETION_INCLUDE_PROTOTYPES" "$COMPLETION_INCLUDE_BETA" "$COMPLETION_INCLUDE_DEMOS"'
+            POLICY_TEST_PATH="$policy_path" bash -c '
+              source /tmp/policy-block.sh
+              AUDIT_POLICY_FILE="$POLICY_TEST_PATH"
+              load_audit_policy
+              printf "%s|%s|%s|%s|%s|%s\n" \
+                "${COMPLETION_REGIONS[*]}" \
+                "$COMPLETION_INCLUDE_WORLD" \
+                "$COMPLETION_RETAIL_ONLY" \
+                "$COMPLETION_INCLUDE_PROTOTYPES" \
+                "$COMPLETION_INCLUDE_BETA" \
+                "$COMPLETION_INCLUDE_DEMOS"
+            '
           }
 
           actual="$(run_policy "$PWD/AUDIT_POLICY.conf")"
           test "$actual" = 'USA|1|1|0|0|0'
 
           mkdir -p /tmp/policy-missing
+          rm -f /tmp/policy-missing/AUDIT_POLICY.conf
           actual="$(run_policy /tmp/policy-missing/AUDIT_POLICY.conf)"
           test "$actual" = 'USA|1|1|0|0|0'
 
@@ -95,8 +107,7 @@ jobs:
           test "$actual" = 'USA Europe|0|0|1|1|1'
 
           mkdir -p /tmp/policy-safe
-          touch /tmp/policy-owned
-          rm /tmp/policy-owned
+          rm -f /tmp/policy-owned
           cat > /tmp/policy-safe/AUDIT_POLICY.conf <<'EOF'
           COMPLETION_REGIONS=USA
           EVIL=$(touch /tmp/policy-owned)
