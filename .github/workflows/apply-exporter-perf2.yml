@@ -17,6 +17,7 @@ jobs:
           bash -n Export_Game_Library.sh
           grep -F 'Build: %-41s' Export_Game_Library.sh
           grep -F 'Full Verification: hashing $HASH_JOB_TOTAL supported files' Export_Game_Library.sh
+          grep -F 'HASH_NEXT_STATUS=500' Export_Game_Library.sh
           bash tests/test_exporter_synthetic.sh
       - name: Commit exporter fix
         run: |
@@ -24,6 +25,7 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add Export_Game_Library.sh
           git diff --cached --quiet && exit 0
-          git commit -m 'Show exporter build ID and Full Verification hash progress'
+          git commit -m 'Show hash progress every 500 files'
           git push
 # runtime-progress-patch
+# hash-status-cadence-500
