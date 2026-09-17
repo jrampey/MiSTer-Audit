@@ -196,20 +196,22 @@ build_discovery_snapshot() {
   local p sig old
   printf 'format\t%s\n' "$DISCOVERY_FORMAT" > "$DISCOVERY_SNAPSHOT_NEW"
   : > "$DISCOVERY_CHANGED"
+  exec 22>>"$DISCOVERY_SNAPSHOT_NEW" 23>>"$DISCOVERY_CHANGED"
   while IFS= read -r p; do
     [ -n "$p" ] || continue
     sig="$(file_signature "$p")"
-    printf '%s\t%s\n' "$p" "$sig" >> "$DISCOVERY_SNAPSHOT_NEW"
+    printf '%s\t%s\n' "$p" "$sig" >&22
     DISCOVERY_CURRENT_PATH["$p"]=1
     old="${DISCOVERY_OLD_SIG[$p]:-}"
     if [ "$USE_HASH_CACHE" -eq 1 ] && [ -n "$old" ] && [ "$old" = "$sig" ]; then
       DISCOVERY_UNCHANGED=$((DISCOVERY_UNCHANGED+1))
     else
-      printf '%s\n' "$p" >> "$DISCOVERY_CHANGED"
+      printf '%s\n' "$p" >&23
       DISCOVERY_CHANGED_COUNT=$((DISCOVERY_CHANGED_COUNT+1))
       [ -z "$old" ] && DISCOVERY_ADDED=$((DISCOVERY_ADDED+1))
     fi
   done < "$GAME_LIST"
+  exec 22>&- 23>&-
   if [ "$USE_HASH_CACHE" -eq 1 ]; then
     for p in "${!DISCOVERY_OLD_SIG[@]}"; do
       [ -n "${DISCOVERY_CURRENT_PATH[$p]+x}" ] || DISCOVERY_REMOVED=$((DISCOVERY_REMOVED+1))
@@ -565,6 +567,8 @@ printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name",
 printf '%s\n' '"sha1","system","full_path","original_filename","unmatched_class"' > "$STAGE_DAT_UNMATCHED"
 printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","location_status"' > "$STAGE_LOCATION_AUDIT"
 : > "$HASH_ROWS"; : > "$COLLISION_ROWS"
+# Keep hot append targets open during the per-ROM loop to reduce FAT open/close I/O.
+exec 17>>"$HASH_ROWS" 20>>"$HASH_CACHE_NEW" 21>>"$COLLISION_ROWS"
 TOTAL=0; SAVE_MATCHES=0; COLLISIONS=0; RESOLVED_COLLISIONS=0; PRE_COLLISION_ROWS=0; HASHED=0; DAT_MATCHED=0; HASH_REUSED=0; HASH_CALCULATED=0; HASH_SKIPPED=0; HASH_ELIGIBLE=0
 printf 'path\tsignature\tsha1\tnormalized_sha1\tdat_status\tdat_name\tdat_rom\tdat_source\n' > "$HASH_CACHE_NEW"
 declare -A SEEN_NAMES
@@ -583,7 +587,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     else if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi; [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1)); dat_status="No match"; fi
   else HASH_SKIPPED=$((HASH_SKIPPED+1)); fi
   if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
-    HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >> "$HASH_ROWS"; hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "$cached_normalized_sha" ]; then matched_hkey="${cached_normalized_sha,,}"; elif [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
+    HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >&17; hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "$cached_normalized_sha" ]; then matched_hkey="${cached_normalized_sha,,}"; elif [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
     if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then
       dat_unpack "${DAT_RECORD_BY_SHA[$hkey]}"; dat_name="$DAT_TITLE"; dat_rom="$DAT_ROM"; dat_source="$DAT_SOURCE"; meta_system="$DAT_SYSTEM"; meta_core="$DAT_CORE"; meta_folder="$DAT_FOLDER"; meta_region="$DAT_REGION"; meta_release="$DAT_RELEASE"; meta_license="$DAT_LICENSE"
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi
@@ -591,7 +595,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$loc_status"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >&20
   fi
 
   # Collision planning is actionable only for DAT-identified ROMs. Unmatched ROMs
@@ -599,7 +603,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   # their filename-derived fallback targets must not block Preview.
   authoritative=0; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") [ -n "$proposed" ] && authoritative=1 ;; esac
   if [ "$authoritative" -eq 1 ]; then
-    printf '%s\t%s\t%s\t%s\t%s\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >> "$COLLISION_ROWS"
+    printf '%s\t%s\t%s\t%s\t%s\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >&21
     if [ "$pre_collision" -eq 1 ]; then collision="Canonical DAT variant candidate"; fi
   elif [ "$pre_collision" -eq 1 ]; then
     collision="Inventory only - unmatched ROM"
@@ -614,6 +618,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done
 exec 3<&-
+exec 17>&- 20>&- 21>&-
 
 # Issue #7: evaluate both pre-DAT groups and duplicate final targets.
 if [ -s "$COLLISION_ROWS" ]; then

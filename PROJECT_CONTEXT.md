@@ -115,3 +115,5 @@ Exporter performance: file signatures are captured once during classification an
 Fast Audit v1.4 now treats cached analysis as dependency-scoped state: unchanged path+size+mtime records reuse SHA-1, normalized SHA-1, and filename classification; DAT identity is reused only while the database fingerprint matches. New/modified/deleted discovery deltas are reported explicitly, while collision, save-pairing, completion, duplicate, location, integrity, and final report state are rebuilt from the complete current library on every run. Full Verification continues to bypass ROM hash reuse.
 
 - Fast Audit performance telemetry reports stage timings for discovery, save indexing, database/cache work, classification, report processing, publication, and total runtime; Full Verification also reports its parallel hash-pass time.
+
+Fast Audit hot-loop cache and discovery output uses persistent file descriptors, avoiding repeated FAT file open/close operations. This is a performance-only optimization; audit results and safety semantics are unchanged.
