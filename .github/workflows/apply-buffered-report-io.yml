@@ -1,0 +1,51 @@
+name: Apply Fast Audit buffered I/O optimization
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/apply_buffered_report_io.py'
+      - '.github/workflows/apply-buffered-report-io.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply optimization
+        run: python3 tools/apply_buffered_report_io.py
+      - name: Remove one-shot migration files
+        run: |
+          rm -f tools/apply_buffered_report_io.py
+          rm -f .github/workflows/apply-buffered-report-io.yml
+      - name: Validate exporter
+        run: |
+          bash -n Export_Game_Library.sh
+          bash tests/test_exporter_synthetic.sh
+      - name: Commit runtime and docs
+        id: commit
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Optimize Fast Audit report I/O"
+            git push
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: apply
+    uses: ./.github/workflows/publish-downloader.yml
+    with:
+      source_ref: ${{ needs.apply.outputs.sha }}
+    permissions:
+      contents: write
