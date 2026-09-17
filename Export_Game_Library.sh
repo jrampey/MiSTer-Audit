@@ -703,4 +703,26 @@ fi
 REPORT_END=$(date +%s); PUBLISH_START=$REPORT_END
 for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv location_audit.csv library_completion.csv missing_library_titles.csv MiSTer_Library_Audit.txt; do [ -f "$STAGE_DIR/$report" ] || continue; mv -f "$STAGE_DIR/$report" "$AUDIT/$report"; done
 PUBLISH_END=$(date +%s); TOTAL_END=$PUBLISH_END; sync
-echo; echo "+--------------------------------------------------+"; echo "| AUDIT COMPLETE                                   |"; echo "+--------------------------------------------------+"; echo " Mode              : $AUDIT_MODE"; echo " Games cataloged   : $TOTAL"; echo " DAT matches       : $DAT_MATCHED / $HASHED"; echo " Blocking collisions: $COLLISIONS"; echo " DAT variants safe : $RESOLVED_COLLISIONS"; echo " Save matches      : $SAVE_MATCHES"; echo " Fast delta        : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Cache hit rate    : $CACHE_HIT_RATE%"; echo " Integrity         : $AUDIT_VERDICT"; echo " Apply             : $APPLY_RECOMMENDATION"; echo "----------------------------------------------------"; echo " Reports: $AUDIT"; echo " Review : MiSTer_Library_Audit.txt"; echo " Missing: missing_library_titles.csv"; echo "----------------------------------------------------"; echo " READ ONLY: no ROMs or saves were changed."; echo "----------------------------------------------------"; echo; echo "Press Enter to close, or wait 60 seconds."; read -t 60 -r _ || true
+DISCOVERY_SECONDS=$((DISCOVERY_END-DISCOVERY_START))
+SAVE_INDEX_SECONDS=$((SAVE_END-SAVE_START))
+DATABASE_CACHE_SECONDS=$((DB_END-DB_START))
+CLASSIFICATION_SECONDS=$((CLASSIFY_END-CLASSIFY_START))
+REPORT_PROCESSING_SECONDS=$((REPORT_END-REPORT_START))
+PUBLISH_SECONDS=$((PUBLISH_END-PUBLISH_START))
+TOTAL_SECONDS=$((TOTAL_END-START_TIME))
+# Final timing telemetry is appended after atomic publication so the uploaded
+# audit contains the same stage timings shown on-screen. This is diagnostic
+# metadata only and does not affect audit/rename decisions.
+{
+  echo
+  echo "[FINAL TIMING]"
+  echo "discovery_seconds=$DISCOVERY_SECONDS"
+  echo "save_index_seconds=$SAVE_INDEX_SECONDS"
+  echo "database_cache_seconds=$DATABASE_CACHE_SECONDS"
+  echo "classification_seconds=$CLASSIFICATION_SECONDS"
+  echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"
+  echo "report_processing_seconds=$REPORT_PROCESSING_SECONDS"
+  echo "publish_seconds=$PUBLISH_SECONDS"
+  echo "total_seconds=$TOTAL_SECONDS"
+} >> "$BUNDLE"
+echo; echo "+--------------------------------------------------+"; echo "| AUDIT COMPLETE                                   |"; echo "+--------------------------------------------------+"; echo " Mode              : $AUDIT_MODE"; echo " Games cataloged   : $TOTAL"; echo " DAT matches       : $DAT_MATCHED / $HASHED"; echo " Blocking collisions: $COLLISIONS"; echo " DAT variants safe : $RESOLVED_COLLISIONS"; echo " Save matches      : $SAVE_MATCHES"; echo " Fast delta        : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Cache hit rate    : $CACHE_HIT_RATE%"; echo " Integrity         : $AUDIT_VERDICT"; echo " Apply             : $APPLY_RECOMMENDATION"; echo "----------------------------------------------------"; echo " Timing (seconds)"; echo "   Discovery       : $DISCOVERY_SECONDS"; echo "   Save index      : $SAVE_INDEX_SECONDS"; echo "   Database/cache  : $DATABASE_CACHE_SECONDS"; echo "   Classification  : $CLASSIFICATION_SECONDS"; echo "   Full hash pass  : $FULL_VERIFY_PARALLEL_SECONDS"; echo "   Report processing: $REPORT_PROCESSING_SECONDS"; echo "   Publish         : $PUBLISH_SECONDS"; echo "   TOTAL           : $TOTAL_SECONDS"; echo "----------------------------------------------------"; echo " Reports: $AUDIT"; echo " Review : MiSTer_Library_Audit.txt"; echo " Missing: missing_library_titles.csv"; echo "----------------------------------------------------"; echo " READ ONLY: no ROMs or saves were changed."; echo "----------------------------------------------------"; echo; echo "Press Enter to close, or wait 60 seconds."; read -t 60 -r _ || true
