@@ -85,7 +85,8 @@ resolved=$(value_after_colon "Canonical DAT variant rows resolved safely")
 [ $((cataloged + skipped)) -eq "$discovered" ] || fail "discovery accounting does not balance"
 [ "$verdict" != "FAIL" ] || fail "audit integrity verdict is FAIL"
 [ "$resolved" -eq 2 ] || fail "resolved canonical variants=$resolved expected=2"
-[ "$blocking" -eq 4 ] || fail "blocking collision rows=$blocking expected=4"
+# Unmatched ROMs are inventory-only and do not participate in rename collision planning.
+[ "$blocking" -eq 2 ] || fail "blocking collision rows=$blocking expected=2"
 
 catalog_rows=$(( $(wc -l < "$CATALOG") - 1 ))
 [ "$catalog_rows" -eq "$EXPECTED_CATALOGED" ] || fail "catalog CSV rows=$catalog_rows expected=$EXPECTED_CATALOGED"
