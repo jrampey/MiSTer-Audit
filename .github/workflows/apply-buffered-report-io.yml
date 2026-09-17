@@ -48,6 +48,6 @@ jobs:
     needs: apply
     uses: ./.github/workflows/publish-downloader.yml
     with:
-      source_ref: ${{ needs.apply.outputs.sha }}
+      ref: ${{ needs.apply.outputs.sha }}
     permissions:
       contents: write
