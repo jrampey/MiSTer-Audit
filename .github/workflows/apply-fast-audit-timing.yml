@@ -1,0 +1,48 @@
+name: Apply Fast Audit Timing Telemetry
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/apply_fast_audit_timing.py
+      - .github/workflows/apply-fast-audit-timing.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Apply timing instrumentation
+        run: python3 tools/apply_fast_audit_timing.py
+      - name: Remove migration helper
+        run: rm -f tools/apply_fast_audit_timing.py .github/workflows/apply-fast-audit-timing.yml
+      - name: Validate exporter
+        run: |
+          bash -n Export_Game_Library.sh
+          bash tests/test_exporter_synthetic.sh
+      - name: Commit runtime and documentation
+        id: commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add Fast Audit stage timing telemetry"
+          git push origin HEAD:main
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: apply
+    uses: ./.github/workflows/publish-downloader.yml
+    with:
+      ref: ${{ needs.apply.outputs.commit_sha }}
+    permissions:
+      contents: write
