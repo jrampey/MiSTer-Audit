@@ -1,3 +1,4 @@
+# One-shot migration for Fast Audit stage timing telemetry.
 from pathlib import Path
 
 p = Path('Export_Game_Library.sh')
