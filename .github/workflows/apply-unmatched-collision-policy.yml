@@ -1,0 +1,48 @@
+name: Apply unmatched ROM collision policy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/apply-unmatched-collision-policy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch exporter
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('Export_Game_Library.sh')
+          s = p.read_text()
+          old = '''  # Record every final target so canonical duplicates are detected even when fallback names differ.\n  authoritative=0; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") [ -n "$proposed" ] && authoritative=1 ;; esac\n  printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >> "$COLLISION_ROWS"\n  if [ "$pre_collision" -eq 1 ]; then if [ "$authoritative" -eq 1 ]; then collision="Canonical DAT variant candidate"; else collision="Blocking collision candidate"; fi; fi\n'''
+          new = '''  # Collision planning is actionable only for DAT-identified ROMs. Unmatched ROMs\n  # remain visible in inventory/unmatched reports but are not rename candidates, so\n  # their filename-derived fallback targets must not block Preview.\n  authoritative=0; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") [ -n "$proposed" ] && authoritative=1 ;; esac\n  if [ "$authoritative" -eq 1 ]; then\n    printf '%s\\t%s\\t%s\\t%s\\t%s\\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >> "$COLLISION_ROWS"\n    if [ "$pre_collision" -eq 1 ]; then collision="Canonical DAT variant candidate"; fi\n  elif [ "$pre_collision" -eq 1 ]; then\n    collision="Inventory only - unmatched ROM"\n  fi\n'''
+          if s.count(old) != 1:
+              raise SystemExit('expected collision-planning block exactly once')
+          s = s.replace(old, new, 1)
+          s = s.replace('- Unmatched/unsupported collision groups and duplicate canonical targets remain blocking.', '- Unmatched/unsupported ROMs are inventory-only and do not participate in rename collision planning.\n- Duplicate authoritative canonical targets remain blocking.', 1)
+          p.write_text(s)
+          PY
+          bash -n Export_Game_Library.sh
+
+      - name: Run synthetic regression
+        env:
+          CI: "true"
+        run: bash tests/test_exporter_synthetic.sh
+
+      - name: Commit verified exporter and remove installer
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-unmatched-collision-policy.yml
+          git add Export_Game_Library.sh
+          git commit -m "Exclude unmatched ROMs from collision planning"
+          git push
