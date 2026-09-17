@@ -1,6 +1,13 @@
 name: Synthetic Library Test
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - Export_Game_Library.sh
+      - tests/test_exporter_synthetic.sh
+      - tests/build_synthetic_library.py
+      - .github/workflows/synthetic-library-test.yml
   workflow_dispatch:
 
 permissions:
