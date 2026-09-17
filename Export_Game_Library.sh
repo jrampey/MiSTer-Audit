@@ -594,10 +594,16 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" >> "$HASH_CACHE_NEW"
   fi
 
-  # Record every final target so canonical duplicates are detected even when fallback names differ.
+  # Collision planning is actionable only for DAT-identified ROMs. Unmatched ROMs
+  # remain visible in inventory/unmatched reports but are not rename candidates, so
+  # their filename-derived fallback targets must not block Preview.
   authoritative=0; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") [ -n "$proposed" ] && authoritative=1 ;; esac
-  printf '%s\t%s\t%s\t%s\t%s\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >> "$COLLISION_ROWS"
-  if [ "$pre_collision" -eq 1 ]; then if [ "$authoritative" -eq 1 ]; then collision="Canonical DAT variant candidate"; else collision="Blocking collision candidate"; fi; fi
+  if [ "$authoritative" -eq 1 ]; then
+    printf '%s\t%s\t%s\t%s\t%s\n' "$p" "$key" "$pre_collision" "$authoritative" "${system,,}|${proposed,,}" >> "$COLLISION_ROWS"
+    if [ "$pre_collision" -eq 1 ]; then collision="Canonical DAT variant candidate"; fi
+  elif [ "$pre_collision" -eq 1 ]; then
+    collision="Inventory only - unmatched ROM"
+  fi
 
   save_count=0; save_key="${stem,,}"
   if [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
@@ -668,7 +674,8 @@ IMPORTANT:
 - Exact DAT matches use canonical DAT filenames; filename parsing is fallback-only for unmatched ROMs.
 - Pre-DAT filename collisions are blocking only when final canonical targets remain ambiguous.
 - Authoritative DAT variants with unique final targets are reported as resolved and do not block Preview.
-- Unmatched/unsupported collision groups and duplicate canonical targets remain blocking.
+- Unmatched/unsupported ROMs are inventory-only and do not participate in rename collision planning.
+- Duplicate authoritative canonical targets remain blocking.
 - Save matching still uses the original ROM basename and remains REVIEW ONLY.
 - SHA-1 hashes identify byte-for-byte duplicate files regardless of filename.
 - CUE/BIN and other multi-file disc sets require coordinated renaming before any future apply step.
