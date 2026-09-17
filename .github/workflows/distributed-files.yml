@@ -18,4 +18,4 @@ jobs:
       ref: ${{ github.sha }}
     permissions:
       contents: write
-# Publication trigger: unmatched-ROM inventory-only policy
+# Publication trigger: Fast Audit timing telemetry
