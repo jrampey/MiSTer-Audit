@@ -7,7 +7,7 @@ run_audit() {
 # Audit engine (v1.4)
 # MiSTer library audit/export. READ ONLY: never renames, moves, or deletes games/saves.
 # v1.2 improves region/version parsing, BIOS/support filtering, title normalization,
-# collision-safe proposals, ROM hashing, bundled TSV hash matching, in-memory indexes, atomic report publishing, timing telemetry, and full-library verification.
+# collision-safe proposals, ROM hashing, bundled TSV hash matching, full-library incremental caching, in-memory indexes, atomic report publishing, timing telemetry, and Fast/Full Verification audit modes.
 
 ROOT="/media/fat"
 GAMES="$ROOT/games"
@@ -191,7 +191,7 @@ file_signature() {
 }
 
 # Conservative incremental discovery: the full tree is still walked every audit.
-# Discovery state remains available for telemetry while Full Verification always rehashes supported files.
+# Fast Audit compares cheap path+size+mtime state so later stages can distinguish
 # unchanged files from additions/modifications/removals without trusting directory mtimes.
 declare -A DISCOVERY_OLD_SIG DISCOVERY_CURRENT_PATH
 DISCOVERY_UNCHANGED=0; DISCOVERY_CHANGED_COUNT=0; DISCOVERY_ADDED=0; DISCOVERY_REMOVED=0
@@ -512,10 +512,51 @@ exporter_build_id() {
 EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
 echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.4                 |"; printf "| Build: %-41s|\n" "$RUNTIME_BUILD_ID"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo
 
-AUDIT_MODE="Full Verification"
-USE_HASH_CACHE=0
-echo "Audit mode: Full Verification (standard)"
-echo "----------------------------------------------------"; echo
+AUDIT_MENU_SELECTION=1
+render_audit_menu() {
+  printf "+--------------------------------------------------+\n"
+  printf "| SELECT AUDIT MODE                                |\n"
+  printf "+--------------------------------------------------+\n"
+  printf "|  UP / LEFT    FAST AUDIT                         |\n"
+  printf "|               Recommended - reuses cached hashes |\n"
+  printf "|                                                  |\n"
+  printf "|  DOWN / RIGHT FULL VERIFICATION                  |\n"
+  printf "|               Recalculates every supported SHA-1 |\n"
+  printf "+--------------------------------------------------+\n"
+  printf "| D-pad selects and starts immediately             |\n"
+  printf "| Keyboard: 1 = Fast | 2 = Full | Auto Fast: 15s  |\n"
+  printf "+--------------------------------------------------+\n"
+}
+render_audit_menu
+while :; do
+  AUDIT_KEY=""
+  if ! IFS= read -rsn1 -t 15 AUDIT_KEY; then
+    AUDIT_MENU_SELECTION=1
+    break
+  fi
+  case "$AUDIT_KEY" in
+    ""|1|f|F)
+      AUDIT_MENU_SELECTION=1
+      break
+      ;;
+    2|v|V)
+      AUDIT_MENU_SELECTION=2
+      break
+      ;;
+    $'\x1b')
+      IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
+      if [ "$AUDIT_KEY2" = "[" ]; then
+        IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
+        case "$AUDIT_KEY3" in
+          A|D) AUDIT_MENU_SELECTION=1; break ;;
+          B|C) AUDIT_MENU_SELECTION=2; break ;;
+        esac
+      fi
+      ;;
+  esac
+done
+if [ "$AUDIT_MENU_SELECTION" -eq 2 ]; then AUDIT_MODE="Full Verification"; USE_HASH_CACHE=0; else AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1; fi
+echo; echo "Selected: $AUDIT_MODE"; echo "----------------------------------------------------"; echo
 DISCOVERY_START=$(date +%s); echo "[1/5] Scanning game library..."
 find "$GAMES" -type f \( -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" -o -iname "*.gb" -o -iname "*.gbc" -o -iname "*.gba" -o -iname "*.md" -o -iname "*.gen" -o -iname "*.32x" -o -iname "*.sms" -o -iname "*.gg" -o -iname "*.sg" -o -iname "*.pce" -o -iname "*.sgx" -o -iname "*.a26" -o -iname "*.a52" -o -iname "*.a78" -o -iname "*.col" -o -iname "*.int" -o -iname "*.cue" -o -iname "*.chd" -o -iname "*.iso" -o -iname "*.gdi" -o -iname "*.d64" -o -iname "*.d81" -o -iname "*.g64" -o -iname "*.adf" -o -iname "*.hdf" -o -iname "*.dsk" -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" -o -iname "*.n64" -o -iname "*.z64" -o -iname "*.v64" \) -print 2>/dev/null | LC_ALL=C sort > "$GAME_LIST"
 GAME_SCAN_COUNT=$(wc -l < "$GAME_LIST" | tr -d "[:space:]"); load_discovery_snapshot; build_discovery_snapshot; echo "    Files discovered: $GAME_SCAN_COUNT"; if [ "$USE_HASH_CACHE" -eq 1 ]; then echo "    Unchanged: $DISCOVERY_UNCHANGED | Added: $DISCOVERY_ADDED | Changed: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) | Removed: $DISCOVERY_REMOVED"; else echo "    Full Verification: incremental discovery state ignored"; fi; DISCOVERY_END=$(date +%s); SAVE_START=$DISCOVERY_END
@@ -639,7 +680,8 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
         dat_unpack "${DAT_RECORD_BY_SHA[$hkey]}"; dat_name="$DAT_TITLE"; dat_rom="$DAT_ROM"; dat_source="$DAT_SOURCE"; meta_system="$DAT_SYSTEM"; meta_core="$DAT_CORE"; meta_folder="$DAT_FOLDER"; meta_region="$DAT_REGION"; meta_release="$DAT_RELEASE"; meta_license="$DAT_LICENSE"
       fi
       # Re-derive cheap report-facing fields from the restored DAT metadata on
-      # every run. Full Verification remains authoritative.
+      # every run. This keeps Fast Audit byte-for-byte equivalent to Full
+      # Verification while still avoiding hash and DAT-record decoding work.
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi
       special_release_category_set "$meta_release" "$meta_license" "${dat_rom:-$dat_name}"; special_category="$HOT_RESULT"; curated_destination_set "$meta_folder" "$special_category"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
@@ -647,7 +689,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; csv_row "$STAGE_REVIEW_QUEUE" "$system" "$p" "$file" "$system" "$unmatched_class" "Review identity / DAT coverage"; fi
     # Cache rows are TSV. Empty interior fields must be encoded explicitly:
     # Bash read collapses adjacent tab IFS whitespace, which previously shifted
-    # unmatched-ROM metadata columns stable in persisted cache data.
+    # unmatched-ROM metadata columns on the next Fast Audit.
     cache_field() { local v="$1"; [ -n "$v" ] && printf '%s' "$v" || printf '__EMPTY__'; }
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$(cache_field "$dat_status")" "$(cache_field "$dat_name")" "$(cache_field "$dat_rom")" "$(cache_field "$dat_source")" "$(cache_field "$meta_system")" "$(cache_field "$meta_core")" "$(cache_field "$meta_folder")" "$(cache_field "$meta_region")" "$(cache_field "$meta_release")" "$(cache_field "$meta_license")" "$(cache_field "$clean")" "$(cache_field "$region")" "$(cache_field "$kind")" "$(cache_field "$proposed")" "$(cache_field "$loc_status")" >&20
   fi
@@ -794,7 +836,7 @@ TOTAL_SECONDS=$((TOTAL_END-START_TIME))
   echo "publish_seconds=$PUBLISH_SECONDS"
   echo "total_seconds=$TOTAL_SECONDS"
 } >> "$BUNDLE"
-echo; echo "+--------------------------------------------------+"; echo "| AUDIT COMPLETE                                   |"; echo "+--------------------------------------------------+"; echo " Mode              : $AUDIT_MODE"; echo " Games cataloged   : $TOTAL"; echo " DAT matches       : $DAT_MATCHED / $HASHED"; echo " Blocking collisions: $COLLISIONS"; echo " DAT variants safe : $RESOLVED_COLLISIONS"; echo " Save matches      : $SAVE_MATCHES"; echo " Library delta     : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Integrity         : $AUDIT_VERDICT"; echo " Apply             : $APPLY_RECOMMENDATION"; echo "----------------------------------------------------"; echo " Timing (seconds)"; echo "   Discovery       : $DISCOVERY_SECONDS"; echo "   Save index      : $SAVE_INDEX_SECONDS"; echo "   Database/cache  : $DATABASE_CACHE_SECONDS"; echo "   Classification  : $CLASSIFICATION_SECONDS"; echo "   Full hash pass  : $FULL_VERIFY_PARALLEL_SECONDS"; echo "   Report processing: $REPORT_PROCESSING_SECONDS"; echo "   Publish         : $PUBLISH_SECONDS"; echo "   TOTAL           : $TOTAL_SECONDS"; echo "----------------------------------------------------"; echo " Reports: $AUDIT"; echo " Review : MiSTer_Library_Audit.txt"; echo " Missing: missing_library_titles.csv"; echo "----------------------------------------------------"; echo " READ ONLY: no ROMs or saves were changed."; echo "----------------------------------------------------"; echo; echo "Press Enter to close, or wait 60 seconds."; read -t 60 -r _ || true
+echo; echo "+--------------------------------------------------+"; echo "| AUDIT COMPLETE                                   |"; echo "+--------------------------------------------------+"; echo " Mode              : $AUDIT_MODE"; echo " Games cataloged   : $TOTAL"; echo " DAT matches       : $DAT_MATCHED / $HASHED"; echo " Blocking collisions: $COLLISIONS"; echo " DAT variants safe : $RESOLVED_COLLISIONS"; echo " Save matches      : $SAVE_MATCHES"; echo " Fast delta        : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Cache hit rate    : $CACHE_HIT_RATE%"; echo " Integrity         : $AUDIT_VERDICT"; echo " Apply             : $APPLY_RECOMMENDATION"; echo "----------------------------------------------------"; echo " Timing (seconds)"; echo "   Discovery       : $DISCOVERY_SECONDS"; echo "   Save index      : $SAVE_INDEX_SECONDS"; echo "   Database/cache  : $DATABASE_CACHE_SECONDS"; echo "   Classification  : $CLASSIFICATION_SECONDS"; echo "   Full hash pass  : $FULL_VERIFY_PARALLEL_SECONDS"; echo "   Report processing: $REPORT_PROCESSING_SECONDS"; echo "   Publish         : $PUBLISH_SECONDS"; echo "   TOTAL           : $TOTAL_SECONDS"; echo "----------------------------------------------------"; echo " Reports: $AUDIT"; echo " Review : MiSTer_Library_Audit.txt"; echo " Missing: missing_library_titles.csv"; echo "----------------------------------------------------"; echo " READ ONLY: no ROMs or saves were changed."; echo "----------------------------------------------------"; echo; echo "Press Enter to close, or wait 60 seconds."; read -t 60 -r _ || true
 
 }
 
