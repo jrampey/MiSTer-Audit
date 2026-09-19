@@ -605,7 +605,7 @@ declare -A SEEN_NAMES
 
 echo "[5/5] Building audit reports..."; PLAN_TOTAL=$(wc -l < "$PLAN" | tr -d "[:space:]"); [ -z "$PLAN_TOTAL" ] && PLAN_TOTAL=0
 exec 3< "$PLAN"
-while IFS="${fallback_proposed:-}"; if [ -z "$proposed" ]; then suffix_for_set "$region" "$kind"; suffix="$HOT_RESULT"; proposed="$clean$suffix.$ext"; fi; base="${proposed%.$ext}"; key="${system,,}|${proposed,,}"; collision="None"; pre_collision=0
+while IFS= suffix_for_set "$region" "$kind"; suffix="$HOT_RESULT"; proposed="$clean$suffix.$ext"; fi; base="${proposed%.$ext}"; key="${system,,}|${proposed,,}"; collision="None"; pre_collision=0
   if [ "${NAME_COUNTS["$key"]:-0}" -gt 1 ]; then pre_collision=1; PRE_COLLISION_ROWS=$((PRE_COLLISION_ROWS+1)); n=$(( ${SEEN_NAMES["$key"]:-0} + 1 )); SEEN_NAMES["$key"]=$n; proposed="$base [Variant $n].$ext"; collision="Pending final-target review"; fi
   row_seconds_start=$SECONDS; SYSTEM_FILES["$system"]=$(( ${SYSTEM_FILES["$system"]:-0} + 1 ))
   sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""; meta_system=""; meta_core=""; meta_folder=""; meta_region=""; meta_release=""; meta_license=""; loc_status="Unknown"
