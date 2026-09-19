@@ -36,3 +36,7 @@ These assertions specifically protect the accounting/report-loop failure class d
 Use GitHub Actions -> **Synthetic Library Test** -> **Run workflow**. The workflow is intentionally `workflow_dispatch` only, so it does not add time to normal pushes or releases.
 
 The shell harness refuses to run unless `CI=true` and refuses to overlay an existing `/media/fat/games`, `/media/fat/saves`, or `/media/fat/GameLibraryAudit` tree.
+
+### Runtime structure guard
+
+`tools/build_runtime.sh --check` now verifies generated/runtime byte synchronization, Bash syntax, singleton entry-point definitions, a single final dispatch block, and that no stray content follows the final dispatch. MiSTer compatibility CI also runs ShellCheck as advisory lint so new warnings are visible without blocking publication.
