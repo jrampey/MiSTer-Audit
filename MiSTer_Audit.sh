@@ -832,7 +832,20 @@ main_menu() {
     read -r choice
     case "$choice" in
       1) run_audit; trap - EXIT INT TERM ;;
-      2) run_update_tools; trap - EXIT INT TERM ;;
+      2)
+        echo
+        echo "WARNING: Preview / Apply / Rollback can make changes to your game and save library."
+        echo "Apply can rename files, and Rollback can reverse previously applied changes."
+        echo "Run an audit and review the preview before applying changes."
+        echo
+        echo "1) Continue"
+        echo "2) Back [default]"
+        read -r update_choice
+        case "${update_choice:-2}" in
+          1) run_update_tools; trap - EXIT INT TERM ;;
+          *) continue ;;
+        esac
+        ;;
       3|*) exit 0 ;;
     esac
   done
