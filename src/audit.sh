@@ -38,7 +38,7 @@ DISCOVERY_FORMAT="1"
 CACHE_META="$AUDIT/hash_cache.meta"
 DAT_CACHE_DIR="$AUDIT/dat_cache"
 DAT_CACHE_META="$DAT_CACHE_DIR/.database_signature"
-CACHE_FORMAT="7"
+CACHE_FORMAT="8"
 CLASS_CACHE_FORMAT="1"
 AUDIT_SCHEMA_VERSION="4"
 FULL_VERIFY_WORKERS=2
@@ -397,6 +397,9 @@ load_hash_cache() {
   [ -s "$HASH_CACHE" ] || return 0
   while IFS=$'\t' read -r p sig sha normalized_sha ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls; do
     [ "$p" = "path" ] && continue
+    for v in ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls; do
+      [ "${!v}" = "__EMPTY__" ] && printf -v "$v" '%s' ""
+    done
     k="$p|$sig"
     CACHE_SHA["$k"]="$sha"
     CACHE_NORMALIZED_SHA["$k"]="$normalized_sha"
@@ -642,7 +645,11 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$loc_status"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$clean" "$region" "$kind" "$proposed" "$loc_status" >&20
+    # Cache rows are TSV. Empty interior fields must be encoded explicitly:
+    # Bash read collapses adjacent tab IFS whitespace, which previously shifted
+    # unmatched-ROM metadata columns on the next Fast Audit.
+    cache_field() { local v="$1"; [ -n "$v" ] && printf '%s' "$v" || printf '__EMPTY__'; }
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$p" "$sig" "${sha1,,}" "${matched_hkey:-${sha1,,}}" "$(cache_field "$dat_status")" "$(cache_field "$dat_name")" "$(cache_field "$dat_rom")" "$(cache_field "$dat_source")" "$(cache_field "$meta_system")" "$(cache_field "$meta_core")" "$(cache_field "$meta_folder")" "$(cache_field "$meta_region")" "$(cache_field "$meta_release")" "$(cache_field "$meta_license")" "$(cache_field "$clean")" "$(cache_field "$region")" "$(cache_field "$kind")" "$(cache_field "$proposed")" "$(cache_field "$loc_status")" >&20
   fi
 
   # Collision planning is actionable only for DAT-identified ROMs. Unmatched ROMs

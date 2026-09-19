@@ -135,3 +135,5 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
 
 <!-- Fast Audit equivalence repair: cached DAT identity may be reused, but cheap report-facing canonical/location fields are re-derived each run so Fast and Full catalogs remain equivalent. -->
+
+<!-- Hash cache format 8 preserves empty TSV metadata fields explicitly so unmatched ROM cache rows cannot shift columns during Fast Audit reload. -->
