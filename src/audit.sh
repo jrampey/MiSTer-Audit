@@ -491,7 +491,13 @@ if [ ! -f "$HASH_DB_TSV" ]; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SE
 if [ -f "$HASH_DB_TSV" ]; then IFS=$'\t' read -r dbh _ < "$HASH_DB_TSV"; [ "$dbh" = "sha1" ] || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES invalid:hash-db-header"; }; DB_HEADER=$(head -n 1 "$HASH_DB_TSV" 2>/dev/null); REQUIRED_DB_HEADER=$'sha1\tcanonical_title\tcanonical_rom_name\tdat_source\tsize\tcrc32\tmd5\tmister_system\tmister_core\texpected_folder\tregion\trelease_type\tlicense_status'; if [ "$DB_HEADER" = "$REQUIRED_DB_HEADER" ]; then METADATA_LAYER_STATUS="MiSTer-aware"; else METADATA_LAYER_STATUS="INVALID"; SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES invalid:mister-aware-db-schema"; fi; DB_LINE_COUNT=$(wc -l < "$HASH_DB_TSV" 2>/dev/null); DB_LINE_COUNT=${DB_LINE_COUNT//[[:space:]]/}; [ "${DB_LINE_COUNT:-0}" -ge 1000 ] 2>/dev/null || { SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES suspiciously-small:hash-db"; }; fi
 if [ ! -w "$AUDIT" ]; then SELF_CHECK_STATUS="FAIL"; SELF_CHECK_NOTES="$SELF_CHECK_NOTES not-writable:audit-dir"; fi
 if [ "$SELF_CHECK_STATUS" != "PASS" ]; then echo "ERROR: Startup self-check failed:$SELF_CHECK_NOTES"; echo "No audit was published."; read -p "Press Enter to exit..."; exit 1; fi
-METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"; EXPORTER_BUILD_SHA1="$(hash_file "$0")"
+METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
+# Fingerprint the deployed unified runtime. $0 is not reliable when the function
+# is sourced by tests or wrappers, so resolve the installed script explicitly.
+RUNTIME_SCRIPT="$HASH_DB_SCRIPT_DIR/MiSTer_Audit.sh"
+[ -f "$RUNTIME_SCRIPT" ] || RUNTIME_SCRIPT="$0"
+RUNTIME_BUILD_SHA1="$(hash_file "$RUNTIME_SCRIPT")"
+EXPORTER_BUILD_SHA1="$RUNTIME_BUILD_SHA1"
 exporter_build_id() {
   local p="$1" digest="" rest=""
   if command -v md5sum >/dev/null 2>&1; then
@@ -509,42 +515,41 @@ echo "+--------------------------------------------------+"; echo "| MiSTer ROM 
 
 AUDIT_MENU_SELECTION=1
 render_audit_menu() {
+  local fast_marker=" " full_marker=" "
+  [ "$AUDIT_MENU_SELECTION" -eq 1 ] && fast_marker=">"
+  [ "$AUDIT_MENU_SELECTION" -eq 2 ] && full_marker=">"
   printf "+--------------------------------------------------+\n"
   printf "| SELECT AUDIT MODE                                |\n"
   printf "+--------------------------------------------------+\n"
-  printf "|  UP / LEFT    FAST AUDIT                         |\n"
-  printf "|               Recommended - reuses cached hashes |\n"
+  printf "| %s FAST AUDIT                                    |\n" "$fast_marker"
+  printf "|     Recommended - reuses cached hashes           |\n"
   printf "|                                                  |\n"
-  printf "|  DOWN / RIGHT FULL VERIFICATION                  |\n"
-  printf "|               Recalculates every supported SHA-1 |\n"
+  printf "| %s FULL VERIFICATION                             |\n" "$full_marker"
+  printf "|     Recalculates every supported SHA-1            |\n"
   printf "+--------------------------------------------------+\n"
-  printf "| D-pad selects and starts immediately             |\n"
-  printf "| Keyboard: 1 = Fast | 2 = Full | Auto Fast: 15s  |\n"
+  printf "| Up/Down selects | Enter accepts | 1/2 shortcuts  |\n"
+  printf "| Auto-select Fast Audit after 15 seconds          |\n"
   printf "+--------------------------------------------------+\n"
 }
-render_audit_menu
 while :; do
+  printf '\033[2J\033[H'
+  render_audit_menu
   AUDIT_KEY=""
   if ! IFS= read -rsn1 -t 15 AUDIT_KEY; then
     AUDIT_MENU_SELECTION=1
     break
   fi
   case "$AUDIT_KEY" in
-    ""|1|f|F)
-      AUDIT_MENU_SELECTION=1
-      break
-      ;;
-    2|v|V)
-      AUDIT_MENU_SELECTION=2
-      break
-      ;;
+    "") break ;;
+    1|f|F) AUDIT_MENU_SELECTION=1; break ;;
+    2|v|V) AUDIT_MENU_SELECTION=2; break ;;
     $'\x1b')
       IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
       if [ "$AUDIT_KEY2" = "[" ]; then
         IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
         case "$AUDIT_KEY3" in
-          A|D) AUDIT_MENU_SELECTION=1; break ;;
-          B|C) AUDIT_MENU_SELECTION=2; break ;;
+          A|D) AUDIT_MENU_SELECTION=1 ;;
+          B|C) AUDIT_MENU_SELECTION=2 ;;
         esac
       fi
       ;;
