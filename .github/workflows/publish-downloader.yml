@@ -1,4 +1,5 @@
 name: Publish MiSTer Downloader Database
+# Unified runtime: MiSTer_Audit.sh
 on:
   workflow_call:
     inputs:
