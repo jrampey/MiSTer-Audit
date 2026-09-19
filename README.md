@@ -35,8 +35,7 @@ The same `MiSTer_Audit.sh` v1.4 runtime also provides the guarded Preview / Appl
 
 ## Audit modes
 
-- **Fast Audit** rescans the complete library while reusing valid cached hashes and cached DAT identification where possible.
-- **Full Verification** recalculates supported hashes rather than relying on the cache.
+- **Full Verification** is the standard audit mode. Every audit rescans the complete library and recalculates supported hashes before rebuilding the complete report set.
 
 The exporter uses an ASCII-only MiSTer console UI with static stage lines and periodic progress heartbeats. Background carriage-return spinners are intentionally avoided because they can overlap normal output on MiSTer hardware.
 
@@ -121,7 +120,6 @@ ChatGPT / Codex → GitHub → VS Code → MiSTer Update All
 
 The following are intentionally tracked as future improvements rather than active defects:
 
-- **More aggressive Fast Audit incrementality:** extend the existing path + size/mtime hash/DAT cache so unchanged ROMs can also reuse more classification/report work, reducing shell parsing and report-generation overhead while preserving full-library collision, save-pairing, completion, and integrity checks. Full Verification remains the authoritative from-scratch hash pass.
 - **Release/distribution orchestration:** further harden versioned releases so Downloader regeneration, wiki/documentation publishing, exact tagged-artifact validation, and final public-state smoke testing are coordinated without relying on secondary push-triggered workflows. This is the former Issue #2 follow-up.
 - **No-Intro source automation:** optionally automate acquisition/refresh and review/promotion of upstream DAT/XML sources around the existing deterministic builder, manifest, delta report, regression protection, and validator. Production `mister_hash_database.tsv` remains deliberately reviewed rather than automatically replaced. This is the former Issue #5 follow-up.
 
@@ -151,37 +149,29 @@ The v1.4 exporter avoids arithmetic evaluation of filename-derived associative-a
 
 Issue #7 final-target duplicate detection spans the complete catalog, so differently named sources resolving to the same canonical target remain blocking. The updater mirrors that classification during plan construction and simply leaves those rows untouched while allowing unrelated safe operations to continue.
 
-The audit-mode selector is controller-first: D-pad/arrow input selects and starts Fast Audit or Full Verification immediately, with no Enter confirmation required; keyboard 1/2 remains available and Fast Audit auto-starts after 15 seconds.
 
 Exporter performance: file signatures are captured once during classification and reused during report/hash-cache processing; Full Verification hash jobs are generated during classification instead of rereading the plan; hot-path CSV output is assembled and written once per row.
 
-Fast Audit v1.4 now treats cached analysis as dependency-scoped state: unchanged path+size+mtime records reuse SHA-1, normalized SHA-1, and filename classification; DAT identity is reused only while the database fingerprint matches. New/modified/deleted discovery deltas are reported explicitly, while collision, save-pairing, completion, duplicate, location, integrity, and final report state are rebuilt from the complete current library on every run. Full Verification continues to bypass ROM hash reuse.
+Full Verification is now the only audit path; the former Fast Audit selector and incremental-mode behavior are retired.
 
-- Fast Audit performance telemetry reports stage timings for discovery, save indexing, database/cache work, classification, report processing, publication, and total runtime; Full Verification also reports its parallel hash-pass time.
+- Audit performance telemetry reports stage timings for discovery, save indexing, database/cache work, classification, hashing, report processing, publication, and total runtime.
 
-Fast Audit hot-loop cache and discovery output uses persistent file descriptors, avoiding repeated FAT file open/close operations. This is a performance-only optimization; audit results and safety semantics are unchanged.
 
-Fast Audit also reuses database-fingerprint-bound per-ROM DAT/classification row metadata for unchanged files; global collision, duplicate, completion, save-pairing, integrity, and report state is still rebuilt every run.
-<!-- Documentation sync: Issue #9 Fast Audit incremental row-metadata cache repair validated by CI. -->
 
-<!-- Publish Update All: Issue #9 Fast Audit metadata cache -->
 
 
 ## Development architecture
 
-The MiSTer distribution remains one dependency-light Bash runtime. Development source is split across `src/audit.sh`, `src/update.sh`, and `src/main.sh`; `tools/build_runtime.sh` assembles `MiSTer_Audit.sh`. Fast Audit uses row-local metadata reuse, while discovery and all global safety state are rebuilt every run.
+The MiSTer distribution remains one dependency-light Bash runtime. Development source is split across `src/audit.sh`, `src/update.sh`, and `src/main.sh`; `tools/build_runtime.sh` assembles `MiSTer_Audit.sh`.
 
 Runtime generation now validates the complete per-ROM loop syntax before publication.
 
 The modular runtime build preserves and CI-validates the complete audit report-loop control structure.
 
-The report-building block is based on the last CI-validated runtime and carries only the row-local Fast Audit cache change.
 
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
 
-<!-- Fast Audit cache equivalence: cached DAT metadata is reused while report-facing canonical/location fields are re-derived for Full-equivalent output. -->
 
-<!-- Fast Audit cache format 8 explicitly preserves empty TSV metadata fields, preventing unmatched-ROM cache columns from shifting on reload. -->
 
 ### Curated destinations and special releases
 DAT-identified ROMs now expose a curated MiSTer destination derived from the MiSTer-aware expected folder. Non-retail releases are additionally categorized as Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified and receive a category subfolder recommendation. These fields are advisory/read-only in the audit and do not cause moves by themselves.
