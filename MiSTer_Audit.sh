@@ -838,11 +838,11 @@ main_menu() {
         echo "Apply can rename files, and Rollback can reverse previously applied changes."
         echo "Run an audit and review the preview before applying changes."
         echo
-        echo "1) Continue"
-        echo "2) Back [default]"
+        echo "1) Back [default]"
+        echo "2) Continue"
         read -r update_choice
-        case "${update_choice:-2}" in
-          1) run_update_tools; trap - EXIT INT TERM ;;
+        case "${update_choice:-1}" in
+          2) run_update_tools; trap - EXIT INT TERM ;;
           *) continue ;;
         esac
         ;;
