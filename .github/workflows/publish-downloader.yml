@@ -1,5 +1,6 @@
 name: Publish MiSTer Downloader Database
 # Unified runtime: MiSTer_Audit.sh
+# Republish trigger: warning menu update
 on:
   workflow_call:
     inputs:
