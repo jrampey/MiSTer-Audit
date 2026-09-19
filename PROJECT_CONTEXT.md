@@ -141,3 +141,5 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 - Audit reports expose curated destination metadata and special-release categorization for DAT-identified ROMs. Curated destinations remain read-only/advisory; update behavior is unchanged.
 
 - Library intelligence includes a read-only needs-review queue, explicit support-file classes, release-family summaries, and conservative CD/CHD/GDI/ISO inventory. Disc media must not be presented as Redump-verified unless authoritative hash metadata supports that identity.
+
+- Runtime implementation for library intelligence was rebuilt from the last green audit baseline after CI caught malformed generated control flow.

@@ -188,3 +188,5 @@ DAT-identified ROMs now expose a curated MiSTer destination derived from the MiS
 
 ### Library intelligence reports
 The audit now publishes `needs_review.csv` for unmatched/unknown content, `support_files.csv` for explicit BIOS/firmware/diagnostic/utility classification, `release_families.csv` for owned release relationships by canonical title, and `disc_media.csv` for CUE/CHD/GDI/ISO inventory. Disc media support is deliberately conservative: Redump-grade identification is reported only when the bundled hash metadata can identify the file; multi-file disc validation/conversion is not performed automatically.
+
+<!-- runtime repair: library intelligence report generation rebuilt from the last green audit baseline -->
