@@ -163,3 +163,5 @@ Fast Audit hot-loop cache and discovery output uses persistent file descriptors,
 
 Fast Audit also reuses database-fingerprint-bound per-ROM DAT/classification row metadata for unchanged files; global collision, duplicate, completion, save-pairing, integrity, and report state is still rebuilt every run.
 <!-- Documentation sync: Issue #9 Fast Audit incremental row-metadata cache repair validated by CI. -->
+
+<!-- Publish Update All: Issue #9 Fast Audit metadata cache -->
