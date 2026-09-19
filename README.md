@@ -170,3 +170,5 @@ Fast Audit also reuses database-fingerprint-bound per-ROM DAT/classification row
 ## Development architecture
 
 The MiSTer distribution remains one dependency-light Bash runtime. Development source is split across `src/audit.sh`, `src/update.sh`, and `src/main.sh`; `tools/build_runtime.sh` assembles `MiSTer_Audit.sh`. Fast Audit uses row-local metadata reuse, while discovery and all global safety state are rebuilt every run.
+
+Runtime generation now validates the complete per-ROM loop syntax before publication.

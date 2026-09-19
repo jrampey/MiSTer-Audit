@@ -66,3 +66,5 @@ Fast Audit can reuse database-fingerprint-bound per-ROM DAT/classification metad
 ## Incremental cache safety
 
 Fast Audit walks the complete library every run. Unchanged rows may reuse SHA-1 and fingerprint-bound local DAT/classification metadata. Reuse is tracked per row; global duplicate, collision, completion, save-pairing, accounting, and integrity state is recomputed. Full Verification bypasses reusable row metadata and recalculates supported hashes.
+
+The generated runtime is syntax-checked in CI before synthetic auditing or publication.
