@@ -81,3 +81,6 @@ The current report-building control flow derives from the last CI-validated impl
 
 ## Curated destination metadata
 For DAT-identified ROMs, the audit reports the MiSTer-aware expected folder plus a special-release category. Retail releases remain at the expected system folder; Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified releases receive a corresponding recommended category subfolder. This is reporting metadata only and does not move files automatically.
+
+## Library intelligence
+The audit produces four additional read-only reports: `needs_review.csv` for unmatched content needing identity/DAT review; `support_files.csv` for BIOS/boot ROM, firmware, diagnostic/test, utility, and miscellaneous support classification; `release_families.csv` for canonical-title release relationships; and `disc_media.csv` for CUE/BIN-set, CHD, GDI, and ISO inventory. Disc inventory is not equivalent to Redump verification and does not automatically convert, rename, or move multi-file sets.

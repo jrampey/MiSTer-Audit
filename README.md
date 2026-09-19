@@ -185,3 +185,6 @@ The report-building block is based on the last CI-validated runtime and carries 
 
 ### Curated destinations and special releases
 DAT-identified ROMs now expose a curated MiSTer destination derived from the MiSTer-aware expected folder. Non-retail releases are additionally categorized as Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified and receive a category subfolder recommendation. These fields are advisory/read-only in the audit and do not cause moves by themselves.
+
+### Library intelligence reports
+The audit now publishes `needs_review.csv` for unmatched/unknown content, `support_files.csv` for explicit BIOS/firmware/diagnostic/utility classification, `release_families.csv` for owned release relationships by canonical title, and `disc_media.csv` for CUE/CHD/GDI/ISO inventory. Disc media support is deliberately conservative: Redump-grade identification is reported only when the bundled hash metadata can identify the file; multi-file disc validation/conversion is not performed automatically.
