@@ -734,7 +734,199 @@ for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEY
 { head -n 1 "$STAGE_MISSING_COMPLETION"; tail -n +2 "$STAGE_MISSING_COMPLETION" | LC_ALL=C sort; } > "$STAGE_MISSING_COMPLETION.tmp" && mv -f "$STAGE_MISSING_COMPLETION.tmp" "$STAGE_MISSING_COMPLETION"
 
 if [ -s "$WORK.release_rows" ]; then
-  awk -F '\t' 'BEGIN{OFS="\t"} {k=$1 SUBSEP $2; count[k]++; if($3=="Retail/Standard") retail[k]++; else special[k]++; cats[k SUBSEP $3]=1; sys[k]=$1; title[k]=$2} END {for(k in count){c=""; prefix=k SUBSEP; for(x in cats) if(index(x,prefix)==1){v=substr(x,length(prefix)+1); c=(c?c";":"") v} print sys[k],title[k],count[k],retail[k]+0,special[k]+0,c}}' "$WORK.release_rows" | LC_ALL=C sort | while IFS= CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 )); CACHE_HIT_RATE="0.0"; if [ "$HASH_ELIGIBLE" -gt 0 ]; then CACHE_HIT_RATE=$(awk -v a="$HASH_REUSED" -v b="$HASH_ELIGIBLE" 'BEGIN{printf "%.1f", (a*100)/b}'); fi
+  awk -F '\t' 'BEGIN{OFS="\t"} {k=$1 SUBSEP $2; count[k]++; if($3=="Retail/Standard") retail[k]++; else special[k]++; cats[k SUBSEP $3]=1; sys[k]=$1; title[k]=$2} END {for(k in count){c=""; prefix=k SUBSEP; for(x in cats) if(index(x,prefix)==1){v=substr(x,length(prefix)+1); c=(c?c";":"") v} print sys[k],title[k],count[k],retail[k]+0,special[k]+0,c}}' "$WORK.release_rows" | LC_ALL=C sort | while IFS=
+if [ -s "$HASH_CACHE_NEW" ]; then mv -f "$HASH_CACHE_NEW" "$HASH_CACHE"; else : > "$HASH_CACHE"; fi
+{ echo "CACHE_FORMAT=$CACHE_FORMAT"; echo "EXPORTER_VERSION=1.4"; echo "HASH_DB_FINGERPRINT=$HASH_DB_FINGERPRINT"; echo "UPDATED=$(date +%s)"; } > "$CACHE_META.tmp" && mv -f "$CACHE_META.tmp" "$CACHE_META"
+if [ -s "$HASH_ROWS" ]; then awk -F '\t' '{c[$1]++} END {for (h in c) if (c[h]>1) print h}' "$HASH_ROWS" | sort > "$WORK.duphashes"; while IFS= read -r dh; do awk -F '\t' -v k="$dh" '$1==k {print}' "$HASH_ROWS" | while IFS=$'\t' read -r h hs hp hf hc; do csv_escape "$h" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hs" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hp" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hf" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hc" >> "$STAGE_HASH_DUP"; printf '\n' >> "$STAGE_HASH_DUP"; done; done < "$WORK.duphashes"; rm -f "$WORK.duphashes"; fi
+
+cat >> "$STAGE_OUT" <<EOF2
+
+============================================================
+Candidate game/disc files: $TOTAL
+BIOS/support files skipped: $SKIPPED
+Pre-DAT collision rows: $PRE_COLLISION_ROWS
+Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS
+Blocking collision rows: $COLLISIONS
+Corresponding save-file matches found: $SAVE_MATCHES
+Files with SHA-1 available: $HASHED
+Hashes reused from cache: $HASH_REUSED
+Hashes calculated this run: $HASH_CALCULATED
+Unsupported-format hashes skipped: $HASH_SKIPPED
+Hash database source: $HASH_DB_SOURCE
+Hash records indexed: $HASH_INDEX_COUNT
+Exact DAT SHA-1 matches: $DAT_MATCHED
+
+Created in $AUDIT:
+  game_library.txt
+  library_catalog.csv
+  proposed_renames.csv
+  proposed_save_renames.csv
+  hash_duplicates.csv
+  dat_matches.csv
+  unmatched_hashes.csv
+  library_completion.csv
+  missing_library_titles.csv
+  MiSTer_Library_Audit.txt  (single file to upload for review)
+
+IMPORTANT:
+- Nothing was renamed, moved, or deleted.
+- Exact DAT matches use canonical DAT filenames; filename parsing is fallback-only for unmatched ROMs.\n- DAT-identified releases include a special-release category and curated MiSTer destination (expected folder plus category subfolder for non-retail releases).
+- Pre-DAT filename collisions are blocking only when final canonical targets remain ambiguous.
+- Authoritative DAT variants with unique final targets are reported as resolved and do not block Preview.
+- Unmatched/unsupported ROMs are inventory-only and do not participate in rename collision planning.
+- Duplicate authoritative canonical targets remain blocking.
+- Save matching still uses the original ROM basename and remains REVIEW ONLY.
+- SHA-1 hashes identify byte-for-byte duplicate files regardless of filename.
+- CUE/BIN and other multi-file disc sets require coordinated renaming before any future apply step.
+EOF2
+
+AUDIT_VERDICT="PASS"; APPLY_RECOMMENDATION="SAFE TO PREVIEW"; INTEGRITY_NOTES=""; MISFILED_COUNT=0
+[ -s "$STAGE_LOCATION_AUDIT" ] && MISFILED_COUNT=$(grep -c ',"MISFILED"$' "$STAGE_LOCATION_AUDIT" 2>/dev/null || true)
+for required_report in "$STAGE_OUT" "$STAGE_CSV" "$STAGE_REN" "$STAGE_SAVE_REN" "$STAGE_HASH_DUP" "$STAGE_DAT_MATCH" "$STAGE_DAT_UNMATCHED" "$STAGE_LOCATION_AUDIT"; do if [ ! -f "$required_report" ]; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES missing-report:${required_report##*/}"; fi; done
+if [ "$TOTAL" -ne "$CLASSIFIED" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES catalog-count-mismatch"; fi
+if [ $((TOTAL + SKIPPED)) -ne "$GAME_SCAN_COUNT" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES discovery-accounting-mismatch"; fi
+if [ "$DAT_MATCHED" -gt "$HASHED" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES impossible-dat-count"; fi
+if [ "$METADATA_LAYER_STATUS" != "MiSTer-aware" ]; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES metadata-layer-invalid"; fi
+MATCH_RATE_INT=100; if [ "$HASHED" -gt 0 ]; then MATCH_RATE_INT=$((DAT_MATCHED * 100 / HASHED)); fi
+if [ "$AUDIT_VERDICT" != "FAIL" ]; then
+  if [ "$MATCH_RATE_INT" -lt 50 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES low-dat-match-rate"; fi
+  if [ "$COLLISIONS" -gt 0 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; INTEGRITY_NOTES="$INTEGRITY_NOTES collision-rows-will-be-skipped"; [ "$APPLY_RECOMMENDATION" != "DO NOT APPLY" ] && APPLY_RECOMMENDATION="SAFE TO PREVIEW (COLLISIONS SKIPPED)"; fi
+fi
+[ -z "$INTEGRITY_NOTES" ] && INTEGRITY_NOTES="none"
+
+{
+  echo "MiSTer Game Library Audit Bundle v1.4"; echo "Generated: $(date)"; echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."; echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."; echo "============================================================"; echo; echo "[RUN SUMMARY]"; echo "Report scope: FULL LIBRARY"; echo "Audit mode: $AUDIT_MODE"; echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"; echo "Files discovered: $GAME_SCAN_COUNT"; echo "Games/discs cataloged: $TOTAL"; echo "BIOS/support files skipped: $SKIPPED"; echo "Pre-DAT collision rows: $PRE_COLLISION_ROWS"; echo "Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS"; echo "Blocking collision rows: $COLLISIONS"; echo "Save matches: $SAVE_MATCHES"; echo "Files with SHA-1 available: $HASHED"; echo "Hashes reused from cache: $HASH_REUSED"; echo "Hashes calculated this run: $HASH_CALCULATED"; echo "Unsupported-format hashes skipped: $HASH_SKIPPED"; echo "Hash database source: $HASH_DB_SOURCE"; echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"; echo "Exporter build SHA-1: $RUNTIME_BUILD_SHA1"; echo "Audit integrity verdict: $AUDIT_VERDICT"; echo "Apply recommendation: $APPLY_RECOMMENDATION"; echo "Hash records indexed: $HASH_INDEX_COUNT"; echo "Persistent DAT index: ${DAT_CACHE_STATUS:-Unavailable}"; echo "Hash records skipped for absent systems: ${HASH_DB_SKIPPED_SYSTEM_RECORDS:-0}"; echo "Exact DAT SHA-1 matches: $DAT_MATCHED"; echo; echo "[AUDIT_METADATA]"; echo "schema_version=$AUDIT_SCHEMA_VERSION"; echo "exporter_version=1.4"; echo "build_sha1=$RUNTIME_BUILD_SHA1"; echo "audit_mode=$AUDIT_MODE"; echo "database_sha1=$HASH_DB_FINGERPRINT"; echo "metadata_layer=$METADATA_LAYER_STATUS"; echo "library_files=$GAME_SCAN_COUNT"; echo "cataloged_files=$TOTAL"; echo "self_check=$SELF_CHECK_STATUS"; echo "integrity_verdict=$AUDIT_VERDICT"; echo "apply_recommendation=$APPLY_RECOMMENDATION"; echo "integrity_notes=$INTEGRITY_NOTES"; echo; echo "[DATABASE COVERAGE]"; echo "DAT-eligible ROMs: $HASH_ELIGIBLE"; echo "Matched: $DAT_MATCHED"; echo "Unmatched: $((HASHED-DAT_MATCHED))"; if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi; echo "Other/unsupported files cataloged: $HASH_SKIPPED"; echo; echo "[LIBRARY COMPLETION]"; echo "Regions: $COMPLETION_REGION_LABEL"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi; echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."; tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"; echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"; done; echo "Missing-title detail: missing_library_titles.csv"; echo; echo "[CACHE HEALTH]"; echo "Entries loaded: $CACHE_ENTRIES_LOADED"; echo "Entries reused: $HASH_REUSED"; echo "Unchanged library records: $DISCOVERY_UNCHANGED"; echo "New library records: $DISCOVERY_ADDED"; echo "Modified library records: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED))"; echo "Deleted library records: $DISCOVERY_REMOVED"; echo "Delta records analyzed: $DISCOVERY_CHANGED_COUNT"; echo "Classification entries loaded: $CLASS_CACHE_ENTRIES_LOADED"; echo "Classification hits: $CLASS_CACHE_HITS"; echo "Classification misses/refreshed: $CLASS_CACHE_MISSES"; echo "DAT/classification row metadata reused: $ROW_METADATA_REUSED"; echo "DAT/classification row metadata refreshed: $ROW_METADATA_REFRESHED"; echo "Entries refreshed: $CACHE_REFRESHED"; echo "Entries not reused/expired: $CACHE_NOT_REUSED"; echo "Cache hit rate: $CACHE_HIT_RATE%"; echo "Database fingerprint: $HASH_DB_FINGERPRINT"; echo; echo "[PER-SYSTEM PROCESSING]"; for sys in "${!SYSTEM_FILES[@]}"; do echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"; done | LC_ALL=C sort; echo; echo "[TIMING]"; echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"; echo "save_index_seconds=$((SAVE_END-SAVE_START))"; echo "database_cache_seconds=$((DB_END-DB_START))"; echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"; echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"; echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"; echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"; echo
+  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv needs_review.csv support_files.csv release_families.csv disc_media.csv hash_duplicates.csv location_audit.csv library_completion.csv missing_library_titles.csv proposed_renames.csv proposed_save_renames.csv; do echo "============================================================"; echo "[BEGIN $report]"; echo "============================================================"; if [ -f "$STAGE_DIR/$report" ]; then cat "$STAGE_DIR/$report"; else echo "(report not generated)"; fi; echo; echo "[END $report]"; echo; done
+} > "$STAGE_BUNDLE"
+
+REPORT_END=$(date +%s); PUBLISH_START=$REPORT_END
+for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv needs_review.csv support_files.csv release_families.csv disc_media.csv location_audit.csv library_completion.csv missing_library_titles.csv MiSTer_Library_Audit.txt; do [ -f "$STAGE_DIR/$report" ] || continue; mv -f "$STAGE_DIR/$report" "$AUDIT/$report"; done
+PUBLISH_END=$(date +%s); TOTAL_END=$PUBLISH_END; sync
+DISCOVERY_SECONDS=$((DISCOVERY_END-DISCOVERY_START))
+SAVE_INDEX_SECONDS=$((SAVE_END-SAVE_START))
+DATABASE_CACHE_SECONDS=$((DB_END-DB_START))
+CLASSIFICATION_SECONDS=$((CLASSIFY_END-CLASSIFY_START))
+REPORT_PROCESSING_SECONDS=$((REPORT_END-REPORT_START))
+PUBLISH_SECONDS=$((PUBLISH_END-PUBLISH_START))
+TOTAL_SECONDS=$((TOTAL_END-START_TIME))
+# Final timing telemetry is appended after atomic publication so the uploaded
+# audit contains the same stage timings shown on-screen. This is diagnostic
+# metadata only and does not affect audit/rename decisions.
+{
+  echo
+  echo "[FINAL TIMING]"
+  echo "discovery_seconds=$DISCOVERY_SECONDS"
+  echo "save_index_seconds=$SAVE_INDEX_SECONDS"
+  echo "database_cache_seconds=$DATABASE_CACHE_SECONDS"
+  echo "classification_seconds=$CLASSIFICATION_SECONDS"
+  echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"
+  echo "report_processing_seconds=$REPORT_PROCESSING_SECONDS"
+  echo "publish_seconds=$PUBLISH_SECONDS"
+  echo "total_seconds=$TOTAL_SECONDS"
+} >> "$BUNDLE"
+echo; echo "+--------------------------------------------------+"; echo "| AUDIT COMPLETE                                   |"; echo "+--------------------------------------------------+"; echo " Mode              : $AUDIT_MODE"; echo " Games cataloged   : $TOTAL"; echo " DAT matches       : $DAT_MATCHED / $HASHED"; echo " Blocking collisions: $COLLISIONS"; echo " DAT variants safe : $RESOLVED_COLLISIONS"; echo " Save matches      : $SAVE_MATCHES"; echo " Fast delta        : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Cache hit rate    : $CACHE_HIT_RATE%"; echo " Integrity         : $AUDIT_VERDICT"; echo " Apply             : $APPLY_RECOMMENDATION"; echo "----------------------------------------------------"; echo " Timing (seconds)"; echo "   Discovery       : $DISCOVERY_SECONDS"; echo "   Save index      : $SAVE_INDEX_SECONDS"; echo "   Database/cache  : $DATABASE_CACHE_SECONDS"; echo "   Classification  : $CLASSIFICATION_SECONDS"; echo "   Full hash pass  : $FULL_VERIFY_PARALLEL_SECONDS"; echo "   Report processing: $REPORT_PROCESSING_SECONDS"; echo "   Publish         : $PUBLISH_SECONDS"; echo "   TOTAL           : $TOTAL_SECONDS"; echo "----------------------------------------------------"; echo " Reports: $AUDIT"; echo " Review : MiSTer_Library_Audit.txt"; echo " Missing: missing_library_titles.csv"; echo "----------------------------------------------------"; echo " READ ONLY: no ROMs or saves were changed."; echo "----------------------------------------------------"; echo; echo "Press Enter to close, or wait 60 seconds."; read -t 60 -r _ || true
+
+}
+\t' read -r rf_sys rf_title rf_count rf_retail rf_special rf_cats; do csv_row "$STAGE_RELEASE_FAMILIES" "$rf_sys" "$rf_title" "$rf_count" "$rf_retail" "$rf_special" "$rf_cats"; done
+fi
+CACHE_REFRESHED=$HASH_CALCULATED; CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 )); CACHE_HIT_RATE="0.0"; if [ "$HASH_ELIGIBLE" -gt 0 ]; then CACHE_HIT_RATE=$(awk -v a="$HASH_REUSED" -v b="$HASH_ELIGIBLE" 'BEGIN{printf "%.1f", (a*100)/b}'); fi
+if [ -s "$HASH_CACHE_NEW" ]; then mv -f "$HASH_CACHE_NEW" "$HASH_CACHE"; else : > "$HASH_CACHE"; fi
+{ echo "CACHE_FORMAT=$CACHE_FORMAT"; echo "EXPORTER_VERSION=1.4"; echo "HASH_DB_FINGERPRINT=$HASH_DB_FINGERPRINT"; echo "UPDATED=$(date +%s)"; } > "$CACHE_META.tmp" && mv -f "$CACHE_META.tmp" "$CACHE_META"
+if [ -s "$HASH_ROWS" ]; then awk -F '\t' '{c[$1]++} END {for (h in c) if (c[h]>1) print h}' "$HASH_ROWS" | sort > "$WORK.duphashes"; while IFS= read -r dh; do awk -F '\t' -v k="$dh" '$1==k {print}' "$HASH_ROWS" | while IFS=$'\t' read -r h hs hp hf hc; do csv_escape "$h" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hs" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hp" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hf" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hc" >> "$STAGE_HASH_DUP"; printf '\n' >> "$STAGE_HASH_DUP"; done; done < "$WORK.duphashes"; rm -f "$WORK.duphashes"; fi
+
+cat >> "$STAGE_OUT" <<EOF2
+
+============================================================
+Candidate game/disc files: $TOTAL
+BIOS/support files skipped: $SKIPPED
+Pre-DAT collision rows: $PRE_COLLISION_ROWS
+Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS
+Blocking collision rows: $COLLISIONS
+Corresponding save-file matches found: $SAVE_MATCHES
+Files with SHA-1 available: $HASHED
+Hashes reused from cache: $HASH_REUSED
+Hashes calculated this run: $HASH_CALCULATED
+Unsupported-format hashes skipped: $HASH_SKIPPED
+Hash database source: $HASH_DB_SOURCE
+Hash records indexed: $HASH_INDEX_COUNT
+Exact DAT SHA-1 matches: $DAT_MATCHED
+
+Created in $AUDIT:
+  game_library.txt
+  library_catalog.csv
+  proposed_renames.csv
+  proposed_save_renames.csv
+  hash_duplicates.csv
+  dat_matches.csv
+  unmatched_hashes.csv
+  library_completion.csv
+  missing_library_titles.csv
+  MiSTer_Library_Audit.txt  (single file to upload for review)
+
+IMPORTANT:
+- Nothing was renamed, moved, or deleted.
+- Exact DAT matches use canonical DAT filenames; filename parsing is fallback-only for unmatched ROMs.\n- DAT-identified releases include a special-release category and curated MiSTer destination (expected folder plus category subfolder for non-retail releases).
+- Pre-DAT filename collisions are blocking only when final canonical targets remain ambiguous.
+- Authoritative DAT variants with unique final targets are reported as resolved and do not block Preview.
+- Unmatched/unsupported ROMs are inventory-only and do not participate in rename collision planning.
+- Duplicate authoritative canonical targets remain blocking.
+- Save matching still uses the original ROM basename and remains REVIEW ONLY.
+- SHA-1 hashes identify byte-for-byte duplicate files regardless of filename.
+- CUE/BIN and other multi-file disc sets require coordinated renaming before any future apply step.
+EOF2
+
+AUDIT_VERDICT="PASS"; APPLY_RECOMMENDATION="SAFE TO PREVIEW"; INTEGRITY_NOTES=""; MISFILED_COUNT=0
+[ -s "$STAGE_LOCATION_AUDIT" ] && MISFILED_COUNT=$(grep -c ',"MISFILED"$' "$STAGE_LOCATION_AUDIT" 2>/dev/null || true)
+for required_report in "$STAGE_OUT" "$STAGE_CSV" "$STAGE_REN" "$STAGE_SAVE_REN" "$STAGE_HASH_DUP" "$STAGE_DAT_MATCH" "$STAGE_DAT_UNMATCHED" "$STAGE_LOCATION_AUDIT"; do if [ ! -f "$required_report" ]; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES missing-report:${required_report##*/}"; fi; done
+if [ "$TOTAL" -ne "$CLASSIFIED" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES catalog-count-mismatch"; fi
+if [ $((TOTAL + SKIPPED)) -ne "$GAME_SCAN_COUNT" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES discovery-accounting-mismatch"; fi
+if [ "$DAT_MATCHED" -gt "$HASHED" ] 2>/dev/null; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES impossible-dat-count"; fi
+if [ "$METADATA_LAYER_STATUS" != "MiSTer-aware" ]; then AUDIT_VERDICT="FAIL"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES metadata-layer-invalid"; fi
+MATCH_RATE_INT=100; if [ "$HASHED" -gt 0 ]; then MATCH_RATE_INT=$((DAT_MATCHED * 100 / HASHED)); fi
+if [ "$AUDIT_VERDICT" != "FAIL" ]; then
+  if [ "$MATCH_RATE_INT" -lt 50 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; APPLY_RECOMMENDATION="DO NOT APPLY"; INTEGRITY_NOTES="$INTEGRITY_NOTES low-dat-match-rate"; fi
+  if [ "$COLLISIONS" -gt 0 ]; then AUDIT_VERDICT="PASS WITH WARNINGS"; INTEGRITY_NOTES="$INTEGRITY_NOTES collision-rows-will-be-skipped"; [ "$APPLY_RECOMMENDATION" != "DO NOT APPLY" ] && APPLY_RECOMMENDATION="SAFE TO PREVIEW (COLLISIONS SKIPPED)"; fi
+fi
+[ -z "$INTEGRITY_NOTES" ] && INTEGRITY_NOTES="none"
+
+{
+  echo "MiSTer Game Library Audit Bundle v1.4"; echo "Generated: $(date)"; echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."; echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."; echo "============================================================"; echo; echo "[RUN SUMMARY]"; echo "Report scope: FULL LIBRARY"; echo "Audit mode: $AUDIT_MODE"; echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"; echo "Files discovered: $GAME_SCAN_COUNT"; echo "Games/discs cataloged: $TOTAL"; echo "BIOS/support files skipped: $SKIPPED"; echo "Pre-DAT collision rows: $PRE_COLLISION_ROWS"; echo "Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS"; echo "Blocking collision rows: $COLLISIONS"; echo "Save matches: $SAVE_MATCHES"; echo "Files with SHA-1 available: $HASHED"; echo "Hashes reused from cache: $HASH_REUSED"; echo "Hashes calculated this run: $HASH_CALCULATED"; echo "Unsupported-format hashes skipped: $HASH_SKIPPED"; echo "Hash database source: $HASH_DB_SOURCE"; echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"; echo "Exporter build SHA-1: $RUNTIME_BUILD_SHA1"; echo "Audit integrity verdict: $AUDIT_VERDICT"; echo "Apply recommendation: $APPLY_RECOMMENDATION"; echo "Hash records indexed: $HASH_INDEX_COUNT"; echo "Persistent DAT index: ${DAT_CACHE_STATUS:-Unavailable}"; echo "Hash records skipped for absent systems: ${HASH_DB_SKIPPED_SYSTEM_RECORDS:-0}"; echo "Exact DAT SHA-1 matches: $DAT_MATCHED"; echo; echo "[AUDIT_METADATA]"; echo "schema_version=$AUDIT_SCHEMA_VERSION"; echo "exporter_version=1.4"; echo "build_sha1=$RUNTIME_BUILD_SHA1"; echo "audit_mode=$AUDIT_MODE"; echo "database_sha1=$HASH_DB_FINGERPRINT"; echo "metadata_layer=$METADATA_LAYER_STATUS"; echo "library_files=$GAME_SCAN_COUNT"; echo "cataloged_files=$TOTAL"; echo "self_check=$SELF_CHECK_STATUS"; echo "integrity_verdict=$AUDIT_VERDICT"; echo "apply_recommendation=$APPLY_RECOMMENDATION"; echo "integrity_notes=$INTEGRITY_NOTES"; echo; echo "[DATABASE COVERAGE]"; echo "DAT-eligible ROMs: $HASH_ELIGIBLE"; echo "Matched: $DAT_MATCHED"; echo "Unmatched: $((HASHED-DAT_MATCHED))"; if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi; echo "Other/unsupported files cataloged: $HASH_SKIPPED"; echo; echo "[LIBRARY COMPLETION]"; echo "Regions: $COMPLETION_REGION_LABEL"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi; echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."; tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"; echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"; done; echo "Missing-title detail: missing_library_titles.csv"; echo; echo "[CACHE HEALTH]"; echo "Entries loaded: $CACHE_ENTRIES_LOADED"; echo "Entries reused: $HASH_REUSED"; echo "Unchanged library records: $DISCOVERY_UNCHANGED"; echo "New library records: $DISCOVERY_ADDED"; echo "Modified library records: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED))"; echo "Deleted library records: $DISCOVERY_REMOVED"; echo "Delta records analyzed: $DISCOVERY_CHANGED_COUNT"; echo "Classification entries loaded: $CLASS_CACHE_ENTRIES_LOADED"; echo "Classification hits: $CLASS_CACHE_HITS"; echo "Classification misses/refreshed: $CLASS_CACHE_MISSES"; echo "DAT/classification row metadata reused: $ROW_METADATA_REUSED"; echo "DAT/classification row metadata refreshed: $ROW_METADATA_REFRESHED"; echo "Entries refreshed: $CACHE_REFRESHED"; echo "Entries not reused/expired: $CACHE_NOT_REUSED"; echo "Cache hit rate: $CACHE_HIT_RATE%"; echo "Database fingerprint: $HASH_DB_FINGERPRINT"; echo; echo "[PER-SYSTEM PROCESSING]"; for sys in "${!SYSTEM_FILES[@]}"; do echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"; done | LC_ALL=C sort; echo; echo "[TIMING]"; echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"; echo "save_index_seconds=$((SAVE_END-SAVE_START))"; echo "database_cache_seconds=$((DB_END-DB_START))"; echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"; echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"; echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"; echo "total_seconds_so_far=$(( $(date +%s)-START_TIME ))"; echo
+  for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv hash_duplicates.csv location_audit.csv library_completion.csv missing_library_titles.csv proposed_renames.csv proposed_save_renames.csv; do echo "============================================================"; echo "[BEGIN $report]"; echo "============================================================"; if [ -f "$STAGE_DIR/$report" ]; then cat "$STAGE_DIR/$report"; else echo "(report not generated)"; fi; echo; echo "[END $report]"; echo; done
+} > "$STAGE_BUNDLE"
+
+REPORT_END=$(date +%s); PUBLISH_START=$REPORT_END
+for report in game_library.txt library_catalog.csv proposed_renames.csv proposed_save_renames.csv hash_duplicates.csv dat_matches.csv unmatched_hashes.csv location_audit.csv library_completion.csv missing_library_titles.csv MiSTer_Library_Audit.txt; do [ -f "$STAGE_DIR/$report" ] || continue; mv -f "$STAGE_DIR/$report" "$AUDIT/$report"; done
+PUBLISH_END=$(date +%s); TOTAL_END=$PUBLISH_END; sync
+DISCOVERY_SECONDS=$((DISCOVERY_END-DISCOVERY_START))
+SAVE_INDEX_SECONDS=$((SAVE_END-SAVE_START))
+DATABASE_CACHE_SECONDS=$((DB_END-DB_START))
+CLASSIFICATION_SECONDS=$((CLASSIFY_END-CLASSIFY_START))
+REPORT_PROCESSING_SECONDS=$((REPORT_END-REPORT_START))
+PUBLISH_SECONDS=$((PUBLISH_END-PUBLISH_START))
+TOTAL_SECONDS=$((TOTAL_END-START_TIME))
+# Final timing telemetry is appended after atomic publication so the uploaded
+# audit contains the same stage timings shown on-screen. This is diagnostic
+# metadata only and does not affect audit/rename decisions.
+{
+  echo
+  echo "[FINAL TIMING]"
+  echo "discovery_seconds=$DISCOVERY_SECONDS"
+  echo "save_index_seconds=$SAVE_INDEX_SECONDS"
+  echo "database_cache_seconds=$DATABASE_CACHE_SECONDS"
+  echo "classification_seconds=$CLASSIFICATION_SECONDS"
+  echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"
+  echo "report_processing_seconds=$REPORT_PROCESSING_SECONDS"
+  echo "publish_seconds=$PUBLISH_SECONDS"
+  echo "total_seconds=$TOTAL_SECONDS"
+} >> "$BUNDLE"
+echo; echo "+--------------------------------------------------+"; echo "| AUDIT COMPLETE                                   |"; echo "+--------------------------------------------------+"; echo " Mode              : $AUDIT_MODE"; echo " Games cataloged   : $TOTAL"; echo " DAT matches       : $DAT_MATCHED / $HASHED"; echo " Blocking collisions: $COLLISIONS"; echo " DAT variants safe : $RESOLVED_COLLISIONS"; echo " Save matches      : $SAVE_MATCHES"; echo " Fast delta        : new=$DISCOVERY_ADDED modified=$((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED)) deleted=$DISCOVERY_REMOVED"; echo " Cache hit rate    : $CACHE_HIT_RATE%"; echo " Integrity         : $AUDIT_VERDICT"; echo " Apply             : $APPLY_RECOMMENDATION"; echo "----------------------------------------------------"; echo " Timing (seconds)"; echo "   Discovery       : $DISCOVERY_SECONDS"; echo "   Save index      : $SAVE_INDEX_SECONDS"; echo "   Database/cache  : $DATABASE_CACHE_SECONDS"; echo "   Classification  : $CLASSIFICATION_SECONDS"; echo "   Full hash pass  : $FULL_VERIFY_PARALLEL_SECONDS"; echo "   Report processing: $REPORT_PROCESSING_SECONDS"; echo "   Publish         : $PUBLISH_SECONDS"; echo "   TOTAL           : $TOTAL_SECONDS"; echo "----------------------------------------------------"; echo " Reports: $AUDIT"; echo " Review : MiSTer_Library_Audit.txt"; echo " Missing: missing_library_titles.csv"; echo "----------------------------------------------------"; echo " READ ONLY: no ROMs or saves were changed."; echo "----------------------------------------------------"; echo; echo "Press Enter to close, or wait 60 seconds."; read -t 60 -r _ || true
+
+}
+\t' read -r rf_sys rf_title rf_count rf_retail rf_special rf_cats; do
+    csv_row "$STAGE_RELEASE_FAMILIES" "$rf_sys" "$rf_title" "$rf_count" "$rf_retail" "$rf_special" "$rf_cats"
+  done
+fi
+CACHE_REFRESHED=$HASH_CALCULATED; CACHE_NOT_REUSED=$(( CACHE_ENTRIES_LOADED > HASH_REUSED ? CACHE_ENTRIES_LOADED - HASH_REUSED : 0 )); CACHE_HIT_RATE="0.0"; if [ "$HASH_ELIGIBLE" -gt 0 ]; then CACHE_HIT_RATE=$(awk -v a="$HASH_REUSED" -v b="$HASH_ELIGIBLE" 'BEGIN{printf "%.1f", (a*100)/b}'); fi
 if [ -s "$HASH_CACHE_NEW" ]; then mv -f "$HASH_CACHE_NEW" "$HASH_CACHE"; else : > "$HASH_CACHE"; fi
 { echo "CACHE_FORMAT=$CACHE_FORMAT"; echo "EXPORTER_VERSION=1.4"; echo "HASH_DB_FINGERPRINT=$HASH_DB_FINGERPRINT"; echo "UPDATED=$(date +%s)"; } > "$CACHE_META.tmp" && mv -f "$CACHE_META.tmp" "$CACHE_META"
 if [ -s "$HASH_ROWS" ]; then awk -F '\t' '{c[$1]++} END {for (h in c) if (c[h]>1) print h}' "$HASH_ROWS" | sort > "$WORK.duphashes"; while IFS= read -r dh; do awk -F '\t' -v k="$dh" '$1==k {print}' "$HASH_ROWS" | while IFS=$'\t' read -r h hs hp hf hc; do csv_escape "$h" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hs" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hp" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hf" >> "$STAGE_HASH_DUP"; printf ',' >> "$STAGE_HASH_DUP"; csv_escape "$hc" >> "$STAGE_HASH_DUP"; printf '\n' >> "$STAGE_HASH_DUP"; done; done < "$WORK.duphashes"; rm -f "$WORK.duphashes"; fi
