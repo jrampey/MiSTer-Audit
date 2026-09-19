@@ -178,3 +178,5 @@ The modular runtime build preserves and CI-validates the complete audit report-l
 The report-building block is based on the last CI-validated runtime and carries only the row-local Fast Audit cache change.
 
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
+
+<!-- Fast Audit cache equivalence: cached DAT metadata is reused while report-facing canonical/location fields are re-derived for Full-equivalent output. -->

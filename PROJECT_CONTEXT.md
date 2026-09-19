@@ -133,3 +133,5 @@ Audit report-loop edits must replace the complete control-structure block, not p
 For high-risk shell control-flow refactors, preserve a last-known-green runtime block and apply minimal semantic changes before regenerating modules.
 
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
+
+<!-- Fast Audit equivalence repair: cached DAT identity may be reused, but cheap report-facing canonical/location fields are re-derived each run so Fast and Full catalogs remain equivalent. -->

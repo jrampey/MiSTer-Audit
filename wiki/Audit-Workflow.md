@@ -74,3 +74,5 @@ CI syntax validation guards the generated report-loop control structure before d
 The current report-building control flow derives from the last CI-validated implementation with row-local cache reuse layered on top.
 
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
+
+<!-- Fast/Full equivalence: report-facing canonical and location fields are re-derived from cached DAT metadata each run. -->
