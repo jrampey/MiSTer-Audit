@@ -117,3 +117,5 @@ Fast Audit v1.4 now treats cached analysis as dependency-scoped state: unchanged
 - Fast Audit performance telemetry reports stage timings for discovery, save indexing, database/cache work, classification, report processing, publication, and total runtime; Full Verification also reports its parallel hash-pass time.
 
 Fast Audit hot-loop cache and discovery output uses persistent file descriptors, avoiding repeated FAT file open/close operations. This is a performance-only optimization; audit results and safety semantics are unchanged.
+
+Issue #9 Fast Audit optimization: unchanged ROMs may reuse database-fingerprint-bound DAT/classification row metadata. Full discovery remains mandatory and all library-global safety/accounting state is recomputed every run.
