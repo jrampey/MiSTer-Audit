@@ -121,8 +121,25 @@ grep -Eq '^DAT/classification row metadata reused: [1-9][0-9]*$' "$BUNDLE" || fa
 python3 - "$ROOT/full-library_catalog.csv" "$CATALOG" <<'PY'
 import csv,sys
 def rows(p):
-    with open(p,newline='') as f: return sorted(csv.DictReader(f),key=lambda r:r.get('full_path',''))
-if rows(sys.argv[1]) != rows(sys.argv[2]): raise SystemExit('ERROR: Fast catalog differs from Full Verification')
+    with open(p,newline='') as f:
+        return {r.get('full_path',''): r for r in csv.DictReader(f)}
+full, fast = rows(sys.argv[1]), rows(sys.argv[2])
+diffs = []
+for path in sorted(set(full) | set(fast)):
+    if path not in full:
+        diffs.append((path, '<row>', '<missing>', 'present'))
+        continue
+    if path not in fast:
+        diffs.append((path, '<row>', 'present', '<missing>'))
+        continue
+    for field in full[path]:
+        if full[path].get(field) != fast[path].get(field):
+            diffs.append((path, field, full[path].get(field,''), fast[path].get(field,'')))
+if diffs:
+    print(f'ERROR: Fast catalog differs from Full Verification in {len(diffs)} field(s)', file=sys.stderr)
+    for path, field, a, b in diffs[:30]:
+        print(f'  {path} | {field}: Full={a!r} Fast={b!r}', file=sys.stderr)
+    raise SystemExit(1)
 PY
 probe="$ROOT/games/NES/Issue 9 Cache Probe (USA).nes"; printf 'issue9-probe' > "$probe"
 printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
