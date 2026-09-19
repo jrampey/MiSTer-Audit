@@ -70,3 +70,5 @@ Fast Audit walks the complete library every run. Unchanged rows may reuse SHA-1 
 The generated runtime is syntax-checked in CI before synthetic auditing or publication.
 
 CI syntax validation guards the generated report-loop control structure before distribution.
+
+The current report-building control flow derives from the last CI-validated implementation with row-local cache reuse layered on top.

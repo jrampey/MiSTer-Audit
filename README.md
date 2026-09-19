@@ -174,3 +174,5 @@ The MiSTer distribution remains one dependency-light Bash runtime. Development s
 Runtime generation now validates the complete per-ROM loop syntax before publication.
 
 The modular runtime build preserves and CI-validates the complete audit report-loop control structure.
+
+The report-building block is based on the last CI-validated runtime and carries only the row-local Fast Audit cache change.

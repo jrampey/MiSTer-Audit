@@ -129,3 +129,5 @@ Keep the MiSTer-facing distribution as one `MiSTer_Audit.sh`, but maintain modul
 Generated runtime and modular source must preserve the complete per-ROM loop header and pass `bash -n` before publication.
 
 Audit report-loop edits must replace the complete control-structure block, not partial `IFS`/proposal fragments.
+
+For high-risk shell control-flow refactors, preserve a last-known-green runtime block and apply minimal semantic changes before regenerating modules.
