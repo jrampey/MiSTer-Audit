@@ -1,5 +1,5 @@
 #!/bin/bash
-# Export_Game_Library_v1.4.sh
+# MiSTer-Audit-Export_v1.4.sh
 # MiSTer library audit/export. READ ONLY: never renames, moves, or deletes games/saves.
 # v1.2 improves region/version parsing, BIOS/support filtering, title normalization,
 # collision-safe proposals, ROM hashing, bundled TSV hash matching, full-library incremental caching, in-memory indexes, atomic report publishing, timing telemetry, and Fast/Full Verification audit modes.

@@ -53,11 +53,11 @@ jobs:
               p = Path(path); text = p.read_text()
               for pattern, replacement in substitutions: text = re.sub(pattern, replacement, text)
               p.write_text(text)
-          replace("Export_Game_Library.sh", [(r"# Export_Game_Library_v[0-9.]+\.sh", f"# Export_Game_Library_v{v}.sh"),(r"exporter_version=[0-9.]+", f"exporter_version={v}"),(r"MiSTer Game Library Audit v[0-9.]+", f"MiSTer ROM Library Auditor v{v}")])
-          replace("Update_Game_Library.sh", [(r"# Update_Game_Library_v[0-9.]+\.sh", f"# Update_Game_Library_v{v}.sh"),(r"Companion updater for MiSTer Game Library Audit v[0-9.]+", f"Companion updater for MiSTer ROM Library Auditor v{v}"),(r"v[0-9.]+ audit handshake", f"v{v} audit handshake"),(r'EXPECTED_EXPORTER_VERSION="[0-9.]+"', f'EXPECTED_EXPORTER_VERSION="{v}"'),(r"Run Export_Game_Library\.sh v[0-9.]+", f"Run Export_Game_Library.sh v{v}"),(r"MiSTer Game Library Updater v[0-9.]+", f"MiSTer ROM Library Updater v{v}")])
-          replace("README.md", [(r"Current release: v[0-9.]+", f"Current release: v{v}"),(r"`Export_Game_Library\.sh` v[0-9.]+", f"`Export_Game_Library.sh` v{v}"),(r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),(r"v[0-9.]+ uses DAT metadata", f"v{v} uses DAT metadata"),(r"v[0-9.]+ updater safety handshake", f"v{v} updater safety handshake"),(r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),(r"v[0-9.]+ integrity checks", f"v{v} integrity checks"),(r"passing v[0-9.]+ audit", f"passing v{v} audit"),(r"release remains v[0-9.]+", f"release remains v{v}")])
+          replace("MiSTer-Audit-Export.sh", [(r"# MiSTer-Audit-Export_v[0-9.]+\.sh", f"# MiSTer-Audit-Export_v{v}.sh"),(r"exporter_version=[0-9.]+", f"exporter_version={v}"),(r"MiSTer Game Library Audit v[0-9.]+", f"MiSTer ROM Library Auditor v{v}")])
+          replace("MiSTer-Audit-Update.sh", [(r"# MiSTer-Audit-Update_v[0-9.]+\.sh", f"# MiSTer-Audit-Update_v{v}.sh"),(r"Companion updater for MiSTer Game Library Audit v[0-9.]+", f"Companion updater for MiSTer ROM Library Auditor v{v}"),(r"v[0-9.]+ audit handshake", f"v{v} audit handshake"),(r'EXPECTED_EXPORTER_VERSION="[0-9.]+"', f'EXPECTED_EXPORTER_VERSION="{v}"'),(r"Run MiSTer-Audit-Export\.sh v[0-9.]+", f"Run MiSTer-Audit-Export.sh v{v}"),(r"MiSTer Game Library Updater v[0-9.]+", f"MiSTer ROM Library Updater v{v}")])
+          replace("README.md", [(r"Current release: v[0-9.]+", f"Current release: v{v}"),(r"`MiSTer-Audit-Export\.sh` v[0-9.]+", f"`MiSTer-Audit-Export.sh` v{v}"),(r"`MiSTer-Audit-Update\.sh` v[0-9.]+", f"`MiSTer-Audit-Update.sh` v{v}"),(r"v[0-9.]+ uses DAT metadata", f"v{v} uses DAT metadata"),(r"v[0-9.]+ updater safety handshake", f"v{v} updater safety handshake"),(r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),(r"v[0-9.]+ integrity checks", f"v{v} integrity checks"),(r"passing v[0-9.]+ audit", f"passing v{v} audit"),(r"release remains v[0-9.]+", f"release remains v{v}")])
           replace("PROJECT_CONTEXT.md", [(r"current release is \*\*v[0-9.]+\*\*", f"current release is **v{v}**"),(r"is the \*\*v[0-9.]+\*\* auditor", f"is the **v{v}** auditor"),(r"is the \*\*v[0-9.]+\*\* companion updater", f"is the **v{v}** companion updater"),(r"Important v[0-9.]+ work", f"Important v{v} work")])
-          replace("wiki/Rename-Workflow.md", [(r"`Update_Game_Library\.sh` v[0-9.]+", f"`Update_Game_Library.sh` v{v}"),(r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),(r"exporter version `[0-9.]+`", f"exporter version `{v}`"),(r"both \*\*v[0-9.]+\*\*", f"both **v{v}**"),(r"auditor's v[0-9.]+ integrity metadata", f"auditor's v{v} integrity metadata")])
+          replace("wiki/Rename-Workflow.md", [(r"`MiSTer-Audit-Update\.sh` v[0-9.]+", f"`MiSTer-Audit-Update.sh` v{v}"),(r"expected v[0-9.]+ audit contract", f"expected v{v} audit contract"),(r"exporter version `[0-9.]+`", f"exporter version `{v}`"),(r"both \*\*v[0-9.]+\*\*", f"both **v{v}**"),(r"auditor's v[0-9.]+ integrity metadata", f"auditor's v{v} integrity metadata")])
           PY
 
       - name: Validate release-ready source
@@ -65,14 +65,14 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          grep -Fq "Export_Game_Library_v${VERSION}.sh" Export_Game_Library.sh
-          grep -Fq "Update_Game_Library_v${VERSION}.sh" Update_Game_Library.sh
-          grep -Fq "EXPECTED_EXPORTER_VERSION=\"${VERSION}\"" Update_Game_Library.sh
+          grep -Fq "MiSTer-Audit-Export_v${VERSION}.sh" MiSTer-Audit-Export.sh
+          grep -Fq "MiSTer-Audit-Update_v${VERSION}.sh" MiSTer-Audit-Update.sh
+          grep -Fq "EXPECTED_EXPORTER_VERSION=\"${VERSION}\"" MiSTer-Audit-Update.sh
           grep -Fq "Current release: v${VERSION}" README.md
           grep -Fq "current release is **v${VERSION}**" PROJECT_CONTEXT.md
           grep -Fq "both **v${VERSION}**" wiki/Rename-Workflow.md
-          bash -n Export_Game_Library.sh
-          bash -n Update_Game_Library.sh
+          bash -n MiSTer-Audit-Export.sh
+          bash -n MiSTer-Audit-Update.sh
 
       - name: Build Downloader database
         run: |
@@ -82,11 +82,11 @@ jobs:
           CSV="/tmp/mister-db-build/external_files.csv"
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
           add_file() { local source="$1" target="$2" size md5; size=$(stat -c '%s' "$source"); md5=$(md5sum "$source" | awk '{print $1}'); printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "mister-rom-library-auditor" >> "$CSV"; }
-          add_file "Export_Game_Library.sh" "Scripts/Export_Game_Library.sh"
-          add_file "Update_Game_Library.sh" "Scripts/Update_Game_Library.sh"
+          add_file "MiSTer-Audit-Export.sh" "Scripts/MiSTer-Audit-Export.sh"
+          add_file "MiSTer-Audit-Update.sh" "Scripts/MiSTer-Audit-Update.sh"
           add_file "mister_hash_database.tsv" "Scripts/mister_hash_database.tsv"
           curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o /tmp/mister-db-build/db_operator.py
-          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="Export_Game_Library.sh Update_Game_Library.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
+          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="MiSTer-Audit-Export.sh MiSTer-Audit-Update.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
 
       - name: Verify Downloader manifest matches release files
         run: |
@@ -94,7 +94,7 @@ jobs:
           python3 - <<'PY'
           import hashlib, json
           from pathlib import Path
-          expected = {"Scripts/Export_Game_Library.sh": Path("Export_Game_Library.sh"), "Scripts/Update_Game_Library.sh": Path("Update_Game_Library.sh"), "Scripts/mister_hash_database.tsv": Path("mister_hash_database.tsv")}
+          expected = {"Scripts/MiSTer-Audit-Export.sh": Path("MiSTer-Audit-Export.sh"), "Scripts/MiSTer-Audit-Update.sh": Path("MiSTer-Audit-Update.sh"), "Scripts/mister_hash_database.tsv": Path("mister_hash_database.tsv")}
           db = json.loads(Path("db.json").read_text()); files = db.get("files", {}); errors = []
           for target, source in expected.items():
               entry = files.get(target)
@@ -124,7 +124,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Export_Game_Library.sh Update_Game_Library.sh README.md PROJECT_CONTEXT.md wiki/Rename-Workflow.md db.json
+          git add MiSTer-Audit-Export.sh MiSTer-Audit-Update.sh README.md PROJECT_CONTEXT.md wiki/Rename-Workflow.md db.json
           git diff --cached --quiet && { echo "No release changes found"; exit 1; }
           git commit -m "Release v${VERSION}"
           git push origin HEAD:main
@@ -135,7 +135,7 @@ jobs:
           test -z "$(git status --porcelain)" || { echo "Working tree changed after release commit"; git status --short; exit 1; }
           python3 - <<'PY'
           import hashlib, json, subprocess
-          expected = {"Scripts/Export_Game_Library.sh": "Export_Game_Library.sh", "Scripts/Update_Game_Library.sh": "Update_Game_Library.sh", "Scripts/mister_hash_database.tsv": "mister_hash_database.tsv"}
+          expected = {"Scripts/MiSTer-Audit-Export.sh": "MiSTer-Audit-Export.sh", "Scripts/MiSTer-Audit-Update.sh": "MiSTer-Audit-Update.sh", "Scripts/mister_hash_database.tsv": "mister_hash_database.tsv"}
           db = json.loads(subprocess.check_output(["git", "show", "HEAD:db.json"], text=True)); errors = []
           for target, path in expected.items():
               data = subprocess.check_output(["git", "show", f"HEAD:{path}"]); entry = db["files"].get(target, {}); size = len(data); md5 = hashlib.md5(data).hexdigest()

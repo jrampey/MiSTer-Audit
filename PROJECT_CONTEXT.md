@@ -14,13 +14,13 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 ## Current implementation
 
-`Export_Game_Library.sh` is the **v1.4** auditor. Important v1.4 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
+`MiSTer-Audit-Export.sh` is the **v1.4** auditor. Important v1.4 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
 
 Fast Audit currently reuses valid path + size/mtime keyed SHA-1 cache entries and, while the database fingerprint is unchanged, cached DAT identification. It still performs a complete library rescan and repeats classification/report construction so cross-file safety state remains current. Full Verification bypasses hash reuse and recalculates supported hashes.
 
 The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner.
 
-`Update_Game_Library.sh` is the **v1.4** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Hard integrity failures, non-collision warnings, or exporter/database fingerprint changes still block Apply. A `PASS WITH WARNINGS` audit whose only integrity note is `collision-review-required` is now eligible for safe Apply: the updater independently reproduces the exporter collision classification from `library_catalog.csv`, removes every blocking game row and its paired save rename from the mutation plan, and applies only the remaining safe rows after explicit confirmation.
+`MiSTer-Audit-Update.sh` is the **v1.4** companion updater and separate mutation path. It validates audit schema/version, self-check and MiSTer-aware metadata status, integrity verdict/apply recommendation, and exporter/hash-database fingerprints before Apply. Hard integrity failures, non-collision warnings, or exporter/database fingerprint changes still block Apply. A `PASS WITH WARNINGS` audit whose only integrity note is `collision-review-required` is now eligible for safe Apply: the updater independently reproduces the exporter collision classification from `library_catalog.csv`, removes every blocking game row and its paired save rename from the mutation plan, and applies only the remaining safe rows after explicit confirmation.
 
 ## Final-target collision safety — Issue #7
 
@@ -65,8 +65,8 @@ Current behavior is documented in the repository's `wiki/` directory. GitHub Act
 
 Custom MiSTer Downloader / Update All integration is implemented. `.github/workflows/build-downloader-db.yml` generates and validates `db.json` and distributes only:
 
-- `/media/fat/Scripts/Export_Game_Library.sh`
-- `/media/fat/Scripts/Update_Game_Library.sh`
+- `/media/fat/Scripts/MiSTer-Audit-Export.sh`
+- `/media/fat/Scripts/MiSTer-Audit-Update.sh`
 - `/media/fat/Scripts/mister_hash_database.tsv`
 
 Generated reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files must not be managed by Update All.

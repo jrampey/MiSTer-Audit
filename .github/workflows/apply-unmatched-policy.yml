@@ -17,13 +17,13 @@ jobs:
         run: python3 tools/apply_unmatched_policy.py
       - name: Validate exporter
         run: |
-          bash -n Export_Game_Library.sh
+          bash -n MiSTer-Audit-Export.sh
           bash tests/test_exporter_synthetic.sh
       - name: Commit changes
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add Export_Game_Library.sh README.md PROJECT_CONTEXT.md
+          git add MiSTer-Audit-Export.sh README.md PROJECT_CONTEXT.md
           git diff --cached --quiet && exit 0
           git commit -m 'Exclude unmatched ROMs from rename planning'
           git push origin HEAD:main

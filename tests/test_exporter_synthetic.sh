@@ -27,7 +27,7 @@ before_saves=$(find "$ROOT/saves" -type f -printf '%P\t%s\n' | LC_ALL=C sort | s
 # relative to its own script directory.
 TEST_BIN="$ROOT/test-bin"
 mkdir -p "$TEST_BIN"
-cp ./Export_Game_Library.sh "$TEST_BIN/Export_Game_Library.sh"
+cp ./MiSTer-Audit-Export.sh "$TEST_BIN/MiSTer-Audit-Export.sh"
 cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
 
 # Add one synthetic DAT identity used by two source filenames. This mirrors the
@@ -46,7 +46,7 @@ for rev in 1 2; do
   vp="$ROOT/games/SNES/Canonical Variant (USA) (Rev $rev).sfc"; vh=$(sha1sum "$vp" | awk '{print $1}')
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$vh" "Canonical Variant (USA) (Rev $rev)" "Canonical Variant (USA) (Rev $rev).sfc" "Synthetic Issue #7" "12" "00000000" "00000000000000000000000000000000" "SNES" "SNES" "SNES" "USA" "Revision" "Licensed" >> "$TEST_BIN/mister_hash_database.tsv"
 done
-python3 - "$TEST_BIN/Export_Game_Library.sh" "$ROOT" <<'PY'
+python3 - "$TEST_BIN/MiSTer-Audit-Export.sh" "$ROOT" <<'PY'
 from pathlib import Path
 import sys
 p = Path(sys.argv[1])
@@ -60,7 +60,7 @@ p.write_text(text)
 PY
 
 # Shortcut 2 selects Full Verification immediately, avoiding the 15-second menu timeout.
-printf '2' | bash "$TEST_BIN/Export_Game_Library.sh"
+printf '2' | bash "$TEST_BIN/MiSTer-Audit-Export.sh"
 
 [ -f "$BUNDLE" ] || fail "audit bundle was not published"
 [ -f "$CATALOG" ] || fail "catalog CSV was not published"
@@ -105,7 +105,7 @@ grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
 # derived associative-array subscript. Keep that unsafe pattern out permanently.
-if grep -Fq 'FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))' ./Export_Game_Library.sh; then
+if grep -Fq 'FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))' ./MiSTer-Audit-Export.sh; then
     fail "unsafe filename-derived associative arithmetic returned"
 fi
 

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-p = Path('Export_Game_Library.sh')
+p = Path('MiSTer-Audit-Export.sh')
 s = p.read_text()
 
 old = '''# ---------------------------------------------------------------------------

@@ -13,10 +13,10 @@ This wiki documents the behavior currently implemented in the repository. It des
 
 ## Current implementation
 
-The auditor is **v1.2**. `Export_Game_Library.sh` scans `/media/fat/games`, optionally hashes DAT-eligible ROMs, identifies matches using the bundled MiSTer-aware hash database, pairs saves, detects duplicates and location issues, proposes canonical renames, and publishes a consolidated audit.
+The auditor is **v1.2**. `MiSTer-Audit-Export.sh` scans `/media/fat/games`, optionally hashes DAT-eligible ROMs, identifies matches using the bundled MiSTer-aware hash database, pairs saves, detects duplicates and location issues, proposes canonical renames, and publishes a consolidated audit.
 
-`Update_Game_Library.sh` is currently labeled **v1.1**. It is the separate mutation path for previewing, applying, and rolling back rename proposals.
+`MiSTer-Audit-Update.sh` is currently labeled **v1.1**. It is the separate mutation path for previewing, applying, and rolling back rename proposals.
 
-The repository also publishes a MiSTer Downloader-compatible `db.json`. GitHub Actions regenerates and validates this database whenever one of the distributed runtime files changes. The database installs only `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv` into `/media/fat/Scripts/`.
+The repository also publishes a MiSTer Downloader-compatible `db.json`. GitHub Actions regenerates and validates this database whenever one of the distributed runtime files changes. The database installs only `MiSTer-Audit-Export.sh`, `MiSTer-Audit-Update.sh`, and `mister_hash_database.tsv` into `/media/fat/Scripts/`.
 
 The repository's implementation is authoritative. This wiki should be updated when behavior changes.

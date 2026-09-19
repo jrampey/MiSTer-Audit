@@ -1,11 +1,11 @@
 #!/bin/bash
-# Update_Game_Library_v1.4.sh
+# MiSTer-Audit-Update_v1.4.sh
 # Companion updater for MiSTer ROM Library Auditor v1.4
 
 ROOT="/media/fat"; GAMES="$ROOT/games"; SAVES="$ROOT/saves"; AUDIT="$ROOT/GameLibraryAudit"
 GAME_CSV="$AUDIT/proposed_renames.csv"; SAVE_CSV="$AUDIT/proposed_save_renames.csv"; CATALOG="$AUDIT/library_catalog.csv"; BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 HISTORY="$AUDIT/RenameHistory"; PLAN="$AUDIT/apply_preview.tsv"; SKIPS="$AUDIT/apply_skipped.tsv"; PLAN_META="$AUDIT/apply_preview.meta"
-SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"; EXPORTER="$SCRIPT_DIR/Export_Game_Library.sh"; HASH_DB="$SCRIPT_DIR/mister_hash_database.tsv"
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"; EXPORTER="$SCRIPT_DIR/MiSTer-Audit-Export.sh"; HASH_DB="$SCRIPT_DIR/mister_hash_database.tsv"
 EXPECTED_SCHEMA="4"; EXPECTED_EXPORTER_VERSION="1.4"; BLOCKLIST="/tmp/mister_updater_blocked.$$"; HEARTBEAT_EVERY=500
 UPDATER_BUILD="preview-summary-2026-09-13a"
 STAGE_PREFIX=""; STAGE_COLLISION=""; STAGE_RESOLVE=""; STAGE_GAME=""; STAGE_SAVE=""
@@ -16,7 +16,7 @@ audit_meta(){ local key="$1"; awk -F= -v k="$key" '/^\[AUDIT_METADATA\]$/{inmeta
 trim_spaces(){ local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
 validate_audit(){
  local mode="${1:-preview}" schema exporter_version build_sha database_sha metadata_layer self_check verdict recommendation notes notes_trimmed current_exporter_sha current_database_sha errors=0 collision_only=0
- [[ -f "$BUNDLE" ]]||{ echo "ERROR: Missing $BUNDLE"; echo "Run Export_Game_Library.sh v1.4 first."; return 1; }
+ [[ -f "$BUNDLE" ]]||{ echo "ERROR: Missing $BUNDLE"; echo "Run MiSTer-Audit-Export.sh v1.4 first."; return 1; }
  schema="$(audit_meta schema_version)"; exporter_version="$(audit_meta exporter_version)"; build_sha="$(audit_meta build_sha1)"; database_sha="$(audit_meta database_sha1)"; metadata_layer="$(audit_meta metadata_layer)"; self_check="$(audit_meta self_check)"; verdict="$(audit_meta integrity_verdict)"; recommendation="$(audit_meta apply_recommendation)"; notes="$(audit_meta integrity_notes)"; notes_trimmed="$(trim_spaces "$notes")"
  [[ "$verdict" == "PASS WITH WARNINGS" && "$notes_trimmed" == "collision-review-required" ]]&&collision_only=1
  [[ "$recommendation" == "APPLY WITH SKIPS" && "$notes_trimmed" == *collision* ]]&&collision_only=1

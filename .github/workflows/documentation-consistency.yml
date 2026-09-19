@@ -43,7 +43,7 @@ jobs:
 
           while IFS= read -r file; do
             case "$file" in
-              Export_Game_Library.sh|Update_Game_Library.sh|mister_hash_database.tsv) runtime_changed=true ;;
+              MiSTer-Audit-Export.sh|MiSTer-Audit-Update.sh|mister_hash_database.tsv) runtime_changed=true ;;
               README.md) readme_changed=true ;;
               PROJECT_CONTEXT.md) context_changed=true ;;
               wiki/*.md) wiki_changed=true ;;

@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - Export_Game_Library.sh
+      - MiSTer-Audit-Export.sh
       - tests/test_exporter_synthetic.sh
       - tests/build_synthetic_library.py
       - .github/workflows/synthetic-library-test.yml
@@ -25,7 +25,7 @@ jobs:
 
       - name: Validate test scripts
         run: |
-          bash -n Export_Game_Library.sh
+          bash -n MiSTer-Audit-Export.sh
           bash -n tests/test_exporter_synthetic.sh
           python3 -m py_compile tests/build_synthetic_library.py
 

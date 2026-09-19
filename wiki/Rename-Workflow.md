@@ -1,6 +1,6 @@
 # Rename Workflow
 
-Renaming is intentionally separate from auditing. `Export_Game_Library.sh` only proposes changes; `Update_Game_Library.sh` v1.4 is the mutation path.
+Renaming is intentionally separate from auditing. `MiSTer-Audit-Export.sh` only proposes changes; `MiSTer-Audit-Update.sh` v1.4 is the mutation path.
 
 ## Audit handshake
 
@@ -15,7 +15,7 @@ The updater requires the expected v1.4 audit contract, including:
 - a recognized integrity verdict and Apply recommendation; and
 - the audit's exporter and hash-database SHA-1 fingerprints.
 
-It compares the recorded exporter fingerprint with the currently installed `Export_Game_Library.sh` and the recorded database fingerprint with the currently installed `mister_hash_database.tsv`. If either changed after the audit was generated, the old proposals are considered stale and a fresh audit is required.
+It compares the recorded exporter fingerprint with the currently installed `MiSTer-Audit-Export.sh` and the recorded database fingerprint with the currently installed `mister_hash_database.tsv`. If either changed after the audit was generated, the old proposals are considered stale and a fresh audit is required.
 
 Preview may still be useful when the audit reports warnings, but Apply is blocked unless the audit has `integrity_verdict=PASS` and an Apply recommendation that permits proceeding. `DO NOT APPLY` is enforced by the updater rather than being only a manual warning.
 

@@ -20,18 +20,18 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 3. Save `downloader.ini`.
 4. Run **Update All** on the MiSTer.
-5. Update All installs `Export_Game_Library.sh`, `Update_Game_Library.sh`, and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
-6. Run `Export_Game_Library` from the MiSTer Scripts menu to create your first read-only library audit.
+5. Update All installs `MiSTer-Audit-Export.sh`, `MiSTer-Audit-Update.sh`, and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
+6. Run `MiSTer-Audit-Export` from the MiSTer Scripts menu to create your first read-only library audit.
 
-> **Start with the auditor.** `Export_Game_Library.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the separate updater's Preview / Apply workflow.
+> **Start with the auditor.** `MiSTer-Audit-Export.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the separate updater's Preview / Apply workflow.
 
 **Audit → Review → Preview → Apply → Roll Back**
 
 ## Current runtime
 
-`Export_Game_Library.sh` v1.4 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
+`MiSTer-Audit-Export.sh` v1.4 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
 
-`Update_Game_Library.sh` v1.4 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake. The exporter never renames, moves, or deletes ROMs or saves.
+`MiSTer-Audit-Update.sh` v1.4 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake. The exporter never renames, moves, or deletes ROMs or saves.
 
 ## Audit modes
 
@@ -78,10 +78,10 @@ Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, an
 ## Recommended workflow
 
 ```text
-1. Run Export_Game_Library
+1. Run MiSTer-Audit-Export
 2. Review MiSTer_Library_Audit.txt
 3. Investigate warnings and questionable proposals
-4. Run Update_Game_Library
+4. Run MiSTer-Audit-Update
 5. Preview
 6. Review apply_preview.tsv and apply_skipped.tsv
 7. Apply; collision-blocked rows remain untouched automatically

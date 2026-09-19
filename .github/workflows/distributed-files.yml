@@ -3,8 +3,8 @@ on:
   push:
     branches: [main]
     paths:
-      - Export_Game_Library.sh
-      - Update_Game_Library.sh
+      - MiSTer-Audit-Export.sh
+      - MiSTer-Audit-Update.sh
       - mister_hash_database.tsv
       - .github/workflows/distributed-files.yml
       - .github/workflows/publish-downloader.yml
