@@ -76,3 +76,5 @@ The current report-building control flow derives from the last CI-validated impl
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
 
 <!-- Fast/Full equivalence: report-facing canonical and location fields are re-derived from cached DAT metadata each run. -->
+
+<!-- Fast Audit cache format 8 explicitly preserves empty TSV metadata fields so unmatched ROM metadata remains column-stable across cache reloads. -->

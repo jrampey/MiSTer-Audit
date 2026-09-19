@@ -180,3 +180,5 @@ The report-building block is based on the last CI-validated runtime and carries 
 <!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
 
 <!-- Fast Audit cache equivalence: cached DAT metadata is reused while report-facing canonical/location fields are re-derived for Full-equivalent output. -->
+
+<!-- Fast Audit cache format 8 explicitly preserves empty TSV metadata fields, preventing unmatched-ROM cache columns from shifting on reload. -->
