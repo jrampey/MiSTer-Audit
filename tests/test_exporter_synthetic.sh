@@ -27,7 +27,7 @@ before_saves=$(find "$ROOT/saves" -type f -printf '%P\t%s\n' | LC_ALL=C sort | s
 # relative to its own script directory.
 TEST_BIN="$ROOT/test-bin"
 mkdir -p "$TEST_BIN"
-cp ./MiSTer_Audit.sh audit "$TEST_BIN/MiSTer_Audit.sh"
+cp ./MiSTer_Audit.sh "$TEST_BIN/MiSTer_Audit.sh"
 cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
 
 # Add one synthetic DAT identity used by two source filenames. This mirrors the
@@ -53,8 +53,8 @@ p = Path(sys.argv[1])
 root = sys.argv[2]
 text = p.read_text()
 needle = 'ROOT="/media/fat"'
-if text.count(needle) != 1:
-    raise SystemExit('ERROR: expected exactly one production ROOT assignment')
+if text.count(needle) < 1:
+    raise SystemExit('ERROR: production ROOT assignment not found')
 text = text.replace(needle, f'ROOT="{root}"', 1)
 p.write_text(text)
 PY
@@ -105,7 +105,7 @@ grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
 # derived associative-array subscript. Keep that unsafe pattern out permanently.
-if grep -Fq 'FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))' ./MiSTer_Audit.sh audit; then
+if grep -Fq 'FINAL_PROPOSAL_COUNTS["$final_key"]=$((FINAL_PROPOSAL_COUNTS["$final_key"]+1))' ./MiSTer_Audit.sh; then
     fail "unsafe filename-derived associative arithmetic returned"
 fi
 

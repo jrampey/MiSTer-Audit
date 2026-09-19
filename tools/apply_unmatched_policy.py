@@ -1,6 +1,6 @@
 from pathlib import Path
 
-p=Path('Export_Game_Library.sh')
+p=Path('MiSTer_Audit.sh')
 s=p.read_text()
 old='is_support_file() { local path="${1,,}" file="${2,,}" stem="${2%.*}"; stem="${stem,,}";'
 new='is_support_file() { local path="${1,,}" file="${2,,}" stem="${2%.*}"; stem="${stem,,}"; case "$file" in readme.md|readme.txt|readme.nfo) return 0 ;; esac;'
