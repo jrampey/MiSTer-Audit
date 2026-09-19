@@ -445,6 +445,29 @@ expected_unmatched_class() {
   printf 'Review unmatched retail/unknown'
 }
 
+special_release_category_set() {
+  local release="${1,,}" license="${2,,}" name="${3,,}"
+  case "$license $release $name" in
+    *homebrew*) HOT_RESULT="Homebrew" ;;
+    *unlicensed*|*" unl"*|*"unl "*) HOT_RESULT="Unlicensed" ;;
+    *aftermarket*) HOT_RESULT="Aftermarket" ;;
+    *prototype*|*" proto"*|*"proto "*) HOT_RESULT="Prototype" ;;
+    *beta*) HOT_RESULT="Beta" ;;
+    *demo*|*sample*) HOT_RESULT="Demo/Sample" ;;
+    *translation*|*translated*) HOT_RESULT="Translation" ;;
+    *hack*|*modified*|*improvement*|*redux*|*randomizer*) HOT_RESULT="Hack/Modified" ;;
+    *) HOT_RESULT="Retail/Standard" ;;
+  esac
+}
+curated_destination_set() {
+  local folder="$1" category="$2"
+  [ -n "$folder" ] || { HOT_RESULT="Unknown"; return; }
+  case "$category" in
+    "Retail/Standard") HOT_RESULT="$folder" ;;
+    *) HOT_RESULT="$folder/$category" ;;
+  esac
+}
+
 
 START_TIME=$(date +%s); LAST_PROGRESS_TIME=$START_TIME
 on_exit() { cleanup; }; trap on_exit EXIT INT TERM
@@ -592,13 +615,13 @@ READ-ONLY EXPORT - no games or saves were modified.
 Reports folder: $AUDIT
 ============================================================
 EOF2
-printf '%s\n' '"system","clean_title","region","version_type","original_filename","proposed_filename","full_path","save_match_count","collision_status","sha1","dat_match","dat_canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","metadata_region","release_type","license_status","location_status"' > "$STAGE_CSV"
+printf '%s\n' '"system","clean_title","region","version_type","original_filename","proposed_filename","full_path","save_match_count","collision_status","sha1","dat_match","dat_canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","metadata_region","release_type","license_status","special_release_category","curated_destination","location_status"' > "$STAGE_CSV"
 printf '%s\n' '"system","current_path","proposed_filename","region","version_type","status"' > "$STAGE_REN"
 printf '%s\n' '"system","game_path","save_path","proposed_save_filename","match_type","status"' > "$STAGE_SAVE_REN"
 printf '%s\n' '"sha1","system","full_path","original_filename","clean_title"' > "$STAGE_HASH_DUP"
 printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status"' > "$STAGE_DAT_MATCH"
 printf '%s\n' '"sha1","system","full_path","original_filename","unmatched_class"' > "$STAGE_DAT_UNMATCHED"
-printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","location_status"' > "$STAGE_LOCATION_AUDIT"
+printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","special_release_category","curated_destination","location_status"' > "$STAGE_LOCATION_AUDIT"
 : > "$HASH_ROWS"; : > "$COLLISION_ROWS"
 # Keep hot append targets open during the per-ROM loop to reduce FAT open/close I/O.
 exec 17>>"$HASH_ROWS" 20>>"$HASH_CACHE_NEW" 21>>"$COLLISION_ROWS"
@@ -614,7 +637,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   proposed="${fallback_proposed:-}"; if [ -z "$proposed" ]; then suffix_for_set "$region" "$kind"; suffix="$HOT_RESULT"; proposed="$clean$suffix.$ext"; fi; base="${proposed%.$ext}"; key="${system,,}|${proposed,,}"; collision="None"; pre_collision=0
   if [ "${NAME_COUNTS["$key"]:-0}" -gt 1 ]; then pre_collision=1; PRE_COLLISION_ROWS=$((PRE_COLLISION_ROWS+1)); n=$(( ${SEEN_NAMES["$key"]:-0} + 1 )); SEEN_NAMES["$key"]=$n; proposed="$base [Variant $n].$ext"; collision="Pending final-target review"; fi
   row_seconds_start=$SECONDS; SYSTEM_FILES["$system"]=$(( ${SYSTEM_FILES["$system"]:-0} + 1 ))
-  sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""; meta_system=""; meta_core=""; meta_folder=""; meta_region=""; meta_release=""; meta_license=""; loc_status="Unknown"
+  sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""; meta_system=""; meta_core=""; meta_folder=""; meta_region=""; meta_release=""; meta_license=""; special_category="Retail/Standard"; curated_destination="Unknown"; loc_status="Unknown"
   if should_hash "$system" "$ext"; then
     HASH_ELIGIBLE=$((HASH_ELIGIBLE+1)); SYSTEM_ELIGIBLE["$system"]=$(( ${SYSTEM_ELIGIBLE["$system"]:-0} + 1 )); cache_key="$p|$sig"; cached_sha=""; cached_normalized_sha=""; if [ "$USE_HASH_CACHE" -eq 1 ]; then cached_sha="${CACHE_SHA[$cache_key]:-}"; cached_normalized_sha="${CACHE_NORMALIZED_SHA[$cache_key]:-}"; fi
     if [ -n "$cached_sha" ]; then
@@ -641,9 +664,9 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # every run. This keeps Fast Audit byte-for-byte equivalent to Full
       # Verification while still avoiding hash and DAT-record decoding work.
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi
-      location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
+      special_release_category_set "$meta_release" "$meta_license" "${dat_rom:-$dat_name}"; special_category="$HOT_RESULT"; curated_destination_set "$meta_folder" "$special_category"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
-      csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$loc_status"
+      csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; fi
     # Cache rows are TSV. Empty interior fields must be encoded explicitly:
     # Bash read collapses adjacent tab IFS whitespace, which previously shifted
@@ -667,7 +690,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   if [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
 
   printf '[%s] %s | Region: %s | Type: %s | Saves: %s | File: %s | Collision: %s\n' "$system" "$clean" "$region" "$kind" "$save_count" "$file" "$collision" >> "$STAGE_OUT"
-  csv_row "$STAGE_CSV" "$system" "$clean" "$region" "$kind" "$file" "$proposed" "$p" "$save_count" "$collision" "$sha1" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$loc_status"
+  csv_row "$STAGE_CSV" "$system" "$clean" "$region" "$kind" "$file" "$proposed" "$p" "$save_count" "$collision" "$sha1" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination" "$loc_status"
   csv_row "$STAGE_REN" "$system" "$p" "$proposed" "$region" "$kind" "REVIEW ONLY"
   TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done
@@ -730,7 +753,7 @@ Created in $AUDIT:
 
 IMPORTANT:
 - Nothing was renamed, moved, or deleted.
-- Exact DAT matches use canonical DAT filenames; filename parsing is fallback-only for unmatched ROMs.
+- Exact DAT matches use canonical DAT filenames; filename parsing is fallback-only for unmatched ROMs.\n- DAT-identified releases include a special-release category and curated MiSTer destination (expected folder plus category subfolder for non-retail releases).
 - Pre-DAT filename collisions are blocking only when final canonical targets remain ambiguous.
 - Authoritative DAT variants with unique final targets are reported as resolved and do not block Preview.
 - Unmatched/unsupported ROMs are inventory-only and do not participate in rename collision planning.

@@ -137,3 +137,5 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 <!-- Fast Audit equivalence repair: cached DAT identity may be reused, but cheap report-facing canonical/location fields are re-derived each run so Fast and Full catalogs remain equivalent. -->
 
 <!-- Hash cache format 8 preserves empty TSV metadata fields explicitly so unmatched ROM cache rows cannot shift columns during Fast Audit reload. -->
+
+- Audit reports expose curated destination metadata and special-release categorization for DAT-identified ROMs. Curated destinations remain read-only/advisory; update behavior is unchanged.

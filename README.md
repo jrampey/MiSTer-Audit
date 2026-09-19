@@ -182,3 +182,6 @@ The report-building block is based on the last CI-validated runtime and carries 
 <!-- Fast Audit cache equivalence: cached DAT metadata is reused while report-facing canonical/location fields are re-derived for Full-equivalent output. -->
 
 <!-- Fast Audit cache format 8 explicitly preserves empty TSV metadata fields, preventing unmatched-ROM cache columns from shifting on reload. -->
+
+### Curated destinations and special releases
+DAT-identified ROMs now expose a curated MiSTer destination derived from the MiSTer-aware expected folder. Non-retail releases are additionally categorized as Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified and receive a category subfolder recommendation. These fields are advisory/read-only in the audit and do not cause moves by themselves.

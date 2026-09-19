@@ -78,3 +78,6 @@ The current report-building control flow derives from the last CI-validated impl
 <!-- Fast/Full equivalence: report-facing canonical and location fields are re-derived from cached DAT metadata each run. -->
 
 <!-- Fast Audit cache format 8 explicitly preserves empty TSV metadata fields so unmatched ROM metadata remains column-stable across cache reloads. -->
+
+## Curated destination metadata
+For DAT-identified ROMs, the audit reports the MiSTer-aware expected folder plus a special-release category. Retail releases remain at the expected system folder; Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified releases receive a corresponding recommended category subfolder. This is reporting metadata only and does not move files automatically.
