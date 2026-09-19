@@ -14,7 +14,7 @@ runtime_build_id() {
 }
 
 main_menu() {
-  local selection=1 key key2 key3
+  local selection=1 key key2 key3 choice update_choice
   while :; do
     printf '\033[2J\033[H'
     echo "MiSTer ROM Library Auditor v1.4"
@@ -30,13 +30,7 @@ main_menu() {
     case "$key" in
       "") choice="$selection" ;;
       1|2|3) choice="$key" ;;
-      
-case "${1:-}" in
-  audit) run_audit ;;
-  update|rename) run_update_tools ;;
-  *) main_menu ;;
-esac
-\x1b')
+      $'\x1b')
         IFS= read -rsn1 -t 0.15 key2 || key2=""
         if [ "$key2" = "[" ]; then
           IFS= read -rsn1 -t 0.15 key3 || key3=""
