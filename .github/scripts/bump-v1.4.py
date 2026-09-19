@@ -1,8 +1,8 @@
 from pathlib import Path
 
 files = [
-    Path('MiSTer-Audit-Export.sh'),
-    Path('MiSTer-Audit-Update.sh'),
+    Path('MiSTer_Audit.sh'),
+    Path('MiSTer_Audit.sh'),
     Path('README.md'),
     Path('PROJECT_CONTEXT.md'),
 ]

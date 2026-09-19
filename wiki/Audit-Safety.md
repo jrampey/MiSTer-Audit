@@ -32,7 +32,7 @@ The exporter still reports blocking rows conservatively as `PASS WITH WARNINGS`,
 
 ## Apply with blocking rows skipped
 
-`MiSTer-Audit-Update.sh` v1.4 can proceed when the audit's **only** warning is `collision-review-required`.
+`MiSTer_Audit.sh` v1.4 can proceed when the audit's **only** warning is `collision-review-required`.
 
 Before Preview or Apply, the updater reads `library_catalog.csv` and independently reconstructs the exporter's collision decision:
 

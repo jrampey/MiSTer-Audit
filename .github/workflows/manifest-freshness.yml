@@ -16,7 +16,7 @@ jobs:
           import hashlib,json,re,urllib.request
           from pathlib import Path
           db=json.loads(Path('db.json').read_text())
-          expected={'Scripts/MiSTer-Audit-Export.sh':'MiSTer-Audit-Export.sh','Scripts/MiSTer-Audit-Update.sh':'MiSTer-Audit-Update.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv'}
+          expected={'Scripts/MiSTer_Audit.sh':'MiSTer_Audit.sh','Scripts/MiSTer_Audit.sh':'MiSTer_Audit.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv'}
           for target,source in expected.items():
               e=db['files'].get(target); assert e, f'missing {target}'
               assert re.search(r'/[0-9a-f]{40}/'+re.escape(source)+r'$',e['url']), f'non-immutable URL: {target}'

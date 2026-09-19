@@ -1,6 +1,6 @@
 # Synthetic Library Integration Test
 
-This optional integration test runs the real `MiSTer-Audit-Export.sh` against a deterministic, disposable library shaped like the production MiSTer library that exposed Issue #6.
+This optional integration test runs the real `MiSTer_Audit.sh` against a deterministic, disposable library shaped like the production MiSTer library that exposed Issue #6.
 
 ## Profile
 

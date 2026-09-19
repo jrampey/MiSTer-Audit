@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "MiSTer-Audit-Export.sh"
+      - "MiSTer_Audit.sh"
       - "tests/**"
       - ".github/workflows/exporter-performance.yml"
   pull_request:
     paths:
-      - "MiSTer-Audit-Export.sh"
+      - "MiSTer_Audit.sh"
       - "tests/**"
       - ".github/workflows/exporter-performance.yml"
   workflow_dispatch:

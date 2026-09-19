@@ -4,11 +4,11 @@ These boundaries describe the current project design and should remain true unle
 
 ## Auditor
 
-`MiSTer-Audit-Export.sh` is read-only with respect to ROMs and saves. It may scan, hash, classify, cache metadata, and write audit/report files, but it does not rename, move, or delete games or saves.
+`MiSTer_Audit.sh` is read-only with respect to ROMs and saves. It may scan, hash, classify, cache metadata, and write audit/report files, but it does not rename, move, or delete games or saves.
 
 ## Updater
 
-`MiSTer-Audit-Update.sh` is the only current script that mutates game/save filenames. Mutation requires an explicit Apply action and exact confirmation text. Rollback is also explicit and manifest-driven.
+`MiSTer_Audit.sh` is the only current script that mutates game/save filenames. Mutation requires an explicit Apply action and exact confirmation text. Rollback is also explicit and manifest-driven.
 
 ## Rename safeguards
 

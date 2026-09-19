@@ -1,6 +1,6 @@
 from pathlib import Path
 
-p = Path('MiSTer-Audit-Export.sh')
+p = Path('MiSTer_Audit.sh')
 s = p.read_text()
 
 old = '''# ---------------------------------------------------------------------------

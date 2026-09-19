@@ -29,8 +29,7 @@ jobs:
       - name: Validate distributed files
         run: |
           set -euo pipefail
-          bash -n MiSTer-Audit-Export.sh
-          bash -n MiSTer-Audit-Update.sh
+          bash -n MiSTer_Audit.sh
           python3 tools/validate_hash_database.py mister_hash_database.tsv
           bash tests/test_exporter_synthetic.sh
       - name: Build manifest
@@ -44,8 +43,7 @@ jobs:
           rm -rf "$BUILD_DIR"; mkdir -p "$STAGE_DIR"
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
           add_file() { printf '%s,%s/%s,%s,%s,%s\n' "$2" "$RAW_BASE" "$1" "$(stat -c '%s' "$1")" "$(md5sum "$1"|awk '{print $1}')" mister-rom-library-auditor >> "$CSV"; }
-          add_file MiSTer-Audit-Export.sh Scripts/MiSTer-Audit-Export.sh
-          add_file MiSTer-Audit-Update.sh Scripts/MiSTer-Audit-Update.sh
+          add_file MiSTer_Audit.sh Scripts/MiSTer_Audit.sh
           add_file mister_hash_database.tsv Scripts/mister_hash_database.tsv
           curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o "$BUILD_DIR/db_operator.py"
           DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" DB_JSON_NAME=db.json python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
@@ -55,7 +53,7 @@ jobs:
           import hashlib,json,os
           from pathlib import Path
           db=json.loads(Path('db.json').read_text()); sha=os.environ['PUBLISH_SHA']
-          expected={'Scripts/MiSTer-Audit-Export.sh':'MiSTer-Audit-Export.sh','Scripts/MiSTer-Audit-Update.sh':'MiSTer-Audit-Update.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv'}
+          expected={'Scripts/MiSTer_Audit.sh':'MiSTer_Audit.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv'}
           for target,source in expected.items():
               data=Path(source).read_bytes(); e=db['files'][target]
               assert e['size']==len(data) and e['hash']==hashlib.md5(data).hexdigest(), target
