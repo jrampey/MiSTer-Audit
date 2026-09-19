@@ -162,3 +162,4 @@ Fast Audit v1.4 now treats cached analysis as dependency-scoped state: unchanged
 Fast Audit hot-loop cache and discovery output uses persistent file descriptors, avoiding repeated FAT file open/close operations. This is a performance-only optimization; audit results and safety semantics are unchanged.
 
 Fast Audit also reuses database-fingerprint-bound per-ROM DAT/classification row metadata for unchanged files; global collision, duplicate, completion, save-pairing, integrity, and report state is still rebuilt every run.
+<!-- Documentation sync: Issue #9 Fast Audit incremental row-metadata cache repair validated by CI. -->

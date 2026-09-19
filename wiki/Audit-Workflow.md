@@ -60,3 +60,4 @@ The audit-mode selector is controller-first: D-pad/arrow input selects and start
 Exporter performance: file signatures are captured once during classification and reused during report/hash-cache processing; Full Verification hash jobs are generated during classification instead of rereading the plan; hot-path CSV output is assembled and written once per row.
 
 Fast Audit can reuse database-fingerprint-bound per-ROM DAT/classification metadata for unchanged files. Add/delete/change discovery remains full-library, while save pairing, duplicates, collisions, completion accounting, integrity checks, and final reports are rebuilt every run.
+<!-- Documentation sync: Issue #9 Fast Audit incremental row-metadata cache repair validated by CI. -->
