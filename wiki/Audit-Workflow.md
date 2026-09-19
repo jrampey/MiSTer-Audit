@@ -86,3 +86,5 @@ For DAT-identified ROMs, the audit reports the MiSTer-aware expected folder plus
 The audit produces four additional read-only reports: `needs_review.csv` for unmatched content needing identity/DAT review; `support_files.csv` for BIOS/boot ROM, firmware, diagnostic/test, utility, and miscellaneous support classification; `release_families.csv` for canonical-title release relationships; and `disc_media.csv` for CUE/BIN-set, CHD, GDI, and ISO inventory. Disc inventory is not equivalent to Redump verification and does not automatically convert, rename, or move multi-file sets.
 
 <!-- Library intelligence runtime generation validated from the last green audit baseline. -->
+
+<!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
