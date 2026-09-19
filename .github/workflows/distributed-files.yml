@@ -19,3 +19,4 @@ jobs:
       contents: write
 # Publication trigger: Fast Audit timing telemetry
 # Republish latest unified audit
+# Publication trigger: Issue #9 incremental Fast Audit metadata cache
