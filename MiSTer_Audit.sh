@@ -389,11 +389,42 @@ record_completion_owned() {
   if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then COMPLETION_OWNED_KEYS["$key"]=1; COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 )); fi
 }
 load_hash_cache() {
-  local old_format="" old_db="" p sig sha normalized_sha ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls k
-  if [ -s "$CACHE_META" ]; then while IFS='=' read -r k v; do case "$k" in CACHE_FORMAT) old_format="$v";; HASH_DB_FINGERPRINT) old_db="$v";; esac; done < "$CACHE_META"; fi
-  [ "$old_format" = "$CACHE_FORMAT" ] || return 0; [ -s "$HASH_CACHE" ] || return 0
-  while IFS=
-
+  local old_format="" old_db="" p sig sha normalized_sha ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls k v
+  if [ -s "$CACHE_META" ]; then
+    while IFS='=' read -r k v; do
+      case "$k" in
+        CACHE_FORMAT) old_format="$v" ;;
+        HASH_DB_FINGERPRINT) old_db="$v" ;;
+      esac
+    done < "$CACHE_META"
+  fi
+  [ "$old_format" = "$CACHE_FORMAT" ] || return 0
+  [ -s "$HASH_CACHE" ] || return 0
+  while IFS=$'\t' read -r p sig sha normalized_sha ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls; do
+    [ "$p" = "path" ] && continue
+    k="$p|$sig"
+    CACHE_SHA["$k"]="$sha"
+    CACHE_NORMALIZED_SHA["$k"]="$normalized_sha"
+    CACHE_ENTRIES_LOADED=$((CACHE_ENTRIES_LOADED+1))
+    if [ "$old_db" = "$HASH_DB_FINGERPRINT" ]; then
+      CACHE_DAT_STATUS["$k"]="$ds"
+      CACHE_DAT_NAME["$k"]="$dn"
+      CACHE_DAT_ROM["$k"]="$dr"
+      CACHE_DAT_SOURCE["$k"]="$dsrc"
+      CACHE_META_SYSTEM["$k"]="$ms"
+      CACHE_META_CORE["$k"]="$mc"
+      CACHE_META_FOLDER["$k"]="$mf"
+      CACHE_META_REGION["$k"]="$mr"
+      CACHE_META_RELEASE["$k"]="$mrel"
+      CACHE_META_LICENSE["$k"]="$ml"
+      CACHE_RESOLVED_CLEAN["$k"]="$rc"
+      CACHE_RESOLVED_REGION["$k"]="$rr"
+      CACHE_RESOLVED_KIND["$k"]="$rk"
+      CACHE_RESOLVED_PROPOSED["$k"]="$rp"
+      CACHE_LOCATION_STATUS["$k"]="$ls"
+    fi
+  done < "$HASH_CACHE"
+}
 csv_escape() { local s="$1"; s="${s//\"/\"\"}"; printf '"%s"' "$s"; }
 csv_row() { local dest="$1" out="" v; shift; for v in "$@"; do v="${v//\"/\"\"}"; [ -n "$out" ] && out+=","; out+="\"$v\""; done; printf '%s\n' "$out" >> "$dest"; }
 trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
