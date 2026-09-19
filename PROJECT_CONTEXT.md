@@ -120,3 +120,8 @@ Fast Audit hot-loop cache and discovery output uses persistent file descriptors,
 
 Issue #9 Fast Audit optimization: unchanged ROMs may reuse database-fingerprint-bound DAT/classification row metadata. Full discovery remains mandatory and all library-global safety/accounting state is recomputed every run.
 <!-- Documentation sync: Issue #9 Fast Audit incremental row-metadata cache repair validated by CI. -->
+
+
+## Source architecture and cache ownership
+
+Keep the MiSTer-facing distribution as one `MiSTer_Audit.sh`, but maintain modular source under `src/` and regenerate it with `tools/build_runtime.sh`. Fast Audit row metadata reuse is row-local. Database fingerprint changes invalidate DAT/classification metadata without unnecessarily invalidating unchanged-file SHA-1 reuse. Global collisions, duplicates, completion ownership, save pairing, accounting, integrity checks, and final reports are always rebuilt.

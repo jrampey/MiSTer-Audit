@@ -20,8 +20,8 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 3. Save `downloader.ini`.
 4. Run **Update All** on the MiSTer.
-5. Update All installs `MiSTer_Audit.sh`, `MiSTer_Audit.sh`, and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
-6. Run `MiSTer-Audit-Export` from the MiSTer Scripts menu to create your first read-only library audit.
+5. Update All installs `MiSTer_Audit.sh` and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
+6. Run `MiSTer_Audit` from the MiSTer Scripts menu and choose **Run library audit**.
 
 > **Start with the auditor.** `MiSTer_Audit.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the separate updater's Preview / Apply workflow.
 
@@ -31,7 +31,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 `MiSTer_Audit.sh` v1.4 is the read-only auditor. It scans `/media/fat/games`, identifies supported ROMs with the bundled MiSTer-aware hash database, proposes canonical names, audits saves/duplicates/locations, and publishes reports under `/media/fat/GameLibraryAudit`.
 
-`MiSTer_Audit.sh` v1.4 is the separate Preview / Apply / Rollback path with an enforced audit-integrity handshake. The exporter never renames, moves, or deletes ROMs or saves.
+The same `MiSTer_Audit.sh` v1.4 runtime also provides the guarded Preview / Apply / Rollback path with an enforced audit-integrity handshake. The exporter never renames, moves, or deletes ROMs or saves.
 
 ## Audit modes
 
@@ -165,3 +165,8 @@ Fast Audit also reuses database-fingerprint-bound per-ROM DAT/classification row
 <!-- Documentation sync: Issue #9 Fast Audit incremental row-metadata cache repair validated by CI. -->
 
 <!-- Publish Update All: Issue #9 Fast Audit metadata cache -->
+
+
+## Development architecture
+
+The MiSTer distribution remains one dependency-light Bash runtime. Development source is split across `src/audit.sh`, `src/update.sh`, and `src/main.sh`; `tools/build_runtime.sh` assembles `MiSTer_Audit.sh`. Fast Audit uses row-local metadata reuse, while discovery and all global safety state are rebuilt every run.
