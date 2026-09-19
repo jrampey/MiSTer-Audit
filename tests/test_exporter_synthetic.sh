@@ -112,3 +112,25 @@ fi
 echo "Synthetic Full Verification regression test passed."
 echo "Accounting: $cataloged cataloged + $skipped skipped = $discovered discovered"
 echo "Integrity verdict: $verdict"
+
+
+# Issue #9: unchanged Fast Audit must reuse row metadata and preserve the Full catalog.
+cp "$CATALOG" "$ROOT/full-library_catalog.csv"
+printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
+grep -Eq '^DAT/classification row metadata reused: [1-9][0-9]*$' "$BUNDLE" || fail "Fast Audit did not reuse row metadata"
+python3 - "$ROOT/full-library_catalog.csv" "$CATALOG" <<'PY'
+import csv,sys
+def rows(p):
+    with open(p,newline='') as f: return sorted(csv.DictReader(f),key=lambda r:r.get('full_path',''))
+if rows(sys.argv[1]) != rows(sys.argv[2]): raise SystemExit('ERROR: Fast catalog differs from Full Verification')
+PY
+probe="$ROOT/games/NES/Issue 9 Cache Probe (USA).nes"; printf 'issue9-probe' > "$probe"
+printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
+grep -Fq 'New library records: 1' "$BUNDLE" || fail "added ROM not detected"
+mv "$probe" "$ROOT/games/NES/Issue 9 Cache Probe Renamed (USA).nes"; printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
+grep -Fq 'New library records: 1' "$BUNDLE" || fail "rename new path not detected"; grep -Fq 'Deleted library records: 1' "$BUNDLE" || fail "rename old path not detected"
+rm "$ROOT/games/NES/Issue 9 Cache Probe Renamed (USA).nes"; printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
+grep -Fq 'Deleted library records: 1' "$BUNDLE" || fail "deleted ROM not detected"
+printf '# issue9 fingerprint invalidation\n' >> "$TEST_BIN/mister_hash_database.tsv"; printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
+grep -Fq 'DAT/classification row metadata reused: 0' "$BUNDLE" || fail "DB change did not invalidate row metadata"
+grep -Eq '^Hashes reused from cache: [1-9][0-9]*$' "$BUNDLE" || fail "DB change invalidated reusable hashes"

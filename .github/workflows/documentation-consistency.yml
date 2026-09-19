@@ -43,7 +43,7 @@ jobs:
 
           while IFS= read -r file; do
             case "$file" in
-              MiSTer_Audit.sh|MiSTer_Audit.sh|mister_hash_database.tsv) runtime_changed=true ;;
+              MiSTer_Audit.sh|mister_hash_database.tsv|src/*.sh|tools/build_runtime.sh) runtime_changed=true ;;
               README.md) readme_changed=true ;;
               PROJECT_CONTEXT.md) context_changed=true ;;
               wiki/*.md) wiki_changed=true ;;

@@ -7,6 +7,8 @@ on:
       - mister_hash_database.tsv
       - .github/workflows/distributed-files.yml
       - .github/workflows/publish-downloader.yml
+      - src/**
+      - tools/build_runtime.sh
   workflow_dispatch:
 permissions:
   contents: write
@@ -17,6 +19,3 @@ jobs:
       ref: ${{ github.sha }}
     permissions:
       contents: write
-# Publication trigger: Fast Audit timing telemetry
-# Republish latest unified audit
-# Publication trigger: Issue #9 incremental Fast Audit metadata cache

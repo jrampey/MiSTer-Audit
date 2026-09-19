@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify generated runtime
+        run: bash tools/build_runtime.sh --check
       - name: Bash syntax
         run: bash -n MiSTer_Audit.sh
       - name: Guard MiSTer runtime dependencies
