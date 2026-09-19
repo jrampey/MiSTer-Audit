@@ -192,3 +192,5 @@ The audit now publishes `needs_review.csv` for unmatched/unknown content, `suppo
 <!-- runtime repair: library intelligence report generation rebuilt from the last green audit baseline -->
 
 <!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
+
+<!-- Runtime repair: restored the known-green audit tail while preserving advisory library-intelligence reports. -->

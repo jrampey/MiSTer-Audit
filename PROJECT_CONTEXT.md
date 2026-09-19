@@ -145,3 +145,5 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 - Runtime implementation for library intelligence was rebuilt from the last green audit baseline after CI caught malformed generated control flow.
 
 <!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
+
+- Library-intelligence reporting is isolated from the core cache/accounting tail; the core audit tail remains based on the last verified green implementation.

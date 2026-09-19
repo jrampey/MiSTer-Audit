@@ -88,3 +88,5 @@ The audit produces four additional read-only reports: `needs_review.csv` for unm
 <!-- Library intelligence runtime generation validated from the last green audit baseline. -->
 
 <!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
+
+<!-- Library-intelligence reports remain advisory and are generated without changing core audit cache/accounting behavior. -->
