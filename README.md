@@ -101,6 +101,10 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/ma
 
 `.github/workflows/build-downloader-db.yml` rebuilds and validates `db.json` when a distributed runtime file or the distribution workflow changes. Reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files are not managed by Update All.
 
+### Legacy script-name migration
+
+The Downloader database keeps the same database ID across the script rename. On the next Update All run, MiSTer Downloader installs `MiSTer-Audit-Export.sh` and `MiSTer-Audit-Update.sh` and treats the former `Export_Game_Library.sh` and `Update_Game_Library.sh` paths as obsolete. With MiSTer Downloader's normal `allow_delete = 1` setting, those two legacy managed files are removed automatically. If deletion has been disabled in Downloader settings, the old files are left in place.
+
 ## Documentation synchronization
 
 Current behavior is documented in `README.md`, `PROJECT_CONTEXT.md`, and `wiki/`. The repository wiki directory is automatically published to the GitHub Wiki.

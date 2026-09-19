@@ -53,6 +53,10 @@ This means the normal release path is:
 4. Run Update All on the MiSTer.
 5. MiSTer Downloader updates any managed file whose published hash has changed.
 
+## Legacy filename migration
+
+The database ID is unchanged from the version that distributed `Export_Game_Library.sh` and `Update_Game_Library.sh`. Therefore the next Downloader / Update All run sees those former managed paths as obsolete while installing `MiSTer-Audit-Export.sh` and `MiSTer-Audit-Update.sh`. With the normal MiSTer Downloader setting `allow_delete = 1`, the two legacy scripts are deleted automatically. If Downloader deletion is disabled, they are intentionally retained.
+
 ## Safety boundary
 
 Update All distributes the audit software and hash database only. It does not run the audit, apply rename proposals, move files, delete files, or modify ROMs and saves. Library mutation remains confined to the separate Preview / Apply / Rollback workflow in `MiSTer-Audit-Update.sh`.
