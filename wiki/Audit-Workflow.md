@@ -72,3 +72,5 @@ The generated runtime is syntax-checked in CI before synthetic auditing or publi
 CI syntax validation guards the generated report-loop control structure before distribution.
 
 The current report-building control flow derives from the last CI-validated implementation with row-local cache reuse layered on top.
+
+<!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->

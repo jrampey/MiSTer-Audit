@@ -131,3 +131,5 @@ Generated runtime and modular source must preserve the complete per-ROM loop hea
 Audit report-loop edits must replace the complete control-structure block, not partial `IFS`/proposal fragments.
 
 For high-risk shell control-flow refactors, preserve a last-known-green runtime block and apply minimal semantic changes before regenerating modules.
+
+<!-- Runtime cleanup sync: removed duplicated post-dispatch tail; no user-facing behavior change. -->
