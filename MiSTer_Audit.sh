@@ -798,7 +798,6 @@ echo; echo "+--------------------------------------------------+"; echo "| AUDIT
 
 }
 
-
 run_update_tools() {
 # MiSTer-Audit-Update_v1.4.sh
 # Companion updater for MiSTer ROM Library Auditor v1.4
@@ -881,7 +880,6 @@ echo "MiSTer ROM Library Updater v1.4";echo "=================================";
 
 }
 
-
 main_menu() {
   while :; do
     echo
@@ -917,4 +915,3 @@ case "${1:-}" in
   update|rename) run_update_tools ;;
   *) main_menu ;;
 esac
-

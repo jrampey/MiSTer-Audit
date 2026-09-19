@@ -78,3 +78,5 @@ The audit produces four additional read-only reports: `needs_review.csv` for unm
 <!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
 
 <!-- Library-intelligence reports remain advisory and are generated without changing core audit cache/accounting behavior. -->
+
+<!-- Runtime sync: the distributed script is generated from the modular Full Verification source. -->

@@ -184,3 +184,5 @@ The audit now publishes `needs_review.csv` for unmatched/unknown content, `suppo
 <!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
 
 <!-- Runtime repair: restored the known-green audit tail while preserving advisory library-intelligence reports. -->
+
+<!-- Runtime sync: generated MiSTer_Audit.sh is synchronized with the single Full Verification audit path. -->

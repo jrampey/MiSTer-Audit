@@ -140,3 +140,5 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 <!-- CI repair: release-family aggregation uses a temporary summary file for portable Bash parsing. -->
 
 - Library-intelligence reporting is isolated from the core cache/accounting tail; the core audit tail remains based on the last verified green implementation.
+
+- Generated runtime synchronization is enforced after retiring the Fast Audit selector; Full Verification remains the single audit path.
