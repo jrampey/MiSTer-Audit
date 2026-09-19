@@ -587,12 +587,19 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   sha1=""; dat_status="Not applicable"; dat_name=""; dat_rom=""; dat_source=""; meta_system=""; meta_core=""; meta_folder=""; meta_region=""; meta_release=""; meta_license=""; loc_status="Unknown"
   if should_hash "$system" "$ext"; then
     HASH_ELIGIBLE=$((HASH_ELIGIBLE+1)); SYSTEM_ELIGIBLE["$system"]=$(( ${SYSTEM_ELIGIBLE["$system"]:-0} + 1 )); cache_key="$p|$sig"; cached_sha=""; cached_normalized_sha=""; if [ "$USE_HASH_CACHE" -eq 1 ]; then cached_sha="${CACHE_SHA[$cache_key]:-}"; cached_normalized_sha="${CACHE_NORMALIZED_SHA[$cache_key]:-}"; fi
-    if [ -n "$cached_sha" ]; then sha1="$cached_sha"; HASH_REUSED=$((HASH_REUSED+1)); if [ -n "${CACHE_DAT_STATUS[$cache_key]+x}" ]; then
-      dat_status="${CACHE_DAT_STATUS[$cache_key]}"; dat_name="${CACHE_DAT_NAME[$cache_key]:-}"; dat_rom="${CACHE_DAT_ROM[$cache_key]:-}"; dat_source="${CACHE_DAT_SOURCE[$cache_key]:-}"
-      meta_system="${CACHE_META_SYSTEM[$cache_key]:-}"; meta_core="${CACHE_META_CORE[$cache_key]:-}"; meta_folder="${CACHE_META_FOLDER[$cache_key]:-}"; meta_region="${CACHE_META_REGION[$cache_key]:-}"; meta_release="${CACHE_META_RELEASE[$cache_key]:-}"; meta_license="${CACHE_META_LICENSE[$cache_key]:-}"
-      if [ -n "${CACHE_RESOLVED_PROPOSED[$cache_key]+x}" ]; then clean="${CACHE_RESOLVED_CLEAN[$cache_key]:-$clean}"; region="${CACHE_RESOLVED_REGION[$cache_key]:-$region}"; kind="${CACHE_RESOLVED_KIND[$cache_key]:-$kind}"; proposed="${CACHE_RESOLVED_PROPOSED[$cache_key]:-$proposed}"; loc_status="${CACHE_LOCATION_STATUS[$cache_key]:-Unknown}"; ROW_METADATA_REUSED=$((ROW_METADATA_REUSED+1)); fi
-    else dat_status="No match"; fi
-    else if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi; [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1)); dat_status="No match"; fi
+    if [ -n "$cached_sha" ]; then
+      sha1="$cached_sha"; HASH_REUSED=$((HASH_REUSED+1))
+      if [ -n "${CACHE_DAT_STATUS[$cache_key]+x}" ]; then
+        dat_status="${CACHE_DAT_STATUS[$cache_key]}"; dat_name="${CACHE_DAT_NAME[$cache_key]:-}"; dat_rom="${CACHE_DAT_ROM[$cache_key]:-}"; dat_source="${CACHE_DAT_SOURCE[$cache_key]:-}"
+        meta_system="${CACHE_META_SYSTEM[$cache_key]:-}"; meta_core="${CACHE_META_CORE[$cache_key]:-}"; meta_folder="${CACHE_META_FOLDER[$cache_key]:-}"; meta_region="${CACHE_META_REGION[$cache_key]:-}"; meta_release="${CACHE_META_RELEASE[$cache_key]:-}"; meta_license="${CACHE_META_LICENSE[$cache_key]:-}"
+        if [ -n "${CACHE_RESOLVED_PROPOSED[$cache_key]+x}" ]; then clean="${CACHE_RESOLVED_CLEAN[$cache_key]:-$clean}"; region="${CACHE_RESOLVED_REGION[$cache_key]:-$region}"; kind="${CACHE_RESOLVED_KIND[$cache_key]:-$kind}"; proposed="${CACHE_RESOLVED_PROPOSED[$cache_key]:-$proposed}"; loc_status="${CACHE_LOCATION_STATUS[$cache_key]:-Unknown}"; ROW_METADATA_REUSED=$((ROW_METADATA_REUSED+1)); fi
+      else
+        dat_status="No match"
+      fi
+    else
+      if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi
+      [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1)); dat_status="No match"
+    fi
   else HASH_SKIPPED=$((HASH_SKIPPED+1)); fi
   if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
     HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >&17; hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "$cached_normalized_sha" ]; then matched_hkey="${cached_normalized_sha,,}"; elif [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
