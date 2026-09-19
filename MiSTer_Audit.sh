@@ -502,7 +502,7 @@ METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
 RUNTIME_SCRIPT="$HASH_DB_SCRIPT_DIR/MiSTer_Audit.sh"
 [ -f "$RUNTIME_SCRIPT" ] || RUNTIME_SCRIPT="$0"
 RUNTIME_BUILD_SHA1="$(hash_file "$RUNTIME_SCRIPT")"
-EXPORTER_BUILD_SHA1="$RUNTIME_BUILD_SHA1""
+EXPORTER_BUILD_SHA1="$RUNTIME_BUILD_SHA1"
 exporter_build_id() {
   local p="$1" digest="" rest=""
   if command -v md5sum >/dev/null 2>&1; then
@@ -943,15 +943,41 @@ runtime_build_id() {
 }
 
 main_menu() {
+  local selection=1 key key2 key3
   while :; do
-    echo
+    printf '\033[2J\033[H'
     echo "MiSTer ROM Library Auditor v1.4"
     echo "================================"
     echo "Build: $(runtime_build_id)"
-    echo "1) Run library audit"
-    echo "2) Preview / Apply / Rollback"
-    echo "3) Exit"
-    read -r choice
+    [ "$selection" -eq 1 ] && echo "> 1) Run library audit" || echo "  1) Run library audit"
+    [ "$selection" -eq 2 ] && echo "> 2) Preview / Apply / Rollback" || echo "  2) Preview / Apply / Rollback"
+    [ "$selection" -eq 3 ] && echo "> 3) Exit" || echo "  3) Exit"
+    echo
+    echo "Up/Down selects | Enter accepts | 1/2/3 shortcuts"
+    key=""
+    IFS= read -rsn1 key
+    case "$key" in
+      "") choice="$selection" ;;
+      1|2|3) choice="$key" ;;
+      
+case "${1:-}" in
+  audit) run_audit ;;
+  update|rename) run_update_tools ;;
+  *) main_menu ;;
+esac
+\x1b')
+        IFS= read -rsn1 -t 0.15 key2 || key2=""
+        if [ "$key2" = "[" ]; then
+          IFS= read -rsn1 -t 0.15 key3 || key3=""
+          case "$key3" in
+            A) selection=$((selection > 1 ? selection - 1 : 3)) ;;
+            B) selection=$((selection < 3 ? selection + 1 : 1)) ;;
+          esac
+        fi
+        continue
+        ;;
+      *) continue ;;
+    esac
     case "$choice" in
       1) run_audit; trap - EXIT INT TERM ;;
       2)
@@ -968,7 +994,7 @@ main_menu() {
           *) continue ;;
         esac
         ;;
-      3|*) exit 0 ;;
+      3) exit 0 ;;
     esac
   done
 }
