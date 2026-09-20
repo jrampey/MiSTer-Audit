@@ -1,7 +1,7 @@
-#!/bin/bash
-# MiSTer_Audit.sh v1.4
-# Unified MiSTer ROM Library Auditor: read-only audit plus guarded Preview / Apply / Rollback tools.
-# The audit path remains read-only. Library mutation is available only through the explicit Update / Rename menu.
+#!/usr/bin/env bash
+# AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.
+# Built from src/audit.sh, src/update.sh, and src/main.sh by tools/build_runtime.sh.
+# Source files are the authoritative implementation.
 
 run_audit() {
 # Audit engine (v1.4)
@@ -501,7 +501,17 @@ METADATA_LAYER_STATUS="${METADATA_LAYER_STATUS:-Unknown}"
 # is sourced by tests or wrappers, so resolve the installed script explicitly.
 RUNTIME_SCRIPT="$HASH_DB_SCRIPT_DIR/MiSTer_Audit.sh"
 [ -f "$RUNTIME_SCRIPT" ] || RUNTIME_SCRIPT="$0"
-RUNTIME_BUILD_SHA1="$(hash_file "$RUNTIME_SCRIPT")"
+# Compute the runtime fingerprint directly instead of through hash_file().
+# This avoids command-substitution edge cases observed on the MiSTer shell.
+RUNTIME_BUILD_SHA1=""
+if command -v sha1sum >/dev/null 2>&1; then
+  read -r RUNTIME_BUILD_SHA1 _ < <(sha1sum "$RUNTIME_SCRIPT" 2>/dev/null) || RUNTIME_BUILD_SHA1=""
+elif command -v openssl >/dev/null 2>&1; then
+  RUNTIME_BUILD_SHA1="$(openssl sha1 "$RUNTIME_SCRIPT" 2>/dev/null)"
+  RUNTIME_BUILD_SHA1="${RUNTIME_BUILD_SHA1##* }"
+fi
+[ -n "$RUNTIME_BUILD_SHA1" ] || RUNTIME_BUILD_SHA1="UNAVAILABLE"
+RUNTIME_BUILD_ID="${RUNTIME_BUILD_SHA1:0:8}"
 EXPORTER_BUILD_SHA1="$RUNTIME_BUILD_SHA1"
 exporter_build_id() {
   local p="$1" digest="" rest=""
