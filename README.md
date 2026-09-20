@@ -199,3 +199,7 @@ The audit now publishes `needs_review.csv` for unmatched/unknown content, `suppo
 
 ### Runtime menu navigation
 The unified runtime displays its short SHA-1 build fingerprint in the main menu. The main 1–3 menu and the Fast/Full audit-mode menu support Up/Down highlight navigation with Enter to accept, while retaining numeric shortcuts.
+
+
+### Runtime fingerprint reliability
+The audit records the SHA-1 of the deployed unified `MiSTer_Audit.sh` directly. If no SHA-1 implementation is available it reports `UNAVAILABLE` rather than publishing a blank build fingerprint; the updater therefore receives an explicit build identity for its safety handshake.

@@ -151,3 +151,5 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 - Fast Audit and Full Verification are both supported. Fast Audit remains the default timed selection and reuses valid unchanged-file cache state while rebuilding global safety/report state.
 
 - The runtime menu displays a short SHA-1 fingerprint of the deployed `MiSTer_Audit.sh`. Main-menu options 1–3 and audit-mode selection support Up/Down highlighted navigation plus Enter, with numeric shortcuts retained.
+
+- Runtime fingerprinting hashes the deployed unified `MiSTer_Audit.sh` directly and must never publish a blank `build_sha1`; use `UNAVAILABLE` only when SHA-1 tooling is genuinely absent.

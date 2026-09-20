@@ -95,3 +95,7 @@ The audit produces four additional read-only reports: `needs_review.csv` for unm
 
 ## Menu navigation
 The main menu shows the deployed runtime's short SHA-1 build fingerprint. Both the main 1–3 menu and the Fast/Full audit selector support Up/Down highlighted navigation and Enter to accept; numeric shortcuts remain available.
+
+
+## Runtime fingerprint
+The consolidated report fingerprints the deployed `MiSTer_Audit.sh` directly. `Exporter build SHA-1` and `build_sha1` must contain that digest; if SHA-1 tooling is unavailable, the explicit value `UNAVAILABLE` is emitted instead of a blank field.

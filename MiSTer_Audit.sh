@@ -1,7 +1,7 @@
-#!/usr/bin/env bash
-# AUTO-GENERATED FILE. DO NOT EDIT DIRECTLY.
-# Built from src/audit.sh, src/update.sh, and src/main.sh by tools/build_runtime.sh.
-# Source files are the authoritative implementation.
+#!/bin/bash
+# MiSTer_Audit.sh v1.4
+# Unified MiSTer ROM Library Auditor: read-only audit plus guarded Preview / Apply / Rollback tools.
+# The audit path remains read-only. Library mutation is available only through the explicit Update / Rename menu.
 
 run_audit() {
 # Audit engine (v1.4)
