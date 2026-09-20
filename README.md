@@ -196,3 +196,6 @@ The audit now publishes `needs_review.csv` for unmatched/unknown content, `suppo
 <!-- Runtime repair: restored the known-green audit tail while preserving advisory library-intelligence reports. -->
 
 <!-- Audit mode restored: Fast Audit and Full Verification are both available; Fast Audit remains the default timed selection. -->
+
+### Runtime menu navigation
+The unified runtime displays its short SHA-1 build fingerprint in the main menu. The main 1–3 menu and the Fast/Full audit-mode menu support Up/Down highlight navigation with Enter to accept, while retaining numeric shortcuts.

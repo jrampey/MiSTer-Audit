@@ -92,3 +92,6 @@ The audit produces four additional read-only reports: `needs_review.csv` for unm
 <!-- Library-intelligence reports remain advisory and are generated without changing core audit cache/accounting behavior. -->
 
 <!-- Audit mode restored: Fast Audit is again available alongside Full Verification. -->
+
+## Menu navigation
+The main menu shows the deployed runtime's short SHA-1 build fingerprint. Both the main 1–3 menu and the Fast/Full audit selector support Up/Down highlighted navigation and Enter to accept; numeric shortcuts remain available.
