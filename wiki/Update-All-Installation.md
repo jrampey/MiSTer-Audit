@@ -25,8 +25,8 @@ It is located at the root of the MiSTer SD card. A separate `/media/fat/download
 Open `downloader.ini` and add this section:
 
 ```ini
-[jrampey/MiSTerFPGAGameLibraryAudit]
-db_url = https://raw.githubusercontent.com/jrampey/MiSTerFPGAGameLibraryAudit/main/db.json
+[jrampey/MiSTer-Audit]
+db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 ```
 
 Save the file, then run Update All normally.

@@ -78,11 +78,11 @@ jobs:
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
           CSV="/tmp/mister-db-build/external_files.csv"
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
-          add_file() { local source="$1" target="$2" size md5; size=$(stat -c '%s' "$source"); md5=$(md5sum "$source" | awk '{print $1}'); printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "mister-rom-library-auditor" >> "$CSV"; }
+          add_file() { local source="$1" target="$2" size md5; size=$(stat -c '%s' "$source"); md5=$(md5sum "$source" | awk '{print $1}'); printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "MiSTer-Audit" >> "$CSV"; }
           add_file "MiSTer_Audit.sh" "Scripts/MiSTer_Audit.sh"
           add_file "mister_hash_database.tsv" "Scripts/mister_hash_database.tsv"
           curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o /tmp/mister-db-build/db_operator.py
-          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="MiSTer_Audit.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
+          DB_ID="jrampey/MiSTer-Audit" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="MiSTer_Audit.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
 
       - name: Verify Downloader manifest matches release files
         run: |
@@ -111,7 +111,7 @@ jobs:
           curl -fsSL https://github.com/MiSTer-devel/Downloader_MiSTer/releases/download/latest/downloader_test.py -o /tmp/downloader-test/downloader_test.py
           chmod +x /tmp/downloader-test/downloader_test.py
           cd /tmp/downloader-test
-          ./downloader_test.py "jrampey/MiSTer-ROM-Library-Auditor" "$GITHUB_WORKSPACE/db.json"
+          ./downloader_test.py "jrampey/MiSTer-Audit" "$GITHUB_WORKSPACE/db.json"
 
       - name: Commit release version and Downloader database
         env:

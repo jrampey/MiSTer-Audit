@@ -1,6 +1,6 @@
 # MiSTer ROM Library Auditor — Project Context
 
-The GitHub repository `jrampey/MiSTer-ROM-Library-Auditor` is the source of truth. Before making changes, inspect the current repository files and understand the existing implementation.
+The GitHub repository `jrampey/MiSTer-Audit` is the source of truth. Before making changes, inspect the current repository files and understand the existing implementation.
 
 The current release is **v1.4**. Do not increment the release version unless explicitly instructed.
 
@@ -70,11 +70,11 @@ Custom MiSTer Downloader / Update All integration is implemented. `.github/workf
 
 Generated reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files must not be managed by Update All.
 
-The Downloader identity is `jrampey/MiSTer-ROM-Library-Auditor`:
+The Downloader identity is `jrampey/MiSTer-Audit`:
 
 ```ini
-[jrampey/MiSTer-ROM-Library-Auditor]
-db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/main/db.json
+[jrampey/MiSTer-Audit]
+db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 ```
 
 Do not modify `Scripts/update_all.sh` to register this project.

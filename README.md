@@ -14,8 +14,8 @@ If this MiSTer has **never had MiSTer ROM Library Auditor installed before**, ad
 2. Add this block:
 
 ```ini
-[jrampey/MiSTer-ROM-Library-Auditor]
-db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/main/db.json
+[jrampey/MiSTer-Audit]
+db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 ```
 
 3. Save `downloader.ini`.
@@ -95,8 +95,8 @@ The repository publishes a validated MiSTer Downloader `db.json` that manages on
 Register the database in `/media/fat/downloader.ini` with:
 
 ```ini
-[jrampey/MiSTer-ROM-Library-Auditor]
-db_url = https://raw.githubusercontent.com/jrampey/MiSTer-ROM-Library-Auditor/main/db.json
+[jrampey/MiSTer-Audit]
+db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 ```
 
 `.github/workflows/build-downloader-db.yml` rebuilds and validates `db.json` when a distributed runtime file or the distribution workflow changes. Reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files are not managed by Update All.

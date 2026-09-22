@@ -43,11 +43,11 @@ jobs:
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${PUBLISH_SHA}"
           rm -rf "$BUILD_DIR"; mkdir -p "$STAGE_DIR"
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
-          add_file() { printf '%s,%s/%s,%s,%s,%s\n' "$2" "$RAW_BASE" "$1" "$(stat -c '%s' "$1")" "$(md5sum "$1"|awk '{print $1}')" mister-rom-library-auditor >> "$CSV"; }
+          add_file() { printf '%s,%s/%s,%s,%s,%s\n' "$2" "$RAW_BASE" "$1" "$(stat -c '%s' "$1")" "$(md5sum "$1"|awk '{print $1}')" MiSTer-Audit >> "$CSV"; }
           add_file MiSTer_Audit.sh Scripts/MiSTer_Audit.sh
           add_file mister_hash_database.tsv Scripts/mister_hash_database.tsv
           curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o "$BUILD_DIR/db_operator.py"
-          DB_ID="jrampey/MiSTer-ROM-Library-Auditor" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" DB_JSON_NAME=db.json python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
+          DB_ID="jrampey/MiSTer-Audit" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" DB_JSON_NAME=db.json python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
           cp "$STAGE_DIR/db.json" "$GITHUB_WORKSPACE/db.json"
           rm -rf "$BUILD_DIR"
           PUBLISH_SHA="$PUBLISH_SHA" python3 - <<'PY'
@@ -68,7 +68,7 @@ jobs:
           curl -fsSL https://github.com/MiSTer-devel/Downloader_MiSTer/releases/download/latest/downloader_test.py -o "$RUNNER_TEMP/downloader-test/downloader_test.py"
           chmod +x "$RUNNER_TEMP/downloader-test/downloader_test.py"
           cd "$RUNNER_TEMP/downloader-test"
-          ./downloader_test.py jrampey/MiSTer-ROM-Library-Auditor "$GITHUB_WORKSPACE/db.json"
+          ./downloader_test.py jrampey/MiSTer-Audit "$GITHUB_WORKSPACE/db.json"
       - name: Publish db.json
         run: |
           set -euo pipefail
