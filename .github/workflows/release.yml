@@ -74,15 +74,19 @@ jobs:
       - name: Build Downloader database
         run: |
           set -euo pipefail
-          mkdir -p /tmp/mister-db-build
+          BUILD_DIR="/tmp/mister-db-build"
+          STAGE_DIR="$BUILD_DIR/stage"
+          rm -rf "$BUILD_DIR"
+          mkdir -p "$STAGE_DIR"
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
-          CSV="/tmp/mister-db-build/external_files.csv"
+          CSV="$BUILD_DIR/external_files.csv"
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
           add_file() { local source="$1" target="$2" size md5; size=$(stat -c '%s' "$source"); md5=$(md5sum "$source" | awk '{print $1}'); printf '%s,%s/%s,%s,%s,%s\n' "$target" "$RAW_BASE" "$source" "$size" "$md5" "MiSTer-Audit" >> "$CSV"; }
           add_file "MiSTer_Audit.sh" "Scripts/MiSTer_Audit.sh"
           add_file "mister_hash_database.tsv" "Scripts/mister_hash_database.tsv"
-          curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o /tmp/mister-db-build/db_operator.py
-          DB_ID="jrampey/MiSTer-Audit" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" FINDER_IGNORE="MiSTer_Audit.sh mister_hash_database.tsv README.md PROJECT_CONTEXT.md wiki" DB_JSON_NAME="db.json" python3 /tmp/mister-db-build/db_operator.py build .
+          curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o "$BUILD_DIR/db_operator.py"
+          DB_ID="jrampey/MiSTer-Audit" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" DB_JSON_NAME="db.json" python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
+          cp "$STAGE_DIR/db.json" "$GITHUB_WORKSPACE/db.json"
 
       - name: Verify Downloader manifest matches release files
         run: |
