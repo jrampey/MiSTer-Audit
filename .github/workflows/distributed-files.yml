@@ -7,13 +7,20 @@ on:
       - mister_hash_database.tsv
       - .github/workflows/distributed-files.yml
       - .github/workflows/publish-downloader.yml
+      - .github/workflows/synthetic-library-test.yml
+      - tests/**
       - src/**
       - tools/build_runtime.sh
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
+  synthetic:
+    uses: ./.github/workflows/synthetic-library-test.yml
+    permissions:
+      contents: read
   publish:
+    needs: synthetic
     uses: ./.github/workflows/publish-downloader.yml
     with:
       ref: ${{ github.sha }}

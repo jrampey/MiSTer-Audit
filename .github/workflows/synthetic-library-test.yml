@@ -1,7 +1,8 @@
 name: Synthetic Library Test
 
 on:
-  push:
+  workflow_call:
+  pull_request:
     branches: [main]
     paths:
       - MiSTer_Audit.sh

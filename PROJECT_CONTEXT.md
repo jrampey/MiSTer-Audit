@@ -63,9 +63,8 @@ Current behavior is documented in the repository's `wiki/` directory. GitHub Act
 
 ## MiSTer Downloader / Update All distribution
 
-Custom MiSTer Downloader / Update All integration is implemented. `.github/workflows/build-downloader-db.yml` generates and validates `db.json` and distributes only:
+Custom MiSTer Downloader / Update All integration is implemented. `.github/workflows/publish-downloader.yml` generates and validates `db.json` and distributes only:
 
-- `/media/fat/Scripts/MiSTer_Audit.sh`
 - `/media/fat/Scripts/MiSTer_Audit.sh`
 - `/media/fat/Scripts/mister_hash_database.tsv`
 
@@ -155,3 +154,7 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 - Runtime fingerprinting hashes the deployed unified `MiSTer_Audit.sh` directly and must never publish a blank `build_sha1`; use `UNAVAILABLE` only when SHA-1 tooling is genuinely absent.
 
 - Numeric menu shortcuts are single-key actions: pressing the displayed item number immediately starts that action without requiring Enter. Highlight navigation remains available independently.
+
+## CI workflow ownership
+
+The distributed-files pipeline gates Downloader publication on the reusable Synthetic Library Test. MiSTer Runtime Compatibility owns runtime assembly/syntax/dependency checks without rerunning the synthetic regression. Publish Downloader validates syntax and the hash database, then publishes only after the distributed pipeline's synthetic gate passes. Exporter Performance may execute the synthetic workload to collect benchmark telemetry, but it is not the authoritative functional-regression gate. The obsolete one-time unmatched-policy workflow has been removed.

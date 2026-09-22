@@ -33,7 +33,6 @@ jobs:
           set -euo pipefail
           bash -n MiSTer_Audit.sh
           python3 tools/validate_hash_database.py mister_hash_database.tsv
-          bash tests/test_exporter_synthetic.sh
       - name: Build manifest
         run: |
           set -euo pipefail

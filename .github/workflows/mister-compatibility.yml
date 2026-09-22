@@ -47,5 +47,3 @@ jobs:
             echo "Potential GNU-only runtime option detected."
             exit 1
           fi
-      - name: Synthetic compatibility regression
-        run: bash tests/test_exporter_synthetic.sh
