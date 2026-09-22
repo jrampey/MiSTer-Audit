@@ -53,7 +53,8 @@ main_menu() {
         echo
         echo "1) Back [default]"
         echo "2) Continue"
-        read -r update_choice
+        IFS= read -rsn1 update_choice
+        echo
         case "${update_choice:-1}" in
           2) run_update_tools; trap - EXIT INT TERM ;;
           *) continue ;;

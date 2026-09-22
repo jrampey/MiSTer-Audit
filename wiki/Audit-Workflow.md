@@ -99,3 +99,6 @@ The main menu shows the deployed runtime's short SHA-1 build fingerprint. Both t
 
 ## Runtime fingerprint
 The consolidated report fingerprints the deployed `MiSTer_Audit.sh` directly. `Exporter build SHA-1` and `build_sha1` must contain that digest; if SHA-1 tooling is unavailable, the explicit value `UNAVAILABLE` is emitted instead of a blank field.
+
+
+Numeric menu shortcuts are immediate single-key actions. Pressing a displayed item number starts that action without an additional Enter press; highlight navigation still uses Enter to accept the highlighted item.

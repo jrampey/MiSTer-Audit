@@ -203,3 +203,7 @@ The unified runtime displays its short SHA-1 build fingerprint in the main menu.
 
 ### Runtime fingerprint reliability
 The audit records the SHA-1 of the deployed unified `MiSTer_Audit.sh` directly. If no SHA-1 implementation is available it reports `UNAVAILABLE` rather than publishing a blank build fingerprint; the updater therefore receives an explicit build identity for its safety handshake.
+
+
+### Immediate numeric menu shortcuts
+Number keys execute their corresponding menu action immediately; pressing Enter after a numeric shortcut is not required. Arrow-key highlighting and Enter-to-accept remain available where supported.
