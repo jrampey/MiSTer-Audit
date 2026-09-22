@@ -78,6 +78,10 @@ jobs:
           STAGE_DIR="$BUILD_DIR/stage"
           rm -rf "$BUILD_DIR"
           mkdir -p "$STAGE_DIR"
+          git init -q "$STAGE_DIR"
+          git -C "$STAGE_DIR" config user.name github-actions[bot]
+          git -C "$STAGE_DIR" config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git -C "$STAGE_DIR" commit --allow-empty -q -m "Downloader staging"
           RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main"
           CSV="$BUILD_DIR/external_files.csv"
           printf '%s\n' 'Path in MiSTer,URL,Size in bytes,MD5 Hash,Filter Terms' > "$CSV"
