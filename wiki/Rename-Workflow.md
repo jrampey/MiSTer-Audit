@@ -9,7 +9,7 @@ Before Preview or Apply, the updater reads `[AUDIT_METADATA]` from `/media/fat/G
 The updater requires the expected v1.4 audit contract, including:
 
 - audit schema version `4`;
-- exporter version `1.3`;
+- exporter version `1.4`;
 - `self_check=PASS`;
 - `metadata_layer=MiSTer-aware`;
 - a recognized integrity verdict and Apply recommendation; and
