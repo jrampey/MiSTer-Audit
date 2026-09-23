@@ -5,11 +5,15 @@ on:
     branches: [main]
     paths:
       - "MiSTer_Audit.sh"
+      - "src/**"
+      - "tools/build_runtime.sh"
       - "tests/**"
       - ".github/workflows/mister-compatibility.yml"
   pull_request:
     paths:
       - "MiSTer_Audit.sh"
+      - "src/**"
+      - "tools/build_runtime.sh"
       - "tests/**"
       - ".github/workflows/mister-compatibility.yml"
   workflow_dispatch:
