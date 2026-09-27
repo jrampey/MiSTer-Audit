@@ -207,3 +207,8 @@ The audit records the SHA-1 of the deployed unified `MiSTer_Audit.sh` directly. 
 
 ### Immediate numeric menu shortcuts
 Number keys execute their corresponding menu action immediately; pressing Enter after a numeric shortcut is not required. Arrow-key highlighting and Enter-to-accept remain available where supported.
+
+
+### Curated special-release destinations
+
+For authoritative DAT-identified special releases, Preview/Apply uses the audit's `curated_destination` metadata as the game target directory. `Retail/Standard` releases remain in the existing system parent folder; Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified releases are routed into matching category subfolders. Paired saves follow the same category beneath their existing save-system folder. Preview, collision checks, existing-target protection, explicit APPLY confirmation, manifests, and Rollback still apply.

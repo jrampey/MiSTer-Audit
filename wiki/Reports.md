@@ -11,8 +11,8 @@ All runtime output is written under `/media/fat/GameLibraryAudit`.
 | `unmatched_hashes.csv` | Hashed, eligible ROMs without a DAT match. |
 | `hash_duplicates.csv` | Duplicate SHA-1 findings. |
 | `location_audit.csv` | Current system/folder versus expected MiSTer-aware location findings. |
-| `proposed_renames.csv` | Game filename proposals for review; does not rename anything. |
-| `proposed_save_renames.csv` | Save filename proposals paired to game basenames; review only. |
+| `proposed_renames.csv` | Game filename and curated-destination proposals for review; does not mutate anything by itself. |
+| `proposed_save_renames.csv` | Save filename/category proposals paired to game basenames; review only. |
 | `hash_cache.tsv` | Internal incremental SHA-1/DAT cache. |
 | `hash_cache.meta` | Cache format and database-fingerprint metadata. |
 

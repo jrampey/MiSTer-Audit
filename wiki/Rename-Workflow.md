@@ -51,3 +51,7 @@ Rollback requires typing `ROLLBACK` exactly. Successful entries from the last ma
 The auditor and updater are both **v1.4**. The previous v1.1/v1.2 mismatch has been resolved: Apply now consumes and enforces the auditor's v1.4 integrity metadata instead of relying on it only as a manual review gate.
 
 After Apply or Rollback, rerun the auditor to verify the library state.
+
+## Curated destination moves
+
+Authoritative DAT-identified special releases use `curated_destination` during Preview/Apply. Retail/Standard games remain in their current system parent folder. Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified games move into the matching category subfolder. Paired saves mirror that category beneath their existing save-system folder. Missing category directories are created only during Apply after the normal audit handshake and explicit `APPLY` confirmation. Existing targets, duplicate targets, collision-blocked rows, unsafe paths, and CUE/BIN restrictions are still skipped.

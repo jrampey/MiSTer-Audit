@@ -641,8 +641,8 @@ Reports folder: $AUDIT
 ============================================================
 EOF2
 printf '%s\n' '"system","clean_title","region","version_type","original_filename","proposed_filename","full_path","save_match_count","collision_status","sha1","dat_match","dat_canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","metadata_region","release_type","license_status","special_release_category","curated_destination","location_status"' > "$STAGE_CSV"
-printf '%s\n' '"system","current_path","proposed_filename","region","version_type","status"' > "$STAGE_REN"
-printf '%s\n' '"system","game_path","save_path","proposed_save_filename","match_type","status"' > "$STAGE_SAVE_REN"
+printf '%s\n' '"system","current_path","proposed_filename","region","version_type","status","special_release_category","curated_destination"' > "$STAGE_REN"
+printf '%s\n' '"system","game_path","save_path","proposed_save_filename","match_type","status","special_release_category","curated_destination"' > "$STAGE_SAVE_REN"
 printf '%s\n' '"sha1","system","full_path","original_filename","clean_title"' > "$STAGE_HASH_DUP"
 printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status"' > "$STAGE_DAT_MATCH"
 printf '%s\n' '"sha1","system","full_path","original_filename","unmatched_class"' > "$STAGE_DAT_UNMATCHED"
@@ -716,12 +716,12 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   fi
 
   save_count=0; save_key="${stem,,}"
-  if [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
+  if [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY" "$special_category" "$curated_destination"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
 
   disc_media_set "$ext"; media_type="$HOT_RESULT"; if [ -n "$media_type" ]; then disc_status="Inventory only"; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") disc_status="DAT identified" ;; esac; csv_row "$STAGE_DISC_REPORT" "$system" "$p" "$file" "$media_type" "$dat_status" "$dat_name" "$special_category" "$disc_status"; fi
   printf '[%s] %s | Region: %s | Type: %s | Saves: %s | File: %s | Collision: %s\n' "$system" "$clean" "$region" "$kind" "$save_count" "$file" "$collision" >> "$STAGE_OUT"
   csv_row "$STAGE_CSV" "$system" "$clean" "$region" "$kind" "$file" "$proposed" "$p" "$save_count" "$collision" "$sha1" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination" "$loc_status"
-  csv_row "$STAGE_REN" "$system" "$p" "$proposed" "$region" "$kind" "REVIEW ONLY"
+  csv_row "$STAGE_REN" "$system" "$p" "$proposed" "$region" "$kind" "REVIEW ONLY" "$special_category" "$curated_destination"
   TOTAL=$((TOTAL+1)); SYSTEM_SECONDS["$system"]=$(( ${SYSTEM_SECONDS["$system"]:-0} + SECONDS - row_seconds_start )); progress_check "Building reports" "$TOTAL" "$PLAN_TOTAL"
 done
 exec 3<&-
