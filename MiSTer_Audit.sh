@@ -577,7 +577,19 @@ while :; do
     "") break ;;
     1|f|F) AUDIT_MENU_SELECTION=1; break ;;
     2|v|V) AUDIT_MENU_SELECTION=2; break ;;
-    
+    $'\x1b')
+      IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
+      if [ "$AUDIT_KEY2" = "[" ]; then
+        IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
+        case "$AUDIT_KEY3" in
+          A|D) AUDIT_MENU_SELECTION=1 ;;
+          B|C) AUDIT_MENU_SELECTION=2 ;;
+        esac
+      fi
+      ;;
+  esac
+done
+if [ "$AUDIT_MENU_SELECTION" -eq 2 ]; then AUDIT_MODE="Full Verification"; USE_HASH_CACHE=0; else AUDIT_MODE="Fast Audit"; USE_HASH_CACHE=1; fi
 echo; echo "Selected: $AUDIT_MODE"; echo "----------------------------------------------------"; echo
 DISCOVERY_START=$(date +%s); echo "[1/5] Scanning game library..."
 find "$GAMES" -type f \( -iname "*.nes" -o -iname "*.fds" -o -iname "*.sfc" -o -iname "*.smc" -o -iname "*.gb" -o -iname "*.gbc" -o -iname "*.gba" -o -iname "*.md" -o -iname "*.gen" -o -iname "*.32x" -o -iname "*.sms" -o -iname "*.gg" -o -iname "*.sg" -o -iname "*.pce" -o -iname "*.sgx" -o -iname "*.a26" -o -iname "*.a52" -o -iname "*.a78" -o -iname "*.col" -o -iname "*.int" -o -iname "*.cue" -o -iname "*.chd" -o -iname "*.iso" -o -iname "*.gdi" -o -iname "*.d64" -o -iname "*.d81" -o -iname "*.g64" -o -iname "*.adf" -o -iname "*.hdf" -o -iname "*.dsk" -o -iname "*.tap" -o -iname "*.tzx" -o -iname "*.rom" -o -iname "*.n64" -o -iname "*.z64" -o -iname "*.v64" \) -print 2>/dev/null | LC_ALL=C sort > "$GAME_LIST"
@@ -1344,4 +1356,3 @@ case "${1:-}" in
   update|rename) run_update_tools ;;
   *) main_menu ;;
 esac
-
