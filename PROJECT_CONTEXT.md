@@ -164,3 +164,6 @@ Update All currently distributes exactly two files under `/media/fat/Scripts/`: 
 The distributed-files pipeline gates Downloader publication on the reusable Synthetic Library Test. MiSTer Runtime Compatibility owns runtime assembly/syntax/dependency checks without rerunning the synthetic regression. Publish Downloader validates syntax and the hash database, then publishes only after the distributed pipeline's synthetic gate passes. Exporter Performance may execute the synthetic workload to collect benchmark telemetry, but it is not the authoritative functional-regression gate. The obsolete one-time unmatched-policy workflow has been removed.
 
 - Audit mode safety: Fast Audit cannot be selected or forced unless the prior audit bundle, hash cache, and discovery snapshot are all present; otherwise Full Verification is required.
+
+
+- ROM type classification is canonicalized to one category per ROM: Retail/Standard, Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified. Legacy combined labels are invalidated from Fast Audit caches; DAT-matched report Type and curated destination use the same canonical category. Revisions remain Retail/Standard unless another special-release marker applies.

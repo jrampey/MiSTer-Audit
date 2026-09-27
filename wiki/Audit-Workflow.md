@@ -104,3 +104,7 @@ The consolidated report fingerprints the deployed `MiSTer_Audit.sh` directly. `E
 Numeric menu shortcuts are immediate single-key actions. Pressing a displayed item number starts that action without an additional Enter press; highlight navigation still uses Enter to accept the highlighted item.
 
 Fast Audit cannot be selected or forced unless the prior audit bundle, hash cache, and discovery snapshot are all present. When any required state is missing, Full Verification is the sole audit mode and auto-starts after the timeout.
+
+
+## Canonical ROM type categories
+Each ROM is assigned exactly one reporting/destination category: Retail/Standard, Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified. Legacy combined labels such as `Homebrew/Unlicensed` and `Prototype/Beta/Demo` are no longer emitted. Revisions are treated as Retail/Standard unless another special-release marker applies. Cache format changes invalidate stale classification metadata so Fast Audit cannot restore old labels.
