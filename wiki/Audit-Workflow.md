@@ -102,3 +102,5 @@ The consolidated report fingerprints the deployed `MiSTer_Audit.sh` directly. `E
 
 
 Numeric menu shortcuts are immediate single-key actions. Pressing a displayed item number starts that action without an additional Enter press; highlight navigation still uses Enter to accept the highlighted item.
+
+Fast Audit cannot be selected or forced unless the prior audit bundle, hash cache, and discovery snapshot are all present. When any required state is missing, Full Verification is the sole audit mode and auto-starts after the timeout.
