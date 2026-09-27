@@ -103,6 +103,26 @@ grep -Fq 'Super 3D Noah' "$CATALOG" || fail "first canonical-collision source mi
 grep -Fq "Super Noah's Ark 3D (U) .smc" "$CATALOG" || fail "second canonical-collision source missing"
 grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
 grep -Eq '"(Homebrew|Unlicensed)","SNES/(Homebrew|Unlicensed)"' "$AUDIT/proposed_renames.csv" || fail "special-release curated destination missing from rename proposals"
+# Curated folders are release-type buckets only: <system>/<ROM type>. Retail/Standard
+# remains directly in the system folder. Never create genre or per-ROM directories.
+python3 - "$AUDIT/proposed_renames.csv" <<'PY'
+import csv, sys
+allowed = {"Homebrew", "Unlicensed", "Aftermarket", "Prototype", "Beta", "Demo/Sample", "Translation", "Hack/Modified"}
+with open(sys.argv[1], newline="") as f:
+    for row in csv.DictReader(f):
+        category = row.get("special_release_category", "")
+        destination = row.get("curated_destination", "")
+        system = row.get("system", "")
+        if category == "Retail/Standard":
+            if destination not in ("", "Unknown", system):
+                raise SystemExit(f"ERROR: retail ROM routed outside system root: {destination}")
+            continue
+        if category not in allowed:
+            raise SystemExit(f"ERROR: non-ROM-type curated category: {category}")
+        parts = destination.split("/")
+        if len(parts) != 2 or parts[0] != system or parts[1] != category:
+            raise SystemExit(f"ERROR: curated destination must be exactly <system>/<ROM type>: {destination}")
+PY
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
