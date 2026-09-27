@@ -52,25 +52,26 @@ jobs:
             esac
           done <<< "$CHANGED"
 
-          if [[ "$runtime_changed" != true ]]; then
-            echo "No runtime implementation files changed; documentation guard not required."
-            exit 0
+          if [[ "$runtime_changed" == true && "$behavior_changed" == true ]]; then
+            missing=()
+            [[ "$readme_changed" == true ]] || missing+=("README.md")
+            [[ "$context_changed" == true ]] || missing+=("PROJECT_CONTEXT.md")
+            [[ "$wiki_changed" == true ]] || missing+=("wiki/*.md")
+            if (( ${#missing[@]} > 0 )); then
+              echo "::error::Runtime behavior changed without updating all required documentation surfaces."
+              printf 'Missing documentation update: %s\n' "${missing[@]}"
+              exit 1
+            fi
           fi
 
-          if [[ "$behavior_changed" != true ]]; then
-            echo "Only runtime assembly/dispatch infrastructure changed; behavior documentation update not required."
-            exit 0
-          fi
-
-          missing=()
-          [[ "$readme_changed" == true ]] || missing+=("README.md")
-          [[ "$context_changed" == true ]] || missing+=("PROJECT_CONTEXT.md")
-          [[ "$wiki_changed" == true ]] || missing+=("wiki/*.md")
-
-          if (( ${#missing[@]} > 0 )); then
-            echo "::error::Runtime behavior changed without updating all required documentation surfaces."
-            printf 'Missing documentation update: %s\n' "${missing[@]}"
-            exit 1
-          fi
-
+          echo "Checking documentation state invariants."
+          ! grep -RFn --include='*.md' 'build-downloader-db.yml' README.md wiki/ || { echo "::error::Obsolete build-downloader-db.yml reference found."; exit 1; }
+          ! grep -RFn --include='*.md' 'current release is **v1.2**' README.md PROJECT_CONTEXT.md wiki/ || { echo "::error::Stale v1.2 current-release reference found."; exit 1; }
+          ! grep -RFn --include='*.md' 'auditor is **v1.2**' README.md PROJECT_CONTEXT.md wiki/ || { echo "::error::Stale v1.2 auditor reference found."; exit 1; }
+          ! grep -RFn --include='*.md' 'currently labeled **v1.1**' README.md PROJECT_CONTEXT.md wiki/ || { echo "::error::Stale v1.1 updater reference found."; exit 1; }
+          ! grep -RFn --include='*.md' 'three runtime files' README.md PROJECT_CONTEXT.md wiki/ || { echo "::error::Update All distributes two files, not three."; exit 1; }
+          ! grep -RFn --include='*.md' 'MiSTer_Audit.sh` and `MiSTer_Audit.sh' README.md PROJECT_CONTEXT.md wiki/ || { echo "::error::Duplicate unified-runtime distribution reference found."; exit 1; }
+          grep -Fq 'Current release: v1.4' README.md || { echo "::error::README current release is not v1.4."; exit 1; }
+          grep -Fq 'current release is **v1.4**' PROJECT_CONTEXT.md || { echo "::error::PROJECT_CONTEXT current release is not v1.4."; exit 1; }
+          grep -Fq 'current release is **v1.4**' wiki/Home.md || { echo "::error::Wiki Home current release is not v1.4."; exit 1; }
           echo "Documentation consistency check passed."
