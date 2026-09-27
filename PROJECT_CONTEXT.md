@@ -155,6 +155,10 @@ For high-risk shell control-flow refactors, preserve a last-known-green runtime 
 
 - Numeric menu shortcuts are single-key actions: pressing the displayed item number immediately starts that action without requiring Enter. Highlight navigation remains available independently.
 
+## Distribution ownership
+
+Update All currently distributes exactly two files under `/media/fat/Scripts/`: `MiSTer_Audit.sh` and `mister_hash_database.tsv`. `distributed-files.yml` gates publication on the synthetic regression and calls `publish-downloader.yml`; there is no separate `build-downloader-db.yml` workflow.
+
 ## CI workflow ownership
 
 The distributed-files pipeline gates Downloader publication on the reusable Synthetic Library Test. MiSTer Runtime Compatibility owns runtime assembly/syntax/dependency checks without rerunning the synthetic regression. Publish Downloader validates syntax and the hash database, then publishes only after the distributed pipeline's synthetic gate passes. Exporter Performance may execute the synthetic workload to collect benchmark telemetry, but it is not the authoritative functional-regression gate. The obsolete one-time unmatched-policy workflow has been removed.
