@@ -649,7 +649,7 @@ printf '%s\n' '"system","clean_title","region","version_type","original_filename
 printf '%s\n' '"system","current_path","proposed_filename","region","version_type","status","special_release_category","curated_destination"' > "$STAGE_REN"
 printf '%s\n' '"system","game_path","save_path","proposed_save_filename","match_type","status","special_release_category","curated_destination"' > "$STAGE_SAVE_REN"
 printf '%s\n' '"sha1","system","full_path","original_filename","clean_title"' > "$STAGE_HASH_DUP"
-printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status"' > "$STAGE_DAT_MATCH"
+printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status","special_release_category","curated_destination"' > "$STAGE_DAT_MATCH"
 printf '%s\n' '"sha1","system","full_path","original_filename","unmatched_class"' > "$STAGE_DAT_UNMATCHED"
 printf '%s\n' '"system","full_path","original_filename","probable_system","reason","suggested_action"' > "$STAGE_REVIEW_QUEUE"
 printf '%s\n' '"system","full_path","original_filename","support_class"' > "$STAGE_SUPPORT_REPORT"
@@ -699,7 +699,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # Verification while still avoiding hash and DAT-record decoding work.
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; [ -n "$meta_release" ] && kind="$meta_release"; suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi
       special_release_category_set "$meta_release" "$meta_license" "${dat_rom:-$dat_name}"; special_category="$HOT_RESULT"; curated_destination_set "$meta_folder" "$special_category"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
-      csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license"
+      csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"; printf '%s\t%s\t%s\n' "${meta_system:-$system}" "$dat_name" "$special_category" >> "$WORK.release_rows"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; csv_row "$STAGE_REVIEW_QUEUE" "$system" "$p" "$file" "$system" "$unmatched_class" "Review identity / DAT coverage"; fi
     # Cache rows are TSV. Empty interior fields must be encoded explicitly:
@@ -798,6 +798,21 @@ IMPORTANT:
 - SHA-1 hashes identify byte-for-byte duplicate files regardless of filename.
 - CUE/BIN and other multi-file disc sets require coordinated renaming before any future apply step.
 EOF2
+
+{
+  echo
+  echo "ROM TYPE CATEGORIES"
+  echo "-------------------"
+  echo "Retail/Standard | parent system folder"
+  echo "Homebrew | shared Homebrew folder"
+  echo "Unlicensed | shared Unlicensed folder"
+  echo "Aftermarket | shared Aftermarket folder"
+  echo "Prototype | shared Prototype folder"
+  echo "Beta | shared Beta folder"
+  echo "Demo/Sample | shared Demo/Sample folder"
+  echo "Translation | shared Translation folder"
+  echo "Hack/Modified | shared Hack/Modified folder"
+} >> "$STAGE_OUT"
 
 if [ -s "$WORK.release_rows" ]; then
   awk -F '\t' -v out="$STAGE_RELEASE_FAMILIES" '
