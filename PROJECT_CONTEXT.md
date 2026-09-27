@@ -167,3 +167,5 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 
 
 - ROM type classification is canonicalized to one category per ROM: Retail/Standard, Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified. Legacy combined labels are invalidated from Fast Audit caches; DAT-matched report Type and curated destination use the same canonical category. Revisions remain Retail/Standard unless another special-release marker applies.
+
+<!-- CI syntax repair: canonical ROM-type classifier regex escaping corrected; category semantics unchanged. -->

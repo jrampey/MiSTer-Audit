@@ -437,14 +437,14 @@ trim() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]
 region_of() { local s="${1,,}"; if [[ "$s" =~ \((usa|us|u)(,|\)|[[:space:]]) ]] || [[ "$s" =~ \((ue|u,e|u\+e)\) ]]; then echo USA; elif [[ "$s" =~ \((world|w)\) ]]; then echo World; elif [[ "$s" =~ \((europe|eur|e)\) ]]; then echo Europe; elif [[ "$s" =~ \((japan|jpn|j)\) ]]; then echo Japan; elif [[ "$s" =~ \((canada|can)\) ]]; then echo Canada; elif [[ "$s" =~ \((australia|aus)\) ]]; then echo Australia; elif [[ "$s" =~ \((korea|kor|k)\) ]]; then echo Korea; elif [[ "$s" =~ \((brazil|bra|b)\) ]]; then echo Brazil; else echo Unknown; fi; }
 kind_of() {
   local s="${1,,}"
-  if [[ "$s" =~ \\((homebrew)([^a-z]|$) ]] || [[ "$s" =~ \\[(homebrew)([^a-z]|$) ]] || [[ "$s" == *" homebrew "* ]]; then echo Homebrew
-  elif [[ "$s" =~ \\((unl|unlicensed)([^a-z]|$) ]] || [[ "$s" =~ \\[(unl|unlicensed)([^a-z]|$) ]]; then echo Unlicensed
-  elif [[ "$s" =~ \\((aftermarket)([^a-z]|$) ]] || [[ "$s" =~ \\[(aftermarket)([^a-z]|$) ]] || [[ "$s" == *" aftermarket "* ]]; then echo Aftermarket
-  elif [[ "$s" =~ \\((proto|prototype)([^a-z]|$) ]] || [[ "$s" =~ \\[(proto|prototype)([^a-z]|$) ]]; then echo Prototype
-  elif [[ "$s" =~ \\((beta)([^a-z]|$) ]] || [[ "$s" =~ \\[(beta)([^a-z]|$) ]]; then echo Beta
-  elif [[ "$s" =~ \\((demo|sample)([^a-z]|$) ]] || [[ "$s" =~ \\[(demo|sample)([^a-z]|$) ]]; then echo Demo/Sample
-  elif [[ "$s" =~ \\[t[^]]*\\] ]] || [[ "$s" == *"(translation"* ]] || [[ "$s" == *"(translated"* ]] || [[ "$s" == *"(eng)"* ]] || [[ "$s" == *"(english"* ]] || [[ "$s" == *"translation"* ]] || [[ "$s" == *"english patched"* ]]; then echo Translation
-  elif [[ "$s" =~ \\[h[^]]*\\] ]] || [[ "$s" == *"(hack"* ]] || [[ "$s" == *"(hacked"* ]] || [[ "$s" == *"(improvement"* ]] || [[ "$s" == *"(redux"* ]] || [[ "$s" == *"(randomizer"* ]] || [[ "$s" == *" hack "* ]] || [[ "$s" == *" improvement "* ]] || [[ "$s" == *" randomizer "* ]]; then echo Hack/Modified
+  if [[ "$s" =~ \((homebrew)([^a-z]|$) ]] || [[ "$s" =~ \[(homebrew)([^a-z]|$) ]] || [[ "$s" == *" homebrew "* ]]; then echo Homebrew
+  elif [[ "$s" =~ \((unl|unlicensed)([^a-z]|$) ]] || [[ "$s" =~ \[(unl|unlicensed)([^a-z]|$) ]]; then echo Unlicensed
+  elif [[ "$s" =~ \((aftermarket)([^a-z]|$) ]] || [[ "$s" =~ \[(aftermarket)([^a-z]|$) ]] || [[ "$s" == *" aftermarket "* ]]; then echo Aftermarket
+  elif [[ "$s" =~ \((proto|prototype)([^a-z]|$) ]] || [[ "$s" =~ \[(proto|prototype)([^a-z]|$) ]]; then echo Prototype
+  elif [[ "$s" =~ \((beta)([^a-z]|$) ]] || [[ "$s" =~ \[(beta)([^a-z]|$) ]]; then echo Beta
+  elif [[ "$s" =~ \((demo|sample)([^a-z]|$) ]] || [[ "$s" =~ \[(demo|sample)([^a-z]|$) ]]; then echo Demo/Sample
+  elif [[ "$s" =~ \[t[^]]*\] ]] || [[ "$s" == *"(translation"* ]] || [[ "$s" == *"(translated"* ]] || [[ "$s" == *"(eng)"* ]] || [[ "$s" == *"(english"* ]] || [[ "$s" == *"translation"* ]] || [[ "$s" == *"english patched"* ]]; then echo Translation
+  elif [[ "$s" =~ \[h[^]]*\] ]] || [[ "$s" == *"(hack"* ]] || [[ "$s" == *"(hacked"* ]] || [[ "$s" == *"(improvement"* ]] || [[ "$s" == *"(redux"* ]] || [[ "$s" == *"(randomizer"* ]] || [[ "$s" == *" hack "* ]] || [[ "$s" == *" improvement "* ]] || [[ "$s" == *" randomizer "* ]]; then echo Hack/Modified
   else echo Retail/Standard
   fi
 }
@@ -456,14 +456,14 @@ suffix_for() { local region="$1" kind="$2" suffix=""; [ "$region" != "USA" ] && 
 region_of_set() { local s="${1,,}"; if [[ "$s" =~ \((usa|us|u)(,|\)|[[:space:]]) ]] || [[ "$s" =~ \((ue|u,e|u\+e)\) ]]; then HOT_RESULT=USA; elif [[ "$s" =~ \((world|w)\) ]]; then HOT_RESULT=World; elif [[ "$s" =~ \((europe|eur|e)\) ]]; then HOT_RESULT=Europe; elif [[ "$s" =~ \((japan|jpn|j)\) ]]; then HOT_RESULT=Japan; elif [[ "$s" =~ \((canada|can)\) ]]; then HOT_RESULT=Canada; elif [[ "$s" =~ \((australia|aus)\) ]]; then HOT_RESULT=Australia; elif [[ "$s" =~ \((korea|kor|k)\) ]]; then HOT_RESULT=Korea; elif [[ "$s" =~ \((brazil|bra|b)\) ]]; then HOT_RESULT=Brazil; else HOT_RESULT=Unknown; fi; }
 kind_of_set() {
   local s="${1,,}"
-  if [[ "$s" =~ \\((homebrew)([^a-z]|$) ]] || [[ "$s" =~ \\[(homebrew)([^a-z]|$) ]] || [[ "$s" == *" homebrew "* ]]; then HOT_RESULT=Homebrew
-  elif [[ "$s" =~ \\((unl|unlicensed)([^a-z]|$) ]] || [[ "$s" =~ \\[(unl|unlicensed)([^a-z]|$) ]]; then HOT_RESULT=Unlicensed
-  elif [[ "$s" =~ \\((aftermarket)([^a-z]|$) ]] || [[ "$s" =~ \\[(aftermarket)([^a-z]|$) ]] || [[ "$s" == *" aftermarket "* ]]; then HOT_RESULT=Aftermarket
-  elif [[ "$s" =~ \\((proto|prototype)([^a-z]|$) ]] || [[ "$s" =~ \\[(proto|prototype)([^a-z]|$) ]]; then HOT_RESULT=Prototype
-  elif [[ "$s" =~ \\((beta)([^a-z]|$) ]] || [[ "$s" =~ \\[(beta)([^a-z]|$) ]]; then HOT_RESULT=Beta
-  elif [[ "$s" =~ \\((demo|sample)([^a-z]|$) ]] || [[ "$s" =~ \\[(demo|sample)([^a-z]|$) ]]; then HOT_RESULT=Demo/Sample
-  elif [[ "$s" =~ \\[t[^]]*\\] ]] || [[ "$s" == *"(translation"* ]] || [[ "$s" == *"(translated"* ]] || [[ "$s" == *"(eng)"* ]] || [[ "$s" == *"(english"* ]] || [[ "$s" == *"translation"* ]] || [[ "$s" == *"english patched"* ]]; then HOT_RESULT=Translation
-  elif [[ "$s" =~ \\[h[^]]*\\] ]] || [[ "$s" == *"(hack"* ]] || [[ "$s" == *"(hacked"* ]] || [[ "$s" == *"(improvement"* ]] || [[ "$s" == *"(redux"* ]] || [[ "$s" == *"(randomizer"* ]] || [[ "$s" == *" hack "* ]] || [[ "$s" == *" improvement "* ]] || [[ "$s" == *" randomizer "* ]]; then HOT_RESULT=Hack/Modified
+  if [[ "$s" =~ \((homebrew)([^a-z]|$) ]] || [[ "$s" =~ \[(homebrew)([^a-z]|$) ]] || [[ "$s" == *" homebrew "* ]]; then HOT_RESULT=Homebrew
+  elif [[ "$s" =~ \((unl|unlicensed)([^a-z]|$) ]] || [[ "$s" =~ \[(unl|unlicensed)([^a-z]|$) ]]; then HOT_RESULT=Unlicensed
+  elif [[ "$s" =~ \((aftermarket)([^a-z]|$) ]] || [[ "$s" =~ \[(aftermarket)([^a-z]|$) ]] || [[ "$s" == *" aftermarket "* ]]; then HOT_RESULT=Aftermarket
+  elif [[ "$s" =~ \((proto|prototype)([^a-z]|$) ]] || [[ "$s" =~ \[(proto|prototype)([^a-z]|$) ]]; then HOT_RESULT=Prototype
+  elif [[ "$s" =~ \((beta)([^a-z]|$) ]] || [[ "$s" =~ \[(beta)([^a-z]|$) ]]; then HOT_RESULT=Beta
+  elif [[ "$s" =~ \((demo|sample)([^a-z]|$) ]] || [[ "$s" =~ \[(demo|sample)([^a-z]|$) ]]; then HOT_RESULT=Demo/Sample
+  elif [[ "$s" =~ \[t[^]]*\] ]] || [[ "$s" == *"(translation"* ]] || [[ "$s" == *"(translated"* ]] || [[ "$s" == *"(eng)"* ]] || [[ "$s" == *"(english"* ]] || [[ "$s" == *"translation"* ]] || [[ "$s" == *"english patched"* ]]; then HOT_RESULT=Translation
+  elif [[ "$s" =~ \[h[^]]*\] ]] || [[ "$s" == *"(hack"* ]] || [[ "$s" == *"(hacked"* ]] || [[ "$s" == *"(improvement"* ]] || [[ "$s" == *"(redux"* ]] || [[ "$s" == *"(randomizer"* ]] || [[ "$s" == *" hack "* ]] || [[ "$s" == *" improvement "* ]] || [[ "$s" == *" randomizer "* ]]; then HOT_RESULT=Hack/Modified
   else HOT_RESULT=Retail/Standard
   fi
 }
