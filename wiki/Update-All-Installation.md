@@ -7,7 +7,6 @@ The repository publishes a MiSTer Downloader-compatible `db.json` so the Game Li
 The custom database manages only these files:
 
 - `/media/fat/Scripts/MiSTer_Audit.sh`
-- `/media/fat/Scripts/MiSTer_Audit.sh`
 - `/media/fat/Scripts/mister_hash_database.tsv`
 
 Reports, caches, rename history, ROMs, saves, repository documentation, and wiki files are not managed by Update All.
@@ -35,14 +34,14 @@ Do not edit `Scripts/update_all.sh` to add the database.
 
 ## Automatic repository publishing
 
-The repository contains `.github/workflows/build-downloader-db.yml`.
+Publishing is owned by `.github/workflows/distributed-files.yml` and the reusable `.github/workflows/publish-downloader.yml` workflow.
 
 When any of these files changes on `main`:
 
 - `MiSTer_Audit.sh`
 - `mister_hash_database.tsv`
 
-GitHub Actions rebuilds `db.json`, validates it with MiSTer Downloader, and commits the updated database back to the repository. The database includes the expected download URL, file size, and hash for each distributed runtime file.
+The distributed-files pipeline first requires the synthetic regression to pass, then the publish workflow rebuilds `db.json`, validates it with MiSTer Downloader, and commits the updated database back to the repository. The database includes the expected download URL, file size, and hash for each distributed runtime file.
 
 This means the normal release path is:
 
@@ -54,7 +53,7 @@ This means the normal release path is:
 
 ## Legacy filename migration
 
-The database ID is unchanged from the version that distributed `Export_Game_Library.sh` and `Update_Game_Library.sh`. Therefore the next Downloader / Update All run sees those former managed paths as obsolete while installing `MiSTer_Audit.sh` and `MiSTer_Audit.sh`. With the normal MiSTer Downloader setting `allow_delete = 1`, the two legacy scripts are deleted automatically. If Downloader deletion is disabled, they are intentionally retained.
+The database ID is unchanged from the version that distributed `Export_Game_Library.sh` and `Update_Game_Library.sh`. Therefore the next Downloader / Update All run sees those former managed paths as obsolete while installing the unified `MiSTer_Audit.sh`. With the normal MiSTer Downloader setting `allow_delete = 1`, the two legacy scripts are deleted automatically. If Downloader deletion is disabled, they are intentionally retained.
 
 ## Safety boundary
 
