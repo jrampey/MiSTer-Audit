@@ -177,3 +177,6 @@ grep -Fq 'Deleted library records: 1' "$BUNDLE" || fail "deleted ROM not detecte
 printf '# issue9 fingerprint invalidation\n' >> "$TEST_BIN/mister_hash_database.tsv"; printf '1' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
 grep -Fq 'DAT/classification row metadata reused: 0' "$BUNDLE" || fail "DB change did not invalidate row metadata"
 grep -Eq '^Hashes reused from cache: [1-9][0-9]*$' "$BUNDLE" || fail "DB change invalidated reusable hashes"
+
+# Guard helper required by clean_title_set on the MiSTer runtime.
+grep -q '^trim_set() {' "$SCRIPT_UNDER_TEST" || { echo "FAIL: trim_set helper missing from runtime" >&2; exit 1; }

@@ -110,3 +110,5 @@ Fast Audit cannot be selected or forced unless the prior audit bundle, hash cach
 Each ROM is assigned exactly one reporting/destination category: Retail/Standard, Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, or Hack/Modified. Legacy combined labels such as `Homebrew/Unlicensed` and `Prototype/Beta/Demo` are no longer emitted. Revisions are treated as Retail/Standard unless another special-release marker applies. Cache format changes invalidate stale classification metadata so Fast Audit cannot restore old labels.
 
 <!-- CI syntax repair: canonical ROM-type classifier regex escaping corrected; category semantics unchanged. -->
+
+<!-- Runtime fix: trim_set is defined before clean_title_set; synthetic CI guards helper presence. -->
