@@ -14,12 +14,14 @@ trap 'rm -f "$TMP"' EXIT
     '# The audit path remains read-only. Library mutation is available only through the explicit Update / Rename menu.' \
     ''
   cat "$ROOT/src/audit.sh"
+  printf '\n'
   cat "$ROOT/src/update.sh"
+  printf '\n'
   cat "$ROOT/src/main.sh"
 } > "$TMP"
 
 if [[ "${1:-}" == "--check" ]]; then
-  cmp -s "$TMP" "$OUT" || { echo "ERROR: generated runtime drift"; exit 1; }
+  cmp -s "$TMP" "$OUT" || { echo "ERROR: generated runtime drift"; diff -u "$OUT" "$TMP" | head -80 || true; exit 1; }
   bash -n "$TMP" || { echo "ERROR: generated runtime has invalid Bash syntax"; exit 1; }
 
   dispatch_count="$(grep -Fxc 'case "${1:-}" in' "$TMP" || true)"
