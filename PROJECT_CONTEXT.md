@@ -162,3 +162,5 @@ Update All currently distributes exactly two files under `/media/fat/Scripts/`: 
 ## CI workflow ownership
 
 The distributed-files pipeline gates Downloader publication on the reusable Synthetic Library Test. MiSTer Runtime Compatibility owns runtime assembly/syntax/dependency checks without rerunning the synthetic regression. Publish Downloader validates syntax and the hash database, then publishes only after the distributed pipeline's synthetic gate passes. Exporter Performance may execute the synthetic workload to collect benchmark telemetry, but it is not the authoritative functional-regression gate. The obsolete one-time unmatched-policy workflow has been removed.
+
+- Audit mode safety: Fast Audit cannot be selected or forced unless the prior audit bundle, hash cache, and discovery snapshot are all present; otherwise Full Verification is required.
