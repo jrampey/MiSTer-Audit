@@ -1,6 +1,6 @@
 # Hash Database
 
-The exporter uses the bundled `mister_hash_database.tsv` as its canonical lookup source. Legacy XML DAT-folder parsing is not used in v1.2.
+The exporter uses the bundled `mister_hash_database.tsv` as its canonical lookup source. The MiSTer runtime does not parse legacy XML/DAT folders; it uses the bundled TSV lookup database. DAT/XML sources are build-time inputs only when deliberately rebuilding the TSV.
 
 ## Required schema
 
