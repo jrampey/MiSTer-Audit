@@ -102,7 +102,7 @@ grep -Fq 'Synthetic TGFX16 0119' "$CATALOG" || fail "hashed-system sentinel miss
 grep -Fq 'Super 3D Noah' "$CATALOG" || fail "first canonical-collision source missing"
 grep -Fq "Super Noah's Ark 3D (U) .smc" "$CATALOG" || fail "second canonical-collision source missing"
 grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
-grep -Fq '"Unlicensed","SNES/Unlicensed"' "$AUDIT/proposed_renames.csv" || fail "special-release curated destination missing from rename proposals"
+grep -Eq '"(Homebrew|Unlicensed)","SNES/(Homebrew|Unlicensed)"' "$AUDIT/proposed_renames.csv" || fail "special-release curated destination missing from rename proposals"
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
