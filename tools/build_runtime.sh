@@ -14,9 +14,7 @@ trap 'rm -f "$TMP"' EXIT
     '# The audit path remains read-only. Library mutation is available only through the explicit Update / Rename menu.' \
     ''
   cat "$ROOT/src/audit.sh"
-  printf '\n'
   cat "$ROOT/src/update.sh"
-  printf '\n'
   cat "$ROOT/src/main.sh"
 } > "$TMP"
 
