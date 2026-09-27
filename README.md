@@ -23,7 +23,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 5. Update All installs `MiSTer_Audit.sh` and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
 6. Run `MiSTer_Audit` from the MiSTer Scripts menu and choose **Run library audit**.
 
-> **Start with the auditor.** `MiSTer_Audit.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the separate updater's Preview / Apply workflow.
+> **Start with the auditor.** `MiSTer_Audit.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the unified runtime's Preview / Apply workflow.
 
 **Audit → Review → Preview → Apply → Roll Back**
 
@@ -78,19 +78,19 @@ Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, an
 ## Recommended workflow
 
 ```text
-1. Run MiSTer-Audit-Export
-2. Review MiSTer_Library_Audit.txt
+1. Run `MiSTer_Audit.sh` and choose Run library audit
+2. Review `MiSTer_Library_Audit.txt`
 3. Investigate warnings and questionable proposals
-4. Run MiSTer-Audit-Update
+4. Return to `MiSTer_Audit.sh` and choose Update / Rename tools
 5. Preview
-6. Review apply_preview.tsv and apply_skipped.tsv
+6. Review `apply_preview.tsv` and `apply_skipped.tsv`
 7. Apply; collision-blocked rows remain untouched automatically
 8. Re-run the auditor after cleanup
 ```
 
 ## MiSTer Downloader / Update All
 
-The repository publishes a validated MiSTer Downloader `db.json` that manages only the three runtime files under `/media/fat/Scripts/`.
+The repository publishes a validated MiSTer Downloader `db.json` that manages only the two distributed files under `/media/fat/Scripts/`.
 
 Register the database in `/media/fat/downloader.ini` with:
 
@@ -99,11 +99,11 @@ Register the database in `/media/fat/downloader.ini` with:
 db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 ```
 
-`.github/workflows/build-downloader-db.yml` rebuilds and validates `db.json` when a distributed runtime file or the distribution workflow changes. Reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files are not managed by Update All.
+`.github/workflows/distributed-files.yml` runs the synthetic regression gate and then calls `.github/workflows/publish-downloader.yml`, which rebuilds, validates, and publishes `db.json` when distributed files change. Reports, caches, rename history, ROMs, saves, README/project documentation, and wiki files are not managed by Update All.
 
 ### Legacy script-name migration
 
-The Downloader database keeps the same database ID across the script rename. On the next Update All run, MiSTer Downloader installs `MiSTer_Audit.sh` and `MiSTer_Audit.sh` and treats the former `Export_Game_Library.sh` and `Update_Game_Library.sh` paths as obsolete. With MiSTer Downloader's normal `allow_delete = 1` setting, those two legacy managed files are removed automatically. If deletion has been disabled in Downloader settings, the old files are left in place.
+The Downloader database keeps the same database ID across the script rename. On the next Update All run, MiSTer Downloader installs the unified `MiSTer_Audit.sh` and treats the former `Export_Game_Library.sh` and `Update_Game_Library.sh` paths as obsolete. With MiSTer Downloader's normal `allow_delete = 1` setting, those two legacy managed files are removed automatically. If deletion has been disabled in Downloader settings, the old files are left in place.
 
 ## Documentation synchronization
 
