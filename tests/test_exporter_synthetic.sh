@@ -123,6 +123,10 @@ with open(sys.argv[1], newline="") as f:
         if len(parts) != 2 or parts[0] != system or parts[1] != category:
             raise SystemExit(f"ERROR: curated destination must be exactly <system>/<ROM type>: {destination}")
 PY
+grep -Fq '"special_release_category","curated_destination"' "$AUDIT/dat_matches.csv" || fail "DAT match report missing ROM-type reporting columns"
+for category in "Retail/Standard" "Homebrew" "Unlicensed" "Aftermarket" "Prototype" "Beta" "Demo/Sample" "Translation" "Hack/Modified"; do
+    grep -Fq "$category" "$AUDIT/game_library.txt" || fail "human-readable report missing ROM-type category: $category"
+done
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
