@@ -1,22 +1,20 @@
 # MiSTer FPGA Game Library Audit Wiki
 
-This wiki documents the behavior currently implemented in the repository. It describes what the scripts do today; planned work belongs in `PROJECT_CONTEXT.md` or future development notes.
+This wiki documents the behavior currently implemented in the repository. The GitHub repository is authoritative.
 
 ## Pages
 
 - [Audit workflow](Audit-Workflow.md) — Fast Audit, Full Verification, hashing, cache behavior, and report publishing.
 - [Hash database](Hash-Database.md) — bundled TSV schema, matching rules, normalized hashes, and supported systems.
 - [Reports](Reports.md) — files written under `/media/fat/GameLibraryAudit` and what each contains.
-- [Rename workflow](Rename-Workflow.md) — Preview, Apply, Rollback, safeguards, and current limitations.
-- [Safety and invariants](Safety-and-Invariants.md) — read-only boundaries and rules that protect the library.
-- [Update All installation](Update-All-Installation.md) — add this repository to MiSTer Downloader / Update All and keep the runtime files current.
+- [Rename workflow](Rename-Workflow.md) — Preview, Apply, Rollback, curated destinations, and safeguards.
+- [Safety and invariants](Safety-and-Invariants.md) — boundaries that protect the library.
+- [Update All installation](Update-All-Installation.md) — installation and publishing through MiSTer Downloader.
 
 ## Current implementation
 
-The auditor is **v1.2**. `MiSTer_Audit.sh` scans `/media/fat/games`, optionally hashes DAT-eligible ROMs, identifies matches using the bundled MiSTer-aware hash database, pairs saves, detects duplicates and location issues, proposes canonical renames, and publishes a consolidated audit.
+The current release is **v1.4**. A single unified `MiSTer_Audit.sh` runtime provides the read-only audit plus guarded Preview / Apply / Rollback tools. Development source is split across `src/audit.sh`, `src/update.sh`, and `src/main.sh`, then assembled by `tools/build_runtime.sh`.
 
-`MiSTer_Audit.sh` is currently labeled **v1.1**. It is the separate mutation path for previewing, applying, and rolling back rename proposals.
+Authoritative DAT matches provide canonical naming and ROM-type classification. Retail/Standard ROMs remain in the parent system folder; Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified ROMs use one shared category folder per type. These are ROM release/status categories, not gameplay genres, and there is no per-ROM folder layer.
 
-The repository also publishes a MiSTer Downloader-compatible `db.json`. GitHub Actions regenerates and validates this database whenever one of the distributed runtime files changes. The database installs only `MiSTer_Audit.sh`, `MiSTer_Audit.sh`, and `mister_hash_database.tsv` into `/media/fat/Scripts/`.
-
-The repository's implementation is authoritative. This wiki should be updated when behavior changes.
+Update All distributes exactly two files under `/media/fat/Scripts/`: `MiSTer_Audit.sh` and `mister_hash_database.tsv`.
