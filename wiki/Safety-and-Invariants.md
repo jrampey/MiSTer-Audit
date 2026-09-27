@@ -28,4 +28,4 @@ The MiSTer Health Check project is separate from this Game Library Audit and sho
 
 ## Version boundary
 
-The current Game Library Audit release is **v1.2**. Do not increment the release version merely for documentation or maintenance changes unless explicitly directed.
+The current Game Library Audit release is **v1.4**. Do not increment the release version merely for documentation or maintenance changes unless explicitly directed.
