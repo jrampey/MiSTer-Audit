@@ -13,9 +13,9 @@ Before auditing, the exporter verifies required commands, SHA-1 support, the bun
 
 ## Audit modes
 
-**Fast Audit** is the default after the interactive timeout. It rescans the complete library but reuses cached SHA-1 and DAT-identification data for unchanged files when the cache format and database fingerprint allow it.
+**Fast Audit** is offered only when a previous audit bundle, hash cache, and discovery snapshot are present. When that prior state exists it is the default after the interactive timeout, rescanning the complete library while reusing eligible cached state.
 
-**Full Verification** recalculates hashes for eligible ROMs rather than trusting cached hashes. The implementation can use two parallel hash workers when supported.
+**Full Verification** is the only option on a first run or when required prior Fast Audit state is missing. It recalculates hashes for eligible ROMs rather than trusting cached hashes. The implementation can use two parallel hash workers when supported.
 
 The MiSTer console UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. It intentionally avoids background carriage-return spinners because they can overlap normal console output and produce unreliable elapsed-time displays on MiSTer hardware. Separator lines are emitted through safe `printf` formats so leading hyphens are never interpreted as options.
 

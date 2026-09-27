@@ -16,7 +16,7 @@ The audit path must remain read-only. Renaming is handled separately through Pre
 
 `MiSTer_Audit.sh` is the **v1.4** auditor. Important v1.4 work includes DAT-driven canonical naming, Genesis-vs-32X classification, NES/SNES normalized-hash fallback, exporter build fingerprints, mandatory MiSTer-aware database-schema validation, audit integrity verdicts, complete discovery accounting, and final-target collision classification.
 
-Fast Audit currently reuses valid path + size/mtime keyed SHA-1 cache entries and, while the database fingerprint is unchanged, cached DAT identification. It still performs a complete library rescan and repeats classification/report construction so cross-file safety state remains current. Full Verification bypasses hash reuse and recalculates supported hashes.
+Fast Audit is offered only when a prior `MiSTer_Library_Audit.txt`, `hash_cache.tsv`, and `discovery_snapshot.tsv` are present. On a first run or when that required prior state is missing, the selector offers only Full Verification. Fast Audit reuses valid path + size/mtime keyed SHA-1 cache entries and fingerprint-compatible DAT identification while still rescanning the complete library; Full Verification bypasses hash reuse and recalculates supported hashes.
 
 The exporter terminal UI is ASCII-only and uses static stage lines plus periodic progress heartbeats. Do not reintroduce a background carriage-return spinner.
 

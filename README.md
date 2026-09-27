@@ -35,8 +35,8 @@ The same `MiSTer_Audit.sh` v1.4 runtime also provides the guarded Preview / Appl
 
 ## Audit modes
 
-- **Fast Audit** rescans the complete library while reusing valid cached hashes and cached DAT identification where possible.
-- **Full Verification** recalculates supported hashes rather than relying on the cache.
+- **Fast Audit** is offered only when a prior audit bundle, hash cache, and discovery snapshot are present; it rescans the complete library while reusing valid cached state where possible.
+- **Full Verification** is the only audit mode offered on a first run or when required prior Fast Audit state is missing, and it recalculates supported hashes rather than relying on the cache.
 
 The exporter uses an ASCII-only MiSTer console UI with static stage lines and periodic progress heartbeats. Background carriage-return spinners are intentionally avoided because they can overlap normal output on MiSTer hardware.
 

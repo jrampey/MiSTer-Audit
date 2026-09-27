@@ -523,6 +523,7 @@ exporter_build_id() {
 EXPORTER_BUILD_ID="$(exporter_build_id "$0")"
 echo "+--------------------------------------------------+"; echo "| MiSTer ROM Library Auditor v1.4                 |"; printf "| Build: %-41s|\n" "$RUNTIME_BUILD_ID"; echo "| Read-only audit - no ROMs or saves are changed  |"; echo "+--------------------------------------------------+"; echo
 
+# Audit mode availability: Fast Audit is gated on prior published audit/cache state.
 # Fast Audit requires a previously published audit plus the incremental state it reuses.
 HAS_EXISTING_AUDIT=0
 if [ -s "$BUNDLE" ] && [ -s "$HASH_CACHE" ] && [ -s "$DISCOVERY_SNAPSHOT" ]; then
