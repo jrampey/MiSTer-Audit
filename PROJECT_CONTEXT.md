@@ -171,3 +171,5 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 <!-- CI syntax repair: canonical ROM-type classifier regex escaping corrected; category semantics unchanged. -->
 
 <!-- Runtime fix: trim_set is defined before clean_title_set; synthetic CI guards helper presence. -->
+
+<!-- CI regression guard corrected to inspect the synthetic runtime copy at TEST_BIN/MiSTer_Audit.sh. -->
