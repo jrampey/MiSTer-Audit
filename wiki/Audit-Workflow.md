@@ -114,3 +114,5 @@ Each ROM is assigned exactly one reporting/destination category: Retail/Standard
 <!-- Runtime fix: trim_set is defined before clean_title_set; synthetic CI guards helper presence. -->
 
 <!-- CI regression guard corrected to inspect the synthetic runtime copy at TEST_BIN/MiSTer_Audit.sh. -->
+
+<!-- Menu fix: arrow-key selector now matches the actual ANSI Escape byte; CI guards against the escaped-literal regression. -->
