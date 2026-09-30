@@ -224,3 +224,5 @@ For authoritative DAT-identified special releases, Preview/Apply uses the audit'
 <!-- CI regression guard corrected to inspect the synthetic runtime copy at TEST_BIN/MiSTer_Audit.sh. -->
 
 <!-- Menu fix: arrow-key selector now matches the actual ANSI Escape byte; CI guards against the escaped-literal regression. -->
+
+<!-- Audit selector fix: arrow keys use a portable ESC variable and a complete ANSI sequence branch; syntax and regression checks cover the generated runtime. -->

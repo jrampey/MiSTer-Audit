@@ -577,6 +577,7 @@ render_audit_menu() {
   fi
   printf "+--------------------------------------------------+\n"
 }
+AUDIT_ESC=$(printf '\033')
 while :; do
   printf '\033[2J\033[H'
   render_audit_menu
@@ -595,7 +596,8 @@ while :; do
     "") break ;;
     1|f|F) AUDIT_MENU_SELECTION=1; break ;;
     2|v|V) AUDIT_MENU_SELECTION=2; break ;;
-    
+    "$AUDIT_ESC")
+      IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
       if [ "$AUDIT_KEY2" = "[" ]; then
         IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
         case "$AUDIT_KEY3" in
