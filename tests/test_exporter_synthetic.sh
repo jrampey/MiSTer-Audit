@@ -184,5 +184,4 @@ grep -q '^trim_set() {' "$TEST_BIN/MiSTer_Audit.sh" || fail "trim_set helper mis
 # Menu regression: non-shortcut keys are parsed as possible ANSI arrow sequences.
 grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"
 grep -Fq 'if [ "$AUDIT_KEY2" = "[" ]; then' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI CSI handler missing"
-\\e')" "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu Escape-key case missing"
 grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"

@@ -126,3 +126,5 @@ Each ROM is assigned exactly one reporting/destination category: Retail/Standard
 <!-- Audit selector parser fix: key-byte detection now uses od numeric output, eliminating quote-sensitive character-code syntax. -->
 
 <!-- Audit selector simplification: non-shortcut keys are parsed directly as possible ANSI arrow sequences; no Escape literal or numeric byte conversion is required. -->
+
+<!-- Audit selector regression: arrow-key handling uses direct ANSI sequence parsing; synthetic coverage verifies the CSI reader and avoids Escape-literal quoting. -->
