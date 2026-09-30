@@ -181,3 +181,5 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 <!-- Audit selector compatibility: Escape is matched with Bash ANSI-C $'\\e', avoiding raw ESC bytes while preserving generated-runtime syntax. -->
 
 <!-- Audit selector hardening: Escape is detected by byte value (27), avoiding literal Escape and ANSI-C case-label encoding issues in generated/runtime files. -->
+
+<!-- Audit selector parser fix: key-byte detection now uses od numeric output, eliminating quote-sensitive character-code syntax. -->
