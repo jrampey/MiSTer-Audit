@@ -124,3 +124,5 @@ Each ROM is assigned exactly one reporting/destination category: Retail/Standard
 <!-- Audit selector hardening: Escape is detected by byte value (27), avoiding literal Escape and ANSI-C case-label encoding issues in generated/runtime files. -->
 
 <!-- Audit selector parser fix: key-byte detection now uses od numeric output, eliminating quote-sensitive character-code syntax. -->
+
+<!-- Audit selector simplification: non-shortcut keys are parsed directly as possible ANSI arrow sequences; no Escape literal or numeric byte conversion is required. -->

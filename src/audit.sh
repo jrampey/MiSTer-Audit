@@ -596,16 +596,13 @@ while :; do
     1|f|F) AUDIT_MENU_SELECTION=1; break ;;
     2|v|V) AUDIT_MENU_SELECTION=2; break ;;
     *)
-      AUDIT_KEY_CODE=$(printf '%s' "$AUDIT_KEY" | od -An -tuC 2>/dev/null | tr -d '[:space:]')
-      if [ "${AUDIT_KEY_CODE:-0}" -eq 27 ]; then
-        IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
-        if [ "$AUDIT_KEY2" = "[" ]; then
-          IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
-          case "$AUDIT_KEY3" in
-            A|D) AUDIT_MENU_SELECTION=1 ;;
-            B|C) AUDIT_MENU_SELECTION=2 ;;
-          esac
-        fi
+      IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
+      if [ "$AUDIT_KEY2" = "[" ]; then
+        IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
+        case "$AUDIT_KEY3" in
+          A|D) AUDIT_MENU_SELECTION=1 ;;
+          B|C) AUDIT_MENU_SELECTION=2 ;;
+        esac
       fi
       ;;
   esac
