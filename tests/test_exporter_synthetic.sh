@@ -181,8 +181,9 @@ grep -Eq '^Hashes reused from cache: [1-9][0-9]*$' "$BUNDLE" || fail "DB change 
 # Guard helper required by clean_title_set on the MiSTer runtime.
 grep -q '^trim_set() {' "$TEST_BIN/MiSTer_Audit.sh" || fail "trim_set helper missing from runtime"
 
-# Menu regression: use a portable ESC variable and retain the complete ANSI arrow sequence handler.
-grep -Fq "\
+# Menu regression: detect Escape by byte value, avoiding fragile literal/ANSI-C Escape case labels.
+grep -Fq "AUDIT_KEY_CODE=\$(LC_ALL=C printf '%d'" "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu Escape-byte detection missing"
+grep -Fq '[ "$AUDIT_KEY_CODE" -eq 27 ]' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu Escape-byte comparison missing"
 grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"
 \\e')" "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu Escape-key case missing"
 grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"

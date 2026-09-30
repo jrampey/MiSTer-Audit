@@ -595,13 +595,17 @@ while :; do
     "") break ;;
     1|f|F) AUDIT_MENU_SELECTION=1; break ;;
     2|v|V) AUDIT_MENU_SELECTION=2; break ;;
-    
-      if [ "$AUDIT_KEY2" = "[" ]; then
-        IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
-        case "$AUDIT_KEY3" in
-          A|D) AUDIT_MENU_SELECTION=1 ;;
-          B|C) AUDIT_MENU_SELECTION=2 ;;
-        esac
+    *)
+      AUDIT_KEY_CODE=$(LC_ALL=C printf '%d' "'$AUDIT_KEY" 2>/dev/null || printf '0')
+      if [ "$AUDIT_KEY_CODE" -eq 27 ]; then
+        IFS= read -rsn1 -t 0.15 AUDIT_KEY2 || AUDIT_KEY2=""
+        if [ "$AUDIT_KEY2" = "[" ]; then
+          IFS= read -rsn1 -t 0.15 AUDIT_KEY3 || AUDIT_KEY3=""
+          case "$AUDIT_KEY3" in
+            A|D) AUDIT_MENU_SELECTION=1 ;;
+            B|C) AUDIT_MENU_SELECTION=2 ;;
+          esac
+        fi
       fi
       ;;
   esac

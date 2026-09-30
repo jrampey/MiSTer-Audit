@@ -228,3 +228,5 @@ For authoritative DAT-identified special releases, Preview/Apply uses the audit'
 <!-- Audit selector fix: arrow keys use a portable ESC variable and a complete ANSI sequence branch; syntax and regression checks cover the generated runtime. -->
 
 <!-- Audit selector compatibility: Escape is matched with Bash ANSI-C $'\\e', avoiding raw ESC bytes while preserving generated-runtime syntax. -->
+
+<!-- Audit selector hardening: Escape is detected by byte value (27), avoiding literal Escape and ANSI-C case-label encoding issues in generated/runtime files. -->
