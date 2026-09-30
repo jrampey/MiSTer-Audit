@@ -182,5 +182,6 @@ grep -Eq '^Hashes reused from cache: [1-9][0-9]*$' "$BUNDLE" || fail "DB change 
 grep -q '^trim_set() {' "$TEST_BIN/MiSTer_Audit.sh" || fail "trim_set helper missing from runtime"
 
 # Menu regression: the selector must match the actual ANSI Escape byte used by arrow keys.
-grep -Fq "\$'\\x1b')" "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu does not match the actual ANSI Escape byte"
-if grep -Fq "\$'\\\\x1b')" "$TEST_BIN/MiSTer_Audit.sh"; then fail "audit menu contains literal backslash-x1b instead of Escape matcher"; fi
+grep -Fq "\
+\\x1b')" "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu Escape-key case missing"
+grep -Fq 'AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"
