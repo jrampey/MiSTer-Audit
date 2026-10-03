@@ -236,3 +236,8 @@ For authoritative DAT-identified special releases, Preview/Apply uses the audit'
 <!-- Audit selector simplification: non-shortcut keys are parsed directly as possible ANSI arrow sequences; no Escape literal or numeric byte conversion is required. -->
 
 <!-- Audit selector regression: arrow-key handling uses direct ANSI sequence parsing; synthetic coverage verifies the CSI reader and avoids Escape-literal quoting. -->
+
+
+### Curated filename policy
+
+USA Retail/Standard ROMs stay in the parent system folder and use clean canonical filenames without the redundant `(USA)`, `(US)`, or `(U)` region marker. Meaningful canonical qualifiers such as revisions remain. Non-retail ROM types stay in their shared category subfolders and retain canonical identifying markers such as `(Unl)` and `(Proto)`.
