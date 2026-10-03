@@ -740,7 +740,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # every run. This keeps Fast Audit byte-for-byte equivalent to Full
       # Verification while still avoiding hash and DAT-record decoding work.
       special_release_category_set "$meta_release" "$meta_license" "${dat_rom:-$dat_name}"; special_category="$HOT_RESULT"
-      if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; proposed="$canonical_file"; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi
+      if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then retail_stem="$canonical_stem"; retail_stem="$(printf '%s' "$retail_stem" | sed -E 's/[[:space:]]+\((USA|US|U)\)//g; s/[[:space:]]+/ /g; s/^[[:space:]]+|[[:space:]]+$//g')"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
       curated_destination_set "$meta_folder" "$special_category"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"; printf '%s\t%s\t%s\n' "${meta_system:-$system}" "$dat_name" "$special_category" >> "$WORK.release_rows"
@@ -914,6 +914,7 @@ echo; echo "+--------------------------------------------------+"; echo "| AUDIT
 }
 
 
+
 run_update_tools() {
 # MiSTer-Audit-Update_v1.4.sh
 # Companion updater for MiSTer ROM Library Auditor v1.4
@@ -995,6 +996,7 @@ rollback(){ local manifest="$HISTORY/last_manifest.tsv" type old new result;[[ -
 echo "MiSTer ROM Library Updater v1.4";echo "=================================";echo "Updater build: $UPDATER_BUILD";echo "Script path:   $0";echo "1) Preview safe renames";echo "2) Apply safe renames (blocking collisions auto-skipped)";echo "3) View last preview summary";echo "4) Review last preview";echo "5) Review skipped items";echo "6) Roll back last applied cleanup";echo "7) Exit";IFS= read -rsn1 choice;echo;case "$choice" in 1)preview;;2)apply_plan;;3)view_summary;;4)review_preview;;5)review_skips;;6)rollback;;*)exit 0;;esac
 
 }
+
 
 
 runtime_build_id() {
