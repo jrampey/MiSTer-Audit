@@ -65,3 +65,6 @@ For DAT-identified USA Retail/Standard ROMs, Apply keeps the ROM in the parent s
 
 
 <!-- Runtime telemetry: audit progress elapsed time uses Bash SECONDS rather than wall-clock epoch subtraction. -->
+
+
+Apply accepts `PASS WITH WARNINGS` + `SAFE TO PREVIEW (COLLISIONS SKIPPED)` only when the integrity notes are collision-only. The blocking collision rows remain excluded from the mutation plan; non-collision warnings still block Apply.

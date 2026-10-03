@@ -246,3 +246,6 @@ USA Retail/Standard ROMs stay in the parent system folder and use clean canonica
 
 
 <!-- Progress timing: elapsed audit progress uses Bash SECONDS (monotonic within the process) so MiSTer clock/epoch state cannot produce bogus multi-million-minute timestamps. -->
+
+
+<!-- Apply compatibility: PASS WITH WARNINGS + SAFE TO PREVIEW (COLLISIONS SKIPPED) is eligible for Apply only when integrity notes are collision-only; blocking collision rows remain skipped. -->

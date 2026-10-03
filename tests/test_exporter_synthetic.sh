@@ -196,3 +196,6 @@ grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fai
 grep -Fq 'AUDIT_START_SECONDS=$SECONDS' "$TEST_BIN/MiSTer_Audit.sh" || fail "monotonic audit timer missing"
 grep -Fq 'now=$SECONDS' "$TEST_BIN/MiSTer_Audit.sh" || fail "progress timer is not monotonic"
 if grep -Fq 'now=$(date +%s)' "$TEST_BIN/MiSTer_Audit.sh"; then fail "wall-clock progress timer regression returned"; fi
+
+# Apply compatibility must accept the auditor's collision-only recommendation contract.
+grep -Fq '"SAFE TO PREVIEW (COLLISIONS SKIPPED)"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Apply does not recognize collision-only audit recommendation"

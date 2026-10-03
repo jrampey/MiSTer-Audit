@@ -193,3 +193,6 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 
 
 - Progress timing uses Bash `SECONDS` for elapsed-time display; do not derive `[MM:SS]` progress timestamps from wall-clock epoch values.
+
+
+- Apply compatibility recognizes the auditor-emitted `SAFE TO PREVIEW (COLLISIONS SKIPPED)` recommendation when the verdict is `PASS WITH WARNINGS` and integrity notes are collision-only. Blocking collision rows remain skipped; other warnings still block Apply.
