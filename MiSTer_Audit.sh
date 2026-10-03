@@ -914,7 +914,6 @@ echo; echo "+--------------------------------------------------+"; echo "| AUDIT
 }
 
 
-
 run_update_tools() {
 # MiSTer-Audit-Update_v1.4.sh
 # Companion updater for MiSTer ROM Library Auditor v1.4
@@ -998,7 +997,6 @@ echo "MiSTer ROM Library Updater v1.4";echo "=================================";
 }
 
 
-
 runtime_build_id() {
   local runtime_dir runtime_path digest
   runtime_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
@@ -1071,3 +1069,4 @@ case "${1:-}" in
   update|rename) run_update_tools ;;
   *) main_menu ;;
 esac
+
