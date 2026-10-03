@@ -60,3 +60,5 @@ Authoritative DAT-identified special releases use `curated_destination` during P
 ## Curated filename policy
 
 For DAT-identified USA Retail/Standard ROMs, Apply keeps the ROM in the parent system folder and removes the redundant `(USA)`, `(US)`, or `(U)` region marker from the filename. Meaningful canonical qualifiers such as `(Rev 1)` remain so distinct retail variants do not collapse together. Non-retail ROM types remain in their shared category subfolders and retain canonical identifying markers such as `(Unl)`, `(Proto)`, and other release-specific qualifiers.
+
+<!-- CI sync: generated runtime normalized to exact builder output; documented rename behavior remains unchanged. -->
