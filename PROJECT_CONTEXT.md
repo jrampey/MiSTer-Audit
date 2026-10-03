@@ -190,3 +190,6 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 <!-- Audit selector regression: arrow-key handling uses direct ANSI sequence parsing; synthetic coverage verifies the CSI reader and avoids Escape-literal quoting. -->
 
 <!-- CI sync: generated runtime normalized to exact builder output; no behavior or version change. -->
+
+
+- Progress timing uses Bash `SECONDS` for elapsed-time display; do not derive `[MM:SS]` progress timestamps from wall-clock epoch values.

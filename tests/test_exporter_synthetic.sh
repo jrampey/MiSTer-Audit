@@ -191,3 +191,8 @@ grep -q '^trim_set() {' "$TEST_BIN/MiSTer_Audit.sh" || fail "trim_set helper mis
 grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"
 grep -Fq 'if [ "$AUDIT_KEY2" = "[" ]; then' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI CSI handler missing"
 grep -Fq 'IFS= read -rsn1 -t 0.15 AUDIT_KEY2' "$TEST_BIN/MiSTer_Audit.sh" || fail "audit menu ANSI arrow sequence handler missing"
+
+# Progress elapsed time must use Bash SECONDS, not wall-clock epoch subtraction.
+grep -Fq 'AUDIT_START_SECONDS=$SECONDS' "$TEST_BIN/MiSTer_Audit.sh" || fail "monotonic audit timer missing"
+grep -Fq 'now=$SECONDS' "$TEST_BIN/MiSTer_Audit.sh" || fail "progress timer is not monotonic"
+if grep -Fq 'now=$(date +%s)' "$TEST_BIN/MiSTer_Audit.sh"; then fail "wall-clock progress timer regression returned"; fi

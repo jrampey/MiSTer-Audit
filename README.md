@@ -243,3 +243,6 @@ For authoritative DAT-identified special releases, Preview/Apply uses the audit'
 USA Retail/Standard ROMs stay in the parent system folder and use clean canonical filenames without the redundant `(USA)`, `(US)`, or `(U)` region marker. Meaningful canonical qualifiers such as revisions remain. Non-retail ROM types stay in their shared category subfolders and retain canonical identifying markers such as `(Unl)` and `(Proto)`.
 
 <!-- CI sync: generated runtime normalized to exact builder output; curated filename behavior remains unchanged. -->
+
+
+<!-- Progress timing: elapsed audit progress uses Bash SECONDS (monotonic within the process) so MiSTer clock/epoch state cannot produce bogus multi-million-minute timestamps. -->
