@@ -55,3 +55,8 @@ After Apply or Rollback, rerun the auditor to verify the library state.
 ## Curated destination moves
 
 Authoritative DAT-identified special releases use `curated_destination` during Preview/Apply. Retail/Standard games remain in their current system parent folder. Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified games move into the matching category subfolder. Paired saves mirror that category beneath their existing save-system folder. Missing category directories are created only during Apply after the normal audit handshake and explicit `APPLY` confirmation. Existing targets, duplicate targets, collision-blocked rows, unsafe paths, and CUE/BIN restrictions are still skipped.
+
+
+## Curated filename policy
+
+For DAT-identified USA Retail/Standard ROMs, Apply keeps the ROM in the parent system folder and removes the redundant `(USA)`, `(US)`, or `(U)` region marker from the filename. Meaningful canonical qualifiers such as `(Rev 1)` remain so distinct retail variants do not collapse together. Non-retail ROM types remain in their shared category subfolders and retain canonical identifying markers such as `(Unl)`, `(Proto)`, and other release-specific qualifiers.
