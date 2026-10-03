@@ -101,6 +101,12 @@ grep -Fq 'Synthetic NES 0000' "$CATALOG" || fail "first-system sentinel missing"
 grep -Fq 'Synthetic TGFX16 0119' "$CATALOG" || fail "hashed-system sentinel missing"
 grep -Fq 'Super 3D Noah' "$CATALOG" || fail "first canonical-collision source missing"
 grep -Fq "Super Noah's Ark 3D (U) .smc" "$CATALOG" || fail "second canonical-collision source missing"
+# Curated naming: USA Retail/Standard lives in the system root with the USA
+# region marker removed, while special releases retain their identifying marker.
+grep -Fq '"Canonical Variant (Rev 1).sfc"' "$AUDIT/proposed_renames.csv" || fail "USA retail canonical filename was not cleaned"
+grep -Fq '"Canonical Variant (Rev 2).sfc"' "$AUDIT/proposed_renames.csv" || fail "USA retail revision marker was not preserved"
+grep -Fq '"Super Noah' "$AUDIT/proposed_renames.csv" || fail "special-release canonical proposal missing"
+grep -Fq '(Unl).sfc' "$AUDIT/proposed_renames.csv" || fail "special-release category marker was not preserved"
 grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
 grep -Eq '"(Homebrew|Unlicensed)","SNES/(Homebrew|Unlicensed)"' "$AUDIT/proposed_renames.csv" || fail "special-release curated destination missing from rename proposals"
 # Curated folders are release-type buckets only: <system>/<ROM type>. Retail/Standard
