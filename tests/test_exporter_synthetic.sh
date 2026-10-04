@@ -141,7 +141,7 @@ done
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
 # Unknown-region rows must be reported and applied into a dedicated system bucket.
 grep -Eq '"Unknown","[^"]+","[^"]+","Retail/Standard","[^"]+/!Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
-grep -Fq '"$region" == "Unknown"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater Unknown-region routing missing"
+grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater regional curated-destination routing missing"
 grep -Fq '!Unknown Region' "$AUDIT/proposed_renames.csv" || fail "Unknown-region folder is not sort-prefixed"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
