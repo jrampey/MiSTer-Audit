@@ -494,12 +494,24 @@ special_release_category_set() {
   esac
 }
 curated_destination_set() {
-  local folder="$1" category="$2"
+  local folder="$1" category="$2" region="${3:-Unknown}" region_folder=""
   [ -n "$folder" ] || { HOT_RESULT="Unknown"; return; }
-  case "$category" in
-    "Retail/Standard") HOT_RESULT="$folder" ;;
-    *) HOT_RESULT="$folder/!$category" ;;
+  # Release type has priority over geography. Ordinary retail is organized by
+  # resolved No-Intro region, while USA retail remains the clean parent list.
+  if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi
+  case "$region" in
+    USA) HOT_RESULT="$folder"; return ;;
+    Japan) region_folder="Japan" ;;
+    Europe) region_folder="Europe" ;;
+    World) region_folder="World" ;;
+    Canada) region_folder="Canada" ;;
+    Australia) region_folder="Australia" ;;
+    Korea) region_folder="Korea" ;;
+    Brazil) region_folder="Brazil" ;;
+    Unknown|"") region_folder="Unknown Region" ;;
+    *) region_folder="Other Regions" ;;
   esac
+  HOT_RESULT="$folder/!$region_folder"
 }
 
 
@@ -736,7 +748,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # Verification while still avoiding hash and DAT-record decoding work.
       special_release_category_set "$meta_release" "$meta_license" "${dat_rom:-$dat_name}"; special_category="$HOT_RESULT"
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then retail_stem="$canonical_stem"; retail_stem="$(printf '%s' "$retail_stem" | sed -E 's/[[:space:]]+\((USA|US|U)\)//g; s/[[:space:]]+/ /g; s/^[[:space:]]+|[[:space:]]+$//g')"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
-      curated_destination_set "$meta_folder" "$special_category"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
+      curated_destination_set "$meta_folder" "$special_category" "$region"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"; printf '%s\t%s\t%s\n' "${meta_system:-$system}" "$dat_name" "$special_category" >> "$WORK.release_rows"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; csv_row "$STAGE_REVIEW_QUEUE" "$system" "$p" "$file" "$system" "$unmatched_class" "Review identity / DAT coverage"; fi
@@ -758,9 +770,9 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     collision="Inventory only - unmatched ROM"
   fi
 
-  # Unknown-region ROMs use a dedicated location bucket regardless of release type.
-  # This keeps uncertain-region material out of the clean system parent folder.
-  if [ "$region" = "Unknown" ]; then curated_destination="$system/!Unknown Region"; fi
+  # Unmatched ROMs have no authoritative region. Keep them in Unknown Region
+  # rather than guessing from filenames; a future DAT match can migrate them.
+  if [ "$authoritative" -ne 1 ]; then curated_destination="$system/!Unknown Region"; fi
 
   save_count=0; save_key="${stem,,}"
   if [ -n "$save_key" ] && [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY" "$special_category" "$curated_destination"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
