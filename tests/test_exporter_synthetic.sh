@@ -5,8 +5,8 @@ ROOT="${RUNNER_TEMP:-/tmp}/mister-synthetic"
 AUDIT="$ROOT/GameLibraryAudit"
 BUNDLE="$AUDIT/MiSTer_Library_Audit.txt"
 CATALOG="$AUDIT/library_catalog.csv"
-EXPECTED_DISCOVERED=6575
-EXPECTED_SKIPPED=106
+EXPECTED_DISCOVERED=6576
+EXPECTED_SKIPPED=107
 EXPECTED_CATALOGED=6469
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
@@ -17,6 +17,9 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 rm -rf "$ROOT"
 mkdir -p "$ROOT"
 python3 tests/build_synthetic_library.py "$ROOT"
+# Regression fixtures for regional routing safety.
+mv "$ROOT/games/NES/Synthetic NES 0001 (USA).nes" "$ROOT/games/NES/Synthetic NES 0001 [Unknown Region].nes"
+printf 'project documentation\n' > "$ROOT/games/MegaDrive/README.md"
 
 before_games=$(find "$ROOT/games" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
 before_saves=$(find "$ROOT/saves" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
@@ -143,6 +146,31 @@ grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail
 grep -Eq '"Unknown","[^"]+","[^"]+","Retail/Standard","[^"]+/!Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater regional curated-destination routing missing"
 grep -Fq '!Unknown Region' "$AUDIT/proposed_renames.csv" || fail "Unknown-region folder is not sort-prefixed"
+python3 - "$AUDIT/proposed_renames.csv" "$AUDIT/library_catalog.csv" "$AUDIT/support_files.csv" <<'PY'
+import csv, sys
+renames, catalog, support = sys.argv[1:]
+with open(renames, newline="") as f:
+    rows = list(csv.DictReader(f))
+legacy = next((r for r in rows if r["original_path"].endswith("Synthetic NES 0001 [Unknown Region].nes")), None)
+if legacy is None:
+    raise SystemExit("ERROR: legacy Unknown Region fixture missing")
+if legacy["proposed_filename"] != "Synthetic NES 0001 [Unknown Region].nes":
+    raise SystemExit("ERROR: Unknown Region filename marker stacked or changed")
+if legacy["curated_destination"] != "NES/!Unknown Region":
+    raise SystemExit("ERROR: unmatched eligible ROM not routed to !Unknown Region")
+for r in rows:
+    if r["system"] == "GameGear":
+        if r["proposed_filename"] != r["original_path"].rsplit("/", 1)[-1]:
+            raise SystemExit("ERROR: unsupported inventory received a rename proposal")
+        if r["curated_destination"] not in ("", "Unknown"):
+            raise SystemExit("ERROR: unsupported inventory received a curated destination")
+with open(catalog, newline="") as f:
+    if any(r["original_filename"].lower() == "readme.md" for r in csv.DictReader(f)):
+        raise SystemExit("ERROR: README.md was cataloged as a Mega Drive ROM")
+with open(support, newline="") as f:
+    if not any(r.get("filename","").lower() == "readme.md" for r in csv.DictReader(f)):
+        raise SystemExit("ERROR: README.md was not classified as support")
+PY
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
 # derived associative-array subscript. Keep that unsafe pattern out permanently.

@@ -205,3 +205,5 @@ Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, a
 - Regional retail routing: authoritative DAT-identified Retail/Standard ROMs keep USA in the system parent; Japan/Europe/World/Canada/Australia/Korea/Brazil use `!<Region>` subfolders, other known regions use `!Other Regions`, and unmatched/unresolved ROMs use `!Unknown Region`. Special ROM-type categories take precedence over region.
 
 <!-- CI synchronization: regional curated-destination regression guard updated for generalized region routing. -->
+
+- Unknown Region safety: only hash/DAT-eligible ROMs may be routed to `!Unknown Region`; unsupported inventory is never region-routed. Unmatched eligible ROMs preserve their exact current filename until authoritative DAT identification, and legacy `[Unknown Region]` markers must remain idempotent.

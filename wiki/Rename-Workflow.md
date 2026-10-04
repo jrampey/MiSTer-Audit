@@ -81,3 +81,7 @@ Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, a
 Authoritative DAT region metadata controls ordinary Retail/Standard placement. USA retail remains in the clean system parent. Japan, Europe, World, Canada, Australia, Korea, and Brazil retail releases move to matching `!<Region>` folders; other known regions use `!Other Regions`. ROMs without an authoritative DAT match remain in `!Unknown Region` until identification improves. Special release categories take precedence, so a Japanese prototype remains in `!Prototype` rather than `!Japan`.
 
 <!-- CI synchronization: regional curated-destination regression guard updated for generalized region routing. -->
+
+
+## Unknown Region safety
+Only hash/DAT-eligible ROMs participate in `!Unknown Region` routing. Unsupported inventory, documentation, and disc/machine media that cannot use the ROM hash path stay where they are and receive no regional rename. An unmatched eligible ROM keeps its exact current filename while it is moved to `!Unknown Region`; later authoritative DAT identification may move/rename it to the correct destination. Existing `[Unknown Region]` filename markers are never duplicated.

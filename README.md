@@ -264,3 +264,7 @@ DAT-identified Retail/Standard ROMs use authoritative No-Intro region metadata f
 <!-- Regional routing runtime synchronization validated after generated-runtime rebuild. -->
 
 <!-- CI synchronization: regional curated-destination regression guard updated for generalized region routing. -->
+
+
+### Unknown Region safety
+Regional organization applies only to ROMs eligible for the hash/DAT identification path. Unsupported inventory such as disc media, machine files, and documentation is not moved or renamed by Unknown Region handling. Unmatched eligible ROMs may be placed in `!Unknown Region`, but their existing filename is preserved exactly until a DAT match supplies authoritative identity. Existing `[Unknown Region]` markers are treated idempotently and are never stacked.
