@@ -42,6 +42,14 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
   "SNES" "SNES" "SNES" "USA" "Homebrew/Unlicensed" "Unlicensed" \
   >> "$TEST_BIN/mister_hash_database.tsv"
 
+# Dedicated Unknown-region routing regression. Give one synthetic ROM an authoritative
+# DAT record with Unknown region so the generated proposal can be asserted end-to-end.
+unknown_path="$ROOT/games/NES/Synthetic NES 0000 (USA).nes"; unknown_sha=$(sha1sum "$unknown_path" | awk '{print $1}')
+printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\
+  "$unknown_sha" "Synthetic Unknown Region" "Synthetic Unknown Region.nes" "Synthetic Unknown Region regression" \\
+  "20" "00000000" "00000000000000000000000000000000" "NES" "NES" "NES" "Unknown" "Retail/Standard" "Licensed/Official" \\
+  >> "$TEST_BIN/mister_hash_database.tsv"
+
 for rev in 1 2; do
   vp="$ROOT/games/SNES/Canonical Variant (USA) (Rev $rev).sfc"; vh=$(sha1sum "$vp" | awk '{print $1}')
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$vh" "Canonical Variant (USA) (Rev $rev)" "Canonical Variant (USA) (Rev $rev).sfc" "Synthetic Issue #7" "12" "00000000" "00000000000000000000000000000000" "SNES" "SNES" "SNES" "USA" "Revision" "Licensed" >> "$TEST_BIN/mister_hash_database.tsv"
@@ -108,7 +116,7 @@ grep -Fq '"Canonical Variant (Rev 2).sfc"' "$AUDIT/proposed_renames.csv" || fail
 grep -Fq '"Super Noah' "$AUDIT/proposed_renames.csv" || fail "special-release canonical proposal missing"
 grep -Fq '(Unl).sfc' "$AUDIT/proposed_renames.csv" || fail "special-release category marker was not preserved"
 grep -Fq 'Synthetic GameGear 05742' "$CATALOG" || fail "tail sentinel missing"
-grep -Eq '"(Homebrew|Unlicensed)","SNES/(Homebrew|Unlicensed)"' "$AUDIT/proposed_renames.csv" || fail "special-release curated destination missing from rename proposals"
+grep -Eq '"(Homebrew|Unlicensed)","SNES/!(Homebrew|Unlicensed)"' "$AUDIT/proposed_renames.csv" || fail "special-release curated destination missing from rename proposals"
 # Curated folders are release-type buckets only: <system>/<ROM type>. Retail/Standard
 # remains directly in the system folder. Never create genre or per-ROM directories.
 python3 - "$AUDIT/proposed_renames.csv" <<'PY'
@@ -126,7 +134,7 @@ with open(sys.argv[1], newline="") as f:
         if category not in allowed:
             raise SystemExit(f"ERROR: non-ROM-type curated category: {category}")
         parts = destination.split("/")
-        if len(parts) != 2 or parts[0] != system or parts[1] != category:
+        if len(parts) != 2 or parts[0] != system or parts[1] != "!" + category:
             raise SystemExit(f"ERROR: curated destination must be exactly <system>/<ROM type>: {destination}")
 PY
 grep -Fq '"special_release_category","curated_destination"' "$AUDIT/dat_matches.csv" || fail "DAT match report missing ROM-type reporting columns"
@@ -135,8 +143,8 @@ for category in "Retail/Standard" "Homebrew" "Unlicensed" "Aftermarket" "Prototy
 done
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
 # Unknown-region rows must be reported and applied into a dedicated system bucket.
-grep -Eq '"Unknown","Retail/Standard","REVIEW ONLY","Retail/Standard","[^"]+/Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
-grep -Fq '"$region" == "Unknown"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater Unknown-region routing missing"
+grep -Eq '"Unknown","Retail/Standard","REVIEW ONLY","Retail/Standard","[^"]+/!Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
+grep -Fq '"$region" == "Unknown"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater Unknown-region routing missing"\ngrep -Fq '!Unknown Region' "$AUDIT/proposed_renames.csv" || fail "Unknown-region folder is not sort-prefixed"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
 # derived associative-array subscript. Keep that unsafe pattern out permanently.
