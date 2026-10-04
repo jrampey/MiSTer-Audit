@@ -499,12 +499,24 @@ special_release_category_set() {
   esac
 }
 curated_destination_set() {
-  local folder="$1" category="$2"
+  local folder="$1" category="$2" region="${3:-Unknown}" region_folder=""
   [ -n "$folder" ] || { HOT_RESULT="Unknown"; return; }
-  case "$category" in
-    "Retail/Standard") HOT_RESULT="$folder" ;;
-    *) HOT_RESULT="$folder/!$category" ;;
+  # Release type has priority over geography. Ordinary retail is organized by
+  # resolved No-Intro region, while USA retail remains the clean parent list.
+  if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi
+  case "$region" in
+    USA) HOT_RESULT="$folder"; return ;;
+    Japan) region_folder="Japan" ;;
+    Europe) region_folder="Europe" ;;
+    World) region_folder="World" ;;
+    Canada) region_folder="Canada" ;;
+    Australia) region_folder="Australia" ;;
+    Korea) region_folder="Korea" ;;
+    Brazil) region_folder="Brazil" ;;
+    Unknown|"") region_folder="Unknown Region" ;;
+    *) region_folder="Other Regions" ;;
   esac
+  HOT_RESULT="$folder/!$region_folder"
 }
 
 
@@ -741,7 +753,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # Verification while still avoiding hash and DAT-record decoding work.
       special_release_category_set "$meta_release" "$meta_license" "${dat_rom:-$dat_name}"; special_category="$HOT_RESULT"
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then retail_stem="$canonical_stem"; retail_stem="$(printf '%s' "$retail_stem" | sed -E 's/[[:space:]]+\((USA|US|U)\)//g; s/[[:space:]]+/ /g; s/^[[:space:]]+|[[:space:]]+$//g')"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
-      curated_destination_set "$meta_folder" "$special_category"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
+      curated_destination_set "$meta_folder" "$special_category" "$region"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"; printf '%s\t%s\t%s\n' "${meta_system:-$system}" "$dat_name" "$special_category" >> "$WORK.release_rows"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; csv_row "$STAGE_REVIEW_QUEUE" "$system" "$p" "$file" "$system" "$unmatched_class" "Review identity / DAT coverage"; fi
@@ -763,9 +775,9 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     collision="Inventory only - unmatched ROM"
   fi
 
-  # Unknown-region ROMs use a dedicated location bucket regardless of release type.
-  # This keeps uncertain-region material out of the clean system parent folder.
-  if [ "$region" = "Unknown" ]; then curated_destination="$system/!Unknown Region"; fi
+  # Unmatched ROMs have no authoritative region. Keep them in Unknown Region
+  # rather than guessing from filenames; a future DAT match can migrate them.
+  if [ "$authoritative" -ne 1 ]; then curated_destination="$system/!Unknown Region"; fi
 
   save_count=0; save_key="${stem,,}"
   if [ -n "$save_key" ] && [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY" "$special_category" "$curated_destination"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
@@ -970,7 +982,7 @@ build_plan(){
  :>"$PLAN"; :>"$SKIPS"; printf 'type\told_path\tnew_path\n'>"$PLAN"; printf 'type\tpath\treason\n'>"$SKIPS"; declare -A TARGETS BLOCKED_GAMES; local line old proposed new dir ext type block_path block_reason game_path region special_category curated_destination processed=0 total=0
  classify_blocking_games||return 1; while IFS=$'\t' read -r block_path block_reason;do [[ -n "$block_path" ]]&&BLOCKED_GAMES["$block_path"]="$block_reason";done<"$BLOCKLIST"
  [[ -f "$GAME_CSV" ]]||{ echo "Missing $GAME_CSV"; return 1; }; total=$(( $(wc -l <"$GAME_CSV")-1)); ((total<0))&&total=0; stage "$STAGE_GAME" "Building safe game rename plan..."; echo "  Game proposals: $total"
- while IFS= read -r line||[[ -n "$line" ]];do [[ "$line" == '"system"'* ]]&&continue; parse_csv "$line"; processed=$((processed+1)); ((processed%HEARTBEAT_EVERY==0))&&echo "  Processed $processed / $total game proposals..."; old="${CSV_FIELDS[1]}"; proposed="${CSV_FIELDS[2]}"; region="${CSV_FIELDS[3]:-Unknown}"; special_category="${CSV_FIELDS[6]:-Retail/Standard}"; curated_destination="${CSV_FIELDS[7]:-}"; type=GAME; if [[ -n "${BLOCKED_GAMES["$old"]+x}" ]];then printf '%s\t%s\t%s\n' "$type" "$old" "${BLOCKED_GAMES["$old"]}">>"$SKIPS";continue;fi; safe_under "$old" "$GAMES"||{ printf '%s\t%s\t%s\n' "$type" "$old" "outside games root">>"$SKIPS";continue; }; unsafe_name "$proposed"&&{ printf '%s\t%s\t%s\n' "$type" "$old" "unsafe proposed filename">>"$SKIPS";continue; }; ext="${old##*.}";ext="${ext,,}"; [[ "$ext" == cue ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "CUE/BIN set rename disabled">>"$SKIPS";continue; }; [[ -e "$old" ]]||{ printf '%s\t%s\t%s\n' "$type" "$old" "source missing">>"$SKIPS";continue; };dir="${old%/*}"; if [[ ( "$special_category" != "Retail/Standard" || "$region" == "Unknown" ) && -n "$curated_destination" && "$curated_destination" != "Unknown" && "$curated_destination" != /* && "$curated_destination" != *".."* ]]; then dir="$GAMES/$curated_destination"; fi; new="$dir/$proposed";[[ "$old" == "$new" ]]&&continue;[[ -e "$new" ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "target already exists: $new">>"$SKIPS";continue; };[[ -n "${TARGETS["$new"]+x}" ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new">>"$SKIPS";continue; };TARGETS["$new"]="$old";printf '%s\t%s\t%s\n' "$type" "$old" "$new">>"$PLAN";done<"$GAME_CSV"; echo "  Processed $processed / $total game proposals."
+ while IFS= read -r line||[[ -n "$line" ]];do [[ "$line" == '"system"'* ]]&&continue; parse_csv "$line"; processed=$((processed+1)); ((processed%HEARTBEAT_EVERY==0))&&echo "  Processed $processed / $total game proposals..."; old="${CSV_FIELDS[1]}"; proposed="${CSV_FIELDS[2]}"; region="${CSV_FIELDS[3]:-Unknown}"; special_category="${CSV_FIELDS[6]:-Retail/Standard}"; curated_destination="${CSV_FIELDS[7]:-}"; type=GAME; if [[ -n "${BLOCKED_GAMES["$old"]+x}" ]];then printf '%s\t%s\t%s\n' "$type" "$old" "${BLOCKED_GAMES["$old"]}">>"$SKIPS";continue;fi; safe_under "$old" "$GAMES"||{ printf '%s\t%s\t%s\n' "$type" "$old" "outside games root">>"$SKIPS";continue; }; unsafe_name "$proposed"&&{ printf '%s\t%s\t%s\n' "$type" "$old" "unsafe proposed filename">>"$SKIPS";continue; }; ext="${old##*.}";ext="${ext,,}"; [[ "$ext" == cue ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "CUE/BIN set rename disabled">>"$SKIPS";continue; }; [[ -e "$old" ]]||{ printf '%s\t%s\t%s\n' "$type" "$old" "source missing">>"$SKIPS";continue; };dir="${old%/*}"; if [[ -n "$curated_destination" && "$curated_destination" != "Unknown" && "$curated_destination" != /* && "$curated_destination" != *".."* ]]; then dir="$GAMES/$curated_destination"; fi; new="$dir/$proposed";[[ "$old" == "$new" ]]&&continue;[[ -e "$new" ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "target already exists: $new">>"$SKIPS";continue; };[[ -n "${TARGETS["$new"]+x}" ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new">>"$SKIPS";continue; };TARGETS["$new"]="$old";printf '%s\t%s\t%s\n' "$type" "$old" "$new">>"$PLAN";done<"$GAME_CSV"; echo "  Processed $processed / $total game proposals."
  stage "$STAGE_SAVE" "Building paired save rename plan..."; if [[ -f "$SAVE_CSV" ]];then total=$(( $(wc -l <"$SAVE_CSV")-1));((total<0))&&total=0;processed=0;echo "  Save proposals: $total";while IFS= read -r line||[[ -n "$line" ]];do [[ "$line" == '"system"'* ]]&&continue;parse_csv "$line";processed=$((processed+1));game_path="${CSV_FIELDS[1]}";old="${CSV_FIELDS[2]}";proposed="${CSV_FIELDS[3]}";special_category="${CSV_FIELDS[6]:-Retail/Standard}";type=SAVE;if [[ -n "${BLOCKED_GAMES["$game_path"]+x}" ]];then printf '%s\t%s\t%s\n' "$type" "$old" "game rename skipped: ${BLOCKED_GAMES["$game_path"]}">>"$SKIPS";continue;fi;safe_under "$old" "$SAVES"||{ printf '%s\t%s\t%s\n' "$type" "$old" "outside saves root">>"$SKIPS";continue;};unsafe_name "$proposed"&&{ printf '%s\t%s\t%s\n' "$type" "$old" "unsafe proposed filename">>"$SKIPS";continue;};[[ -e "$old" ]]||{ printf '%s\t%s\t%s\n' "$type" "$old" "source missing">>"$SKIPS";continue;};dir="${old%/*}"; if [[ "$special_category" != "Retail/Standard" && -n "$special_category" && "$special_category" != *"/"* && "$special_category" != *".."* ]]; then dir="$dir/$special_category"; fi; new="$dir/$proposed";[[ "$old" == "$new" ]]&&continue;[[ -e "$new" ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "target already exists: $new">>"$SKIPS";continue;};[[ -n "${TARGETS["$new"]+x}" ]]&&{ printf '%s\t%s\t%s\n' "$type" "$old" "duplicate proposed target: $new">>"$SKIPS";continue;};TARGETS["$new"]="$old";printf '%s\t%s\t%s\n' "$type" "$old" "$new">>"$PLAN";done<"$SAVE_CSV";echo "  Processed $processed / $total save proposals.";else echo "  No save proposal file found; continuing.";fi
 }
 plan_counts(){ PLAN_N=$(( $(wc -l <"$PLAN" 2>/dev/null)-1)); SKIP_N=$(( $(wc -l <"$SKIPS" 2>/dev/null)-1)); ((PLAN_N<0))&&PLAN_N=0; ((SKIP_N<0))&&SKIP_N=0; COLLISION_N=$(awk -F'\t' 'NR>1&&$3~/^blocking collision:|^game rename skipped: blocking collision:/{n++}END{print n+0}' "$SKIPS" 2>/dev/null); }
