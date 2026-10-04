@@ -17,7 +17,7 @@ fail() { echo "ERROR: $*" >&2; exit 1; }
 rm -rf "$ROOT"
 mkdir -p "$ROOT"
 python3 tests/build_synthetic_library.py "$ROOT"
-# Regression fixtures for regional routing safety.
+# Unknown Region safety regressions.
 mv "$ROOT/games/NES/Synthetic NES 0001 (USA).nes" "$ROOT/games/NES/Synthetic NES 0001 [Unknown Region].nes"
 printf 'project documentation\n' > "$ROOT/games/MegaDrive/README.md"
 
@@ -155,7 +155,7 @@ legacy = next((r for r in rows if r["original_path"].endswith("Synthetic NES 000
 if legacy is None:
     raise SystemExit("ERROR: legacy Unknown Region fixture missing")
 if legacy["proposed_filename"] != "Synthetic NES 0001 [Unknown Region].nes":
-    raise SystemExit("ERROR: Unknown Region filename marker stacked or changed")
+    raise SystemExit("ERROR: unmatched Unknown Region filename was changed or stacked")
 if legacy["curated_destination"] != "NES/!Unknown Region":
     raise SystemExit("ERROR: unmatched eligible ROM not routed to !Unknown Region")
 for r in rows:

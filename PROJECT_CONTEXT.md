@@ -206,8 +206,4 @@ Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, a
 
 <!-- CI synchronization: regional curated-destination regression guard updated for generalized region routing. -->
 
-- Unknown Region safety: only hash/DAT-eligible ROMs may be routed to `!Unknown Region`; unsupported inventory is never region-routed. Unmatched eligible ROMs preserve their exact current filename until authoritative DAT identification, and legacy `[Unknown Region]` markers must remain idempotent.
-
-<!-- Unknown Region cleaner syntax synchronized with generated runtime. -->
-
-<!-- Restored validated legacy clean-title parser while retaining Unknown Region safety in the active classifier. -->
+- Unknown Region safety: only hash/DAT-eligible ROMs route to `!Unknown Region`; unsupported inventory remains untouched. Unmatched eligible ROMs preserve their exact current filename until authoritative DAT identification.
