@@ -85,3 +85,6 @@ Authoritative DAT region metadata controls ordinary Retail/Standard placement. U
 
 ## Unknown Region safety
 Only hash/DAT-eligible ROMs participate in `!Unknown Region` routing. Unsupported inventory, documentation, disc media, and machine/support files stay in place without a regional rename. Unmatched eligible ROMs keep their exact current filename until a DAT match provides authoritative identity.
+
+
+Support/documentation rows collected during classification are retained in `support_files.csv`; report setup does not overwrite them.
