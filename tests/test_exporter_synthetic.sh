@@ -45,10 +45,7 @@ printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
 # Dedicated Unknown-region routing regression. Give one synthetic ROM an authoritative
 # DAT record with Unknown region so the generated proposal can be asserted end-to-end.
 unknown_path="$ROOT/games/NES/Synthetic NES 0000 (USA).nes"; unknown_sha=$(sha1sum "$unknown_path" | awk '{print $1}')
-printf '%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\t%s\\n' \\
-  "$unknown_sha" "Synthetic Unknown Region" "Synthetic Unknown Region.nes" "Synthetic Unknown Region regression" \\
-  "20" "00000000" "00000000000000000000000000000000" "NES" "NES" "NES" "Unknown" "Retail/Standard" "Licensed/Official" \\
-  >> "$TEST_BIN/mister_hash_database.tsv"
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$unknown_sha" "Synthetic Unknown Region" "Synthetic Unknown Region.nes" "Synthetic Unknown Region regression" "20" "00000000" "00000000000000000000000000000000" "NES" "NES" "NES" "Unknown" "Retail/Standard" "Licensed/Official" >> "$TEST_BIN/mister_hash_database.tsv"
 
 for rev in 1 2; do
   vp="$ROOT/games/SNES/Canonical Variant (USA) (Rev $rev).sfc"; vh=$(sha1sum "$vp" | awk '{print $1}')
