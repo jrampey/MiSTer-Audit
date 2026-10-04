@@ -151,7 +151,7 @@ import csv, sys
 renames, catalog, support = sys.argv[1:]
 with open(renames, newline="") as f:
     rows = list(csv.DictReader(f))
-legacy = next((r for r in rows if r["original_path"].endswith("Synthetic NES 0001 [Unknown Region].nes")), None)
+legacy = next((r for r in rows if r["current_path"].endswith("Synthetic NES 0001 [Unknown Region].nes")), None)
 if legacy is None:
     raise SystemExit("ERROR: legacy Unknown Region fixture missing")
 if legacy["proposed_filename"] != "Synthetic NES 0001 [Unknown Region].nes":
@@ -160,7 +160,7 @@ if legacy["curated_destination"] != "NES/!Unknown Region":
     raise SystemExit("ERROR: unmatched eligible ROM not routed to !Unknown Region")
 for r in rows:
     if r["system"] == "GameGear":
-        if r["proposed_filename"] != r["original_path"].rsplit("/", 1)[-1]:
+        if r["proposed_filename"] != r["current_path"].rsplit("/", 1)[-1]:
             raise SystemExit("ERROR: unsupported inventory received a rename proposal")
         if r["curated_destination"] not in ("", "Unknown"):
             raise SystemExit("ERROR: unsupported inventory received a curated destination")
@@ -168,7 +168,7 @@ with open(catalog, newline="") as f:
     if any(r["original_filename"].lower() == "readme.md" for r in csv.DictReader(f)):
         raise SystemExit("ERROR: README.md was cataloged as a Mega Drive ROM")
 with open(support, newline="") as f:
-    if not any(r.get("filename","").lower() == "readme.md" for r in csv.DictReader(f)):
+    if not any(r.get("original_filename","").lower() == "readme.md" for r in csv.DictReader(f)):
         raise SystemExit("ERROR: README.md was not classified as support")
 PY
 
