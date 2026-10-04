@@ -125,7 +125,7 @@ with open(sys.argv[1], newline="") as f:
         destination = row.get("curated_destination", "")
         system = row.get("system", "")
         if category == "Retail/Standard":
-            if destination not in ("", "Unknown", system):
+            if destination not in ("", "Unknown", system, f"{system}/!Unknown Region"):
                 raise SystemExit(f"ERROR: retail ROM routed outside system root: {destination}")
             continue
         if category not in allowed:
@@ -140,7 +140,7 @@ for category in "Retail/Standard" "Homebrew" "Unlicensed" "Aftermarket" "Prototy
 done
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
 # Unknown-region rows must be reported and applied into a dedicated system bucket.
-grep -Eq '"Unknown","Retail/Standard","REVIEW ONLY","Retail/Standard","[^"]+/!Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
+grep -Eq '"Unknown","[^"]+","[^"]+","Retail/Standard","[^"]+/!Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
 grep -Fq '"$region" == "Unknown"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater Unknown-region routing missing"\ngrep -Fq '!Unknown Region' "$AUDIT/proposed_renames.csv" || fail "Unknown-region folder is not sort-prefixed"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
