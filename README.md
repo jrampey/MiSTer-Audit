@@ -253,4 +253,6 @@ USA Retail/Standard ROMs stay in the parent system folder and use clean canonica
 
 ### Unknown-region placement
 ROMs whose region remains `Unknown` are assigned to `<System>/!Unknown Region` instead of the system parent directory. Apply creates that folder as needed. USA Retail/Standard ROMs continue to remain directly in the system parent folder; known-region special releases continue to use their ROM-type category folders.
-\nCurated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, and `!Unknown Region`) so they sort ahead of normal ROM entries in MiSTer file lists.\n
+
+
+Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, and `!Unknown Region`) so they sort ahead of normal ROM entries in MiSTer file lists.
