@@ -75,3 +75,7 @@ Rows whose resolved region is `Unknown` are routed to `<System>/!Unknown Region`
 
 
 Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, and `!Unknown Region`) so they sort ahead of normal ROM entries in MiSTer file lists.
+
+
+## Regional retail routing
+Authoritative DAT region metadata controls ordinary Retail/Standard placement. USA retail remains in the clean system parent. Japan, Europe, World, Canada, Australia, Korea, and Brazil retail releases move to matching `!<Region>` folders; other known regions use `!Other Regions`. ROMs without an authoritative DAT match remain in `!Unknown Region` until identification improves. Special release categories take precedence, so a Japanese prototype remains in `!Prototype` rather than `!Japan`.
