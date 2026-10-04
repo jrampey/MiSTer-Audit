@@ -637,6 +637,7 @@ echo "[3/5] Loading hash database..."; build_active_dat_systems; build_dat_index
 
 declare -A CLASS_DISCOVERY_SIG; while IFS=$'\t' read -r dp ds; do [ "$dp" = "format" ] && continue; [ -n "$dp" ] && CLASS_DISCOVERY_SIG["$dp"]="$ds"; done < "$DISCOVERY_SNAPSHOT_NEW"
 echo "[4/5] Classifying titles and collisions..."; : > "$PLAN"; : > "$WORK.hashjobs"; declare -A NAME_COUNTS; SKIPPED=0; CLASSIFIED=0
+printf '%s\n' '"system","full_path","original_filename","support_class"' > "$STAGE_SUPPORT_REPORT"
 printf 'format\t%s\n' "$CLASS_CACHE_FORMAT" > "$CLASS_CACHE_NEW"
 while IFS= read -r p; do
   [ -z "$p" ] && continue
@@ -706,7 +707,6 @@ printf '%s\n' '"sha1","system","full_path","original_filename","clean_title"' > 
 printf '%s\n' '"sha1","system","full_path","original_filename","canonical_name","dat_rom_name","dat_source","mister_system","mister_core","expected_folder","region","release_type","license_status","special_release_category","curated_destination"' > "$STAGE_DAT_MATCH"
 printf '%s\n' '"sha1","system","full_path","original_filename","unmatched_class"' > "$STAGE_DAT_UNMATCHED"
 printf '%s\n' '"system","full_path","original_filename","probable_system","reason","suggested_action"' > "$STAGE_REVIEW_QUEUE"
-printf '%s\n' '"system","full_path","original_filename","support_class"' > "$STAGE_SUPPORT_REPORT"
 printf '%s\n' '"system","canonical_title","owned_release_count","retail_count","special_count","release_categories"' > "$STAGE_RELEASE_FAMILIES"
 printf '%s\n' '"system","full_path","original_filename","media_type","dat_match","canonical_name","release_category","status"' > "$STAGE_DISC_REPORT"
 printf '%s\n' '"system","full_path","canonical_name","mister_system","mister_core","expected_folder","special_release_category","curated_destination","location_status"' > "$STAGE_LOCATION_AUDIT"
