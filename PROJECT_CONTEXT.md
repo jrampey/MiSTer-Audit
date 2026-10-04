@@ -196,3 +196,5 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 
 
 - Apply compatibility recognizes the auditor-emitted `SAFE TO PREVIEW (COLLISIONS SKIPPED)` recommendation when the verdict is `PASS WITH WARNINGS` and integrity notes are collision-only. Blocking collision rows remain skipped; other warnings still block Apply.
+
+- Unknown-region placement: any ROM whose resolved region is `Unknown` uses curated destination `<System>/Unknown Region`; Apply creates/moves into that bucket. This is an explicit exception to the Retail/Standard parent-folder rule. USA Retail/Standard remains in the system parent.

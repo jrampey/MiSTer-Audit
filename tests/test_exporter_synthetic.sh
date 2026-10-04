@@ -134,6 +134,9 @@ for category in "Retail/Standard" "Homebrew" "Unlicensed" "Aftermarket" "Prototy
     grep -Fq "$category" "$AUDIT/game_library.txt" || fail "human-readable report missing ROM-type category: $category"
 done
 grep -Fq 'dir="$GAMES/$curated_destination"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater curated-destination routing missing"
+# Unknown-region rows must be reported and applied into a dedicated system bucket.
+grep -Eq '"Unknown","Retail/Standard","REVIEW ONLY","Retail/Standard","[^"]+/Unknown Region"' "$AUDIT/proposed_renames.csv" || fail "Unknown-region curated destination missing"
+grep -Fq '"$region" == "Unknown"' "$TEST_BIN/MiSTer_Audit.sh" || fail "updater Unknown-region routing missing"
 
 # The MiSTer regression came from direct arithmetic evaluation of a filename-
 # derived associative-array subscript. Keep that unsafe pattern out permanently.

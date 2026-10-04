@@ -68,3 +68,7 @@ For DAT-identified USA Retail/Standard ROMs, Apply keeps the ROM in the parent s
 
 
 Apply accepts `PASS WITH WARNINGS` + `SAFE TO PREVIEW (COLLISIONS SKIPPED)` only when the integrity notes are collision-only. The blocking collision rows remain excluded from the mutation plan; non-collision warnings still block Apply.
+
+
+## Unknown Region
+Rows whose resolved region is `Unknown` are routed to `<System>/Unknown Region`. Apply creates the directory when necessary. This keeps uncertain-region ROMs out of the clean system parent while preserving the rule that USA Retail/Standard stays in the parent folder.

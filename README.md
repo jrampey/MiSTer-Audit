@@ -249,3 +249,7 @@ USA Retail/Standard ROMs stay in the parent system folder and use clean canonica
 
 
 <!-- Apply compatibility: PASS WITH WARNINGS + SAFE TO PREVIEW (COLLISIONS SKIPPED) is eligible for Apply only when integrity notes are collision-only; blocking collision rows remain skipped. -->
+
+
+### Unknown-region placement
+ROMs whose region remains `Unknown` are assigned to `<System>/Unknown Region` instead of the system parent directory. Apply creates that folder as needed. USA Retail/Standard ROMs continue to remain directly in the system parent folder; known-region special releases continue to use their ROM-type category folders.
