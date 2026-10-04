@@ -201,3 +201,5 @@ The distributed-files pipeline gates Downloader publication on the reusable Synt
 
 
 Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, and `!Unknown Region`) so they sort ahead of normal ROM entries in MiSTer file lists.
+
+- Regional retail routing: authoritative DAT-identified Retail/Standard ROMs keep USA in the system parent; Japan/Europe/World/Canada/Australia/Korea/Brazil use `!<Region>` subfolders, other known regions use `!Other Regions`, and unmatched/unresolved ROMs use `!Unknown Region`. Special ROM-type categories take precedence over region.
