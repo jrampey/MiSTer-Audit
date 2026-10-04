@@ -763,7 +763,11 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
     collision="Inventory only - unmatched ROM"
   fi
 
-  # Unknown-region ROMs use a dedicated location bucket regardless of release type.\n  # This keeps uncertain-region material out of the clean system parent folder.\n  if [ "$region" = "Unknown" ]; then curated_destination="$system/!Unknown Region"; fi\n\n  save_count=0; save_key="${stem,,}"
+  # Unknown-region ROMs use a dedicated location bucket regardless of release type.
+  # This keeps uncertain-region material out of the clean system parent folder.
+  if [ "$region" = "Unknown" ]; then curated_destination="$system/!Unknown Region"; fi
+
+  save_count=0; save_key="${stem,,}"
   if [ -n "$save_key" ] && [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY" "$special_category" "$curated_destination"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
 
   disc_media_set "$ext"; media_type="$HOT_RESULT"; if [ -n "$media_type" ]; then disc_status="Inventory only"; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") disc_status="DAT identified" ;; esac; csv_row "$STAGE_DISC_REPORT" "$system" "$p" "$file" "$media_type" "$dat_status" "$dat_name" "$special_category" "$disc_status"; fi
