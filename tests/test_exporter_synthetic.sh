@@ -208,3 +208,10 @@ if grep -Fq 'now=$(date +%s)' "$TEST_BIN/MiSTer_Audit.sh"; then fail "wall-clock
 
 # Apply compatibility must accept the auditor's collision-only recommendation contract.
 grep -Fq '"SAFE TO PREVIEW (COLLISIONS SKIPPED)"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Apply does not recognize collision-only audit recommendation"
+
+# Regional routing regression: authoritative retail uses resolved No-Intro geography.
+grep -Fq 'Japan) region_folder="Japan"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Japan retail routing missing"
+grep -Fq 'Europe) region_folder="Europe"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Europe retail routing missing"
+grep -Fq 'World) region_folder="World"' "$TEST_BIN/MiSTer_Audit.sh" || fail "World retail routing missing"
+grep -Fq '*) region_folder="Other Regions"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Other-region retail routing missing"
+grep -Fq 'if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi' "$TEST_BIN/MiSTer_Audit.sh" || fail "special release precedence missing"
