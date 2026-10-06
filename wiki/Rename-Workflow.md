@@ -92,3 +92,5 @@ Support/documentation rows collected during classification are retained in `supp
 
 ## Virtual Console releases
 No-Intro-identified Virtual Console variants are not treated as original-system Retail/Standard copies. They retain the canonical Virtual Console qualifier and use `<System>/!Virtual Console/`. Because release type takes precedence over geography, a USA Virtual Console build is kept out of the clean USA retail parent directory.
+
+<!-- CI sync: Virtual Console category runtime, regression coverage, and documentation are synchronized. -->
