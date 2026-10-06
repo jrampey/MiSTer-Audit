@@ -487,6 +487,7 @@ expected_unmatched_class() {
 special_release_category_set() {
   local release="${1,,}" license="${2,,}" name="${3,,}"
   case "$license $release $name" in
+    *virtual\ console*) HOT_RESULT="Virtual Console" ;;
     *homebrew*) HOT_RESULT="Homebrew" ;;
     *unlicensed*|*" unl"*|*"unl "*) HOT_RESULT="Unlicensed" ;;
     *aftermarket*) HOT_RESULT="Aftermarket" ;;
@@ -878,7 +879,8 @@ EOF2
   echo "Beta | shared Beta folder"
   echo "Demo/Sample | shared Demo/Sample folder"
   echo "Translation | shared Translation folder"
-  echo "Hack/Modified | shared Hack/Modified folder"
+  echo "Hack/Modified | shared Hack/Modified folder
+Virtual Console | shared Virtual Console folder"
 } >> "$STAGE_OUT"
 
 if [ -s "$WORK.release_rows" ]; then
