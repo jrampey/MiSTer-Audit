@@ -209,3 +209,6 @@ Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, a
 - Unknown Region safety: only hash/DAT-eligible ROMs route to `!Unknown Region`; unsupported inventory remains untouched. Unmatched eligible ROMs preserve their exact current filename until authoritative DAT identification.
 
 - Support reporting: initialize `support_files.csv` before classification so skipped support/documentation rows are retained.
+
+
+- Virtual Console routing: No-Intro-identified Virtual Console variants are categorized as `Virtual Console`, retain their canonical qualifier, and route to `<System>/!Virtual Console/` rather than the parent retail directory. Release-type routing takes precedence over geography.
