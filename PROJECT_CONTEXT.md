@@ -212,3 +212,5 @@ Curated subfolders use a leading `!` (for example `!Prototype`, `!Unlicensed`, a
 
 
 - Virtual Console routing: No-Intro-identified Virtual Console variants are categorized as `Virtual Console`, retain their canonical qualifier, and route to `<System>/!Virtual Console/` rather than the parent retail directory. Release-type routing takes precedence over geography.
+
+<!-- CI sync: Virtual Console category runtime, regression coverage, and documentation are synchronized. -->
