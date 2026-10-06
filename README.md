@@ -275,3 +275,5 @@ Support-file rows are initialized before classification so skipped documentation
 
 ### Virtual Console releases
 No-Intro-identified Virtual Console ROM images are treated as a distinct `Virtual Console` release category rather than ordinary Retail/Standard originals. They retain their canonical Virtual Console qualifier and route to `<System>/!Virtual Console/`, keeping the parent system directory representative of original-system retail releases. This includes canonical labels such as Wii U Virtual Console and combined Virtual Console/Switch Online releases.
+
+<!-- CI sync: Virtual Console category runtime, regression coverage, and documentation are synchronized. -->
