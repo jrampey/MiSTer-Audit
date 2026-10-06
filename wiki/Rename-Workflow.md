@@ -88,3 +88,7 @@ Only hash/DAT-eligible ROMs participate in `!Unknown Region` routing. Unsupporte
 
 
 Support/documentation rows collected during classification are retained in `support_files.csv`; report setup does not overwrite them.
+
+
+## Virtual Console releases
+No-Intro-identified Virtual Console variants are not treated as original-system Retail/Standard copies. They retain the canonical Virtual Console qualifier and use `<System>/!Virtual Console/`. Because release type takes precedence over geography, a USA Virtual Console build is kept out of the clean USA retail parent directory.
