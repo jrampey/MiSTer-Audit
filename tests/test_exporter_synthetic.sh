@@ -243,3 +243,6 @@ grep -Fq 'Europe) region_folder="Europe"' "$TEST_BIN/MiSTer_Audit.sh" || fail "E
 grep -Fq 'World) region_folder="World"' "$TEST_BIN/MiSTer_Audit.sh" || fail "World retail routing missing"
 grep -Fq '*) region_folder="Other Regions"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Other-region retail routing missing"
 grep -Fq 'if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi' "$TEST_BIN/MiSTer_Audit.sh" || fail "special release precedence missing"
+
+# Virtual Console regression: VC ROM images are a distinct curated release type.
+grep -Fq '*virtual\ console*) HOT_RESULT="Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console category classification missing"
