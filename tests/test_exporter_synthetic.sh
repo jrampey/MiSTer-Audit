@@ -248,3 +248,12 @@ grep -Fq 'if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$ca
 grep -Fq '*virtual\ console*) HOT_RESULT="Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console category classification missing"
 grep -Fq 'special_release_category_set "$meta_release" "$meta_license" "$dat_rom $dat_name"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console classification does not inspect both canonical DAT identity fields"
 grep -Fq 'case "$name" in *virtual\ console*) return 1 ;; esac' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console variants still count toward retail completion"
+
+# Apply cleanup regression: only known MiSTer-Audit category buckets may be pruned,
+# and cleanup must use rmdir so non-empty directories are never deleted.
+grep -Fq 'cleanup_empty_managed_dirs(){' "$TEST_BIN/MiSTer_Audit.sh" || fail "managed empty-directory cleanup helper missing"
+grep -Fq '"!Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console missing from managed cleanup whitelist"
+grep -Fq '"!Unknown Region"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Unknown Region missing from managed cleanup whitelist"
+grep -Fq 'rmdir -- "$dir"' "$TEST_BIN/MiSTer_Audit.sh" || fail "managed cleanup is not using safe empty-only rmdir"
+grep -Fq 'done;cleanup_empty_managed_dirs;cp "$manifest"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Apply does not clean empty managed directories after moves"
+if grep -Eq 'rm[[:space:]]+-r[f]?[[:space:]].*\$dir' "$TEST_BIN/MiSTer_Audit.sh"; then fail "recursive managed-directory deletion is unsafe"; fi
