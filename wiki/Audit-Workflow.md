@@ -128,3 +128,4 @@ Each ROM is assigned exactly one reporting/destination category: Retail/Standard
 <!-- Audit selector simplification: non-shortcut keys are parsed directly as possible ANSI arrow sequences; no Escape literal or numeric byte conversion is required. -->
 
 <!-- Audit selector regression: arrow-key handling uses direct ANSI sequence parsing; synthetic coverage verifies the CSI reader and avoids Escape-literal quoting. -->
+<!-- Virtual Console hardening: canonical DAT ROM filename and canonical title are both inspected for Virtual Console identity. VC variants route to !Virtual Console and do not satisfy Retail/Standard completion. -->
