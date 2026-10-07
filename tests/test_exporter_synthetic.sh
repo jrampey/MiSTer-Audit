@@ -244,5 +244,7 @@ grep -Fq 'World) region_folder="World"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Wor
 grep -Fq '*) region_folder="Other Regions"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Other-region retail routing missing"
 grep -Fq 'if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi' "$TEST_BIN/MiSTer_Audit.sh" || fail "special release precedence missing"
 
-# Virtual Console regression: VC ROM images are a distinct curated release type.
+# Virtual Console regression: VC ROM images are a distinct curated release type. Classification must inspect both canonical ROM filename and canonical title because No-Intro sources may carry the VC qualifier in either field.
 grep -Fq '*virtual\ console*) HOT_RESULT="Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console category classification missing"
+grep -Fq 'special_release_category_set "$meta_release" "$meta_license" "$dat_rom $dat_name"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console classification does not inspect both canonical DAT identity fields"
+grep -Fq 'case "$name" in *virtual\ console*) return 1 ;; esac' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console variants still count toward retail completion"
