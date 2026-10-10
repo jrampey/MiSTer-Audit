@@ -131,3 +131,5 @@ Each ROM is assigned exactly one reporting/destination category: Retail/Standard
 <!-- Virtual Console hardening: canonical DAT ROM filename and canonical title are both inspected for Virtual Console identity. VC variants route to !Virtual Console and do not satisfy Retail/Standard completion. -->
 
 - Apply safely removes empty MiSTer-Audit-managed category/region folders after file moves using empty-only directory removal; system roots, non-empty folders, and unrelated/user-created folders are never deleted.
+
+- Runtime source integrity: the unified `MiSTer_Audit.sh` is generated from `src/audit.sh`, `src/update.sh`, and `src/main.sh`; CI verifies generated-runtime synchronization and Bash syntax before distribution.
