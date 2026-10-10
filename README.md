@@ -280,3 +280,5 @@ No-Intro-identified Virtual Console ROM images are treated as a distinct `Virtua
 <!-- Virtual Console hardening: classification inspects both canonical DAT ROM filename and canonical title, and VC variants are excluded from Retail/Standard completion accounting even when source release metadata is generic retail. -->
 
 - Apply safely removes empty MiSTer-Audit-managed category/region folders after file moves using empty-only directory removal; system roots, non-empty folders, and unrelated/user-created folders are never deleted.
+
+- Runtime source integrity: the unified `MiSTer_Audit.sh` is generated from `src/audit.sh`, `src/update.sh`, and `src/main.sh`; CI verifies generated-runtime synchronization and Bash syntax before distribution.
