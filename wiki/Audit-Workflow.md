@@ -129,3 +129,5 @@ Each ROM is assigned exactly one reporting/destination category: Retail/Standard
 
 <!-- Audit selector regression: arrow-key handling uses direct ANSI sequence parsing; synthetic coverage verifies the CSI reader and avoids Escape-literal quoting. -->
 <!-- Virtual Console hardening: canonical DAT ROM filename and canonical title are both inspected for Virtual Console identity. VC variants route to !Virtual Console and do not satisfy Retail/Standard completion. -->
+
+- Apply safely removes empty MiSTer-Audit-managed category/region folders after file moves using empty-only directory removal; system roots, non-empty folders, and unrelated/user-created folders are never deleted.
