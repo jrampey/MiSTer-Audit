@@ -381,20 +381,60 @@ completion_region_selected() {
     if [ "$COMPLETION_INCLUDE_WORLD" -eq 1 ] && [ "$normalized" = "world" ]; then case "$selected" in usa|europe|japan) return 0 ;; esac; fi
   done; return 1
 }
-completion_release_selected() { local release="${1,,}" license="${2,,}" name="${3,,}"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then case "$name" in *virtual\ console*) return 1 ;; esac; case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac; case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac; fi; return 0; }
-completion_record_eligible() { completion_region_selected "$1" && completion_release_selected "$2" "$3" "$4"; }
+# Completion is a US-original-retail game checklist, not a count of every DAT
+# dump or rerelease. DAT metadata is authoritative; filesystem names are not.
+completion_original_retail() {
+  local release="${1,,}" license="${2,,}" title="${3,,}" region="${4,,}"
+  case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac
+  case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*|*pirate*) return 1 ;; esac
+  case "$title" in
+    *"[bios]"*|*"test program"*|*"test cartridge"*|*"diagnostic"*|*"erase program"*|*"wide-boy"*|*"wide boy"*|*"development"*|*"prototype"*|*"proto"*|*"beta"*|*"demo"*|*"sample"*|*"kiosk"*|*"not for resale"*|*"lodgeNet"*|*"lodgenet"*|*"virtual console"*|*"switch online"*|*"gamecube"*|*"zelda collection"*|*"limited run games"*|*"piko interactive"*|*"nintendo switch"*|*"wii u"*|*"wiiware"*|*"playstation network"*|*"xbox live arcade"*|*"re-release"*|*"rerelease"*|*"reprint"*|*"compilation"*|*"collection)"*) return 1 ;;
+  esac
+  # World releases may count as US when explicitly configured.
+  completion_region_selected "$region"
+}
+completion_record_eligible() { completion_original_retail "$2" "$3" "$4" "$1"; }
+completion_game_key() {
+  local title="$1" base
+  # No-Intro parenthesized suffixes are edition/dump metadata. Keep the
+  # game title, so revisions, languages, and regional dumps count once.
+  base="${title%% (*}"
+  base="${base%" ${base##*[![:space:]]}"}"
+  [ -n "$base" ] || base="$title"
+  printf '%s' "${base,,}"
+}
 build_completion_reference() {
-  local h sys title region release license key
+  local h sys title region release license key game
   for h in "${!DAT_RECORD_BY_SHA[@]}"; do
     dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; sys="$DAT_SYSTEM"; title="$DAT_TITLE"; region="$DAT_REGION"; release="$DAT_RELEASE"; license="$DAT_LICENSE"
-    [ -n "$sys" ] && [ -n "$title" ] || continue; completion_record_eligible "$region" "$release" "$license" "$title" || continue; key="$sys|$title"
-    if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then COMPLETION_REFERENCE_KEYS["$key"]=1; COMPLETION_TOTAL_BY_SYSTEM["$sys"]=$(( ${COMPLETION_TOTAL_BY_SYSTEM["$sys"]:-0} + 1 )); COMPLETION_TITLE_REGION["$key"]="$region"; COMPLETION_TITLE_RELEASE["$key"]="$release"; COMPLETION_TITLE_LICENSE["$key"]="$license"; fi
+    [ -n "$sys" ] && [ -n "$title" ] || continue
+    completion_record_eligible "$region" "$release" "$license" "$title" || continue
+    game="$(completion_game_key "$title")"; key="$sys|$game"
+    if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then
+      COMPLETION_REFERENCE_KEYS["$key"]=1
+      COMPLETION_TOTAL_BY_SYSTEM["$sys"]=$(( ${COMPLETION_TOTAL_BY_SYSTEM["$sys"]:-0} + 1 ))
+      COMPLETION_TITLE_REGION["$key"]="$region"
+      COMPLETION_TITLE_RELEASE["$key"]="$release"
+      COMPLETION_TITLE_LICENSE["$key"]="$license"
+      COMPLETION_REFERENCE_KEYS["$key"]="$title"
+    elif [[ "$region" == *USA* && "${COMPLETION_TITLE_REGION[$key]}" != *USA* ]]; then
+      COMPLETION_REFERENCE_KEYS["$key"]="$title"
+      COMPLETION_TITLE_REGION["$key"]="$region"
+      COMPLETION_TITLE_RELEASE["$key"]="$release"
+      COMPLETION_TITLE_LICENSE["$key"]="$license"
+    fi
   done
 }
 record_completion_owned() {
-  local sys="$1" title="$2" region="$3" release="$4" license="$5" key
-  [ -n "$sys" ] && [ -n "$title" ] || return 0; completion_record_eligible "$region" "$release" "$license" "$title" || return 0; key="$sys|$title"; [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
-  if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then COMPLETION_OWNED_KEYS["$key"]=1; COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 )); fi
+  local sys="$1" title="$2" region="$3" release="$4" license="$5" key game
+  [ -n "$sys" ] && [ -n "$title" ] || return 0
+  completion_record_eligible "$region" "$release" "$license" "$title" || return 0
+  game="$(completion_game_key "$title")"; key="$sys|$game"
+  [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
+  if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
+    COMPLETION_OWNED_KEYS["$key"]=1
+    COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 ))
+  fi
 }
 load_hash_cache() {
   local old_format="" old_db="" p sig sha normalized_sha ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls k v
