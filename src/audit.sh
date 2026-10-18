@@ -347,6 +347,7 @@ completion_release_selected() {
     case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac
     # Repackaged / later platform distributions and diagnostic media are not
     # original console retail releases, even when a DAT marks them Retail.
+    case "$name" in *virtual\ console*) return 1 ;; esac
     case "$name" in
       *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*) return 1 ;;
     esac
