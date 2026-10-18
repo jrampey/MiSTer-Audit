@@ -30,5 +30,8 @@ jobs:
           bash -n tests/test_exporter_synthetic.sh
           python3 -m py_compile tests/build_synthetic_library.py
 
+      - name: Test configurable preferences
+        run: python3 tests/test_preferences.py
+
       - name: Run synthetic Full Verification
         run: bash tests/test_exporter_synthetic.sh

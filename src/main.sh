@@ -65,6 +65,10 @@ main_menu() {
   done
 }
 
+PREFERENCES_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+ensure_preferences_file "$PREFERENCES_DIR" || { echo "ERROR: Cannot create MiSTer_Audit.ini" >&2; exit 1; }
+load_preferences "$PREFERENCES_DIR" || exit 1
+
 case "${1:-}" in
   audit) run_audit ;;
   update|rename) run_update_tools ;;

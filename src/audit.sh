@@ -47,63 +47,8 @@ CLASS_CACHE_FORMAT="3"
 AUDIT_SCHEMA_VERSION="4"
 FULL_VERIFY_WORKERS=2
 
-# ---------------------------------------------------------------------------
-# AUDIT POLICY
-# ---------------------------------------------------------------------------
-# Defaults intentionally preserve v1.4 behavior. AUDIT_POLICY.conf is optional;
-# if absent or invalid, these defaults remain in effect. The policy parser does
-# not source/execute the file.
-AUDIT_POLICY_FILE="$HASH_DB_SCRIPT_DIR/AUDIT_POLICY.conf"
-COMPLETION_REGIONS=("USA")
-COMPLETION_RETAIL_ONLY=1
-COMPLETION_INCLUDE_WORLD=1
-COMPLETION_INCLUDE_PROTOTYPES=0
-COMPLETION_INCLUDE_BETA=0
-COMPLETION_INCLUDE_DEMOS=0
-
-trim_policy_value() {
-  local v="$1"
-  v="${v#"${v%%[![:space:]]*}"}"
-  v="${v%"${v##*[![:space:]]}"}"
-  printf '%s' "$v"
-}
-
-load_audit_policy() {
-  local line key value region rest
-  local -a parsed_regions=()
-  [ -r "$AUDIT_POLICY_FILE" ] || return 0
-  while IFS= read -r line || [ -n "$line" ]; do
-    line="$(trim_policy_value "$line")"
-    [ -z "$line" ] && continue
-    case "$line" in \#*) continue ;; esac
-    case "$line" in *=*) ;; *) continue ;; esac
-    key="$(trim_policy_value "${line%%=*}")"
-    value="$(trim_policy_value "${line#*=}")"
-    case "$key" in
-      COMPLETION_REGIONS)
-        parsed_regions=()
-        rest="$value"
-        while :; do
-          case "$rest" in
-            *,*) region="${rest%%,*}"; rest="${rest#*,}" ;;
-            *) region="$rest"; rest="" ;;
-          esac
-          region="$(trim_policy_value "$region")"
-          [ -n "$region" ] && parsed_regions+=("$region")
-          [ -n "$rest" ] || break
-        done
-        [ "${#parsed_regions[@]}" -gt 0 ] && COMPLETION_REGIONS=("${parsed_regions[@]}")
-        ;;
-      COMPLETION_RETAIL_ONLY|COMPLETION_INCLUDE_WORLD|COMPLETION_INCLUDE_PROTOTYPES|COMPLETION_INCLUDE_BETA|COMPLETION_INCLUDE_DEMOS)
-        case "$value" in
-          0|1) printf -v "$key" '%s' "$value" ;;
-        esac
-        ;;
-    esac
-  done < "$AUDIT_POLICY_FILE"
-}
-
-load_audit_policy
+load_preferences "$HASH_DB_SCRIPT_DIR" || return 1
+CLASS_CACHE_FORMAT="$CLASS_CACHE_FORMAT|$PREFERENCES_SIGNATURE"
 
 PREHASH_RESULTS="$WORK.prehash_results"
 STAGE_DIR="$AUDIT/.staging.$$"
@@ -376,7 +321,7 @@ completion_region_selected() {
     if [ "$COMPLETION_INCLUDE_WORLD" -eq 1 ] && [ "$normalized" = "world" ]; then case "$selected" in usa|europe|japan) return 0 ;; esac; fi
   done; return 1
 }
-completion_release_selected() { local release="${1,,}" license="${2,,}" name="${3,,}"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then case "$name" in *virtual\ console*) return 1 ;; esac; case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac; case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac; fi; return 0; }
+completion_release_selected() { local release="${1,,}" license="${2,,}" name="${3,,}"; case "$release $name" in *prototype*|*proto*) [ "$COMPLETION_INCLUDE_PROTOTYPES" = 1 ] || return 1 ;; *beta*) [ "$COMPLETION_INCLUDE_BETA" = 1 ] || return 1 ;; *demo*|*sample*) [ "$COMPLETION_INCLUDE_DEMOS" = 1 ] || return 1 ;; esac; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then case "$name" in *virtual\ console*) return 1 ;; esac; case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac; case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac; fi; return 0; }
 completion_record_eligible() { completion_region_selected "$1" && completion_release_selected "$2" "$3" "$4"; }
 build_completion_reference() {
   local h sys title region release license key
@@ -452,7 +397,7 @@ is_support_file() { local path="${1,,}" file="${2,,}" stem="${2%.*}"; stem="${st
 support_class_set() { local path="${1,,}" file="${2,,}" stem="${2%.*}"; stem="${stem,,}"; case "$path $file $stem" in *firmware*) HOT_RESULT="Firmware" ;; *bios*|*kickstart*|*bootrom*|*"boot rom"*|*boot.rom*|*boot.bin*) HOT_RESULT="BIOS/Boot ROM" ;; *diagnostic*|*"test rom"*|*"240p test suite"*|*serialporttest*|*sioecho*|*statuslights*) HOT_RESULT="Diagnostic/Test" ;; *utility*|*utilities*) HOT_RESULT="Utility" ;; *) HOT_RESULT="Support/Misc" ;; esac; }
 disc_media_set() { local ext="${1,,}"; case "$ext" in cue) HOT_RESULT="CUE/BIN set" ;; chd) HOT_RESULT="CHD" ;; gdi) HOT_RESULT="GDI set" ;; iso) HOT_RESULT="ISO" ;; *) HOT_RESULT="" ;; esac; }
 clean_title() { local s="$1" before; local re_region='^(.*)[[:space:]]+\((USA|US|U|World|W|Europe|EUR|E|Japan|JPN|J|Canada|CAN|Australia|AUS|Korea|KOR|Brazil|BRA|UE|U,E|U\+E)\)(.*)$'; local re_meta='^(.*)[[:space:]]+\((Rev(ision)?[[:space:]._-]*[0-9A-Za-z]+|Proto(type)?|Beta|Demo|Sample|Unl(icensed)?|Homebrew|Aftermarket|Translation|Translated|Eng(lish)?[^)]*)\)(.*)$'; local re_bracket='^(.*)[[:space:]]+\[([tThH][^]]*|!|[bBoOfFpPaA][0-9]*|[cCxX])\](.*)$'; while :; do before="$s"; if [[ "$s" =~ $re_region ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; elif [[ "$s" =~ $re_meta ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[7]}"; elif [[ "$s" =~ $re_bracket ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; else break; fi; done; s="$(trim "$s")"; while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done; s="${s% -}"; s="${s% _}"; s="$(trim "$s")"; [ -z "$s" ] && s="$1"; printf '%s' "$s"; }
-suffix_for() { local region="$1" kind="$2" suffix=""; [ "$region" != "USA" ] && [ "$region" != "Unknown" ] && suffix=" [$region]"; [ "$region" = "Unknown" ] && suffix=" [Unknown Region]"; [ "$kind" != "Retail/Standard" ] && suffix="$suffix [$kind]"; printf '%s' "$suffix"; }
+suffix_for() { local region="$1" kind="$2" suffix=""; { [ "$STRIP_PARENT_REGION_TAG" = 0 ] || ! parent_region_matches "$region"; } && [ "$region" != "Unknown" ] && suffix=" [$region]"; [ "$region" = "Unknown" ] && suffix=" [Unknown Region]"; [ "$kind" != "Retail/Standard" ] && suffix="$suffix [$kind]"; printf '%s' "$suffix"; }
 region_of_set() { local s="${1,,}"; if [[ "$s" =~ \((usa|us|u)(,|\)|[[:space:]]) ]] || [[ "$s" =~ \((ue|u,e|u\+e)\) ]]; then HOT_RESULT=USA; elif [[ "$s" =~ \((world|w)\) ]]; then HOT_RESULT=World; elif [[ "$s" =~ \((europe|eur|e)\) ]]; then HOT_RESULT=Europe; elif [[ "$s" =~ \((japan|jpn|j)\) ]]; then HOT_RESULT=Japan; elif [[ "$s" =~ \((canada|can)\) ]]; then HOT_RESULT=Canada; elif [[ "$s" =~ \((australia|aus)\) ]]; then HOT_RESULT=Australia; elif [[ "$s" =~ \((korea|kor|k)\) ]]; then HOT_RESULT=Korea; elif [[ "$s" =~ \((brazil|bra|b)\) ]]; then HOT_RESULT=Brazil; else HOT_RESULT=Unknown; fi; }
 kind_of_set() {
   local s="${1,,}"
@@ -469,7 +414,7 @@ kind_of_set() {
 }
 trim_set() { local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; HOT_RESULT="$s"; }
 clean_title_set() { local s="$1" original="$1" before; local re_region='^(.*)[[:space:]]+\((USA|US|U|World|W|Europe|EUR|E|Japan|JPN|J|Canada|CAN|Australia|AUS|Korea|KOR|Brazil|BRA|UE|U,E|U\+E)\)(.*)$'; local re_meta='^(.*)[[:space:]]+\((Rev(ision)?[[:space:]._-]*[0-9A-Za-z]+|Proto(type)?|Beta|Demo|Sample|Unl(icensed)?|Homebrew|Aftermarket|Translation|Translated|Eng(lish)?[^)]*)\)(.*)$'; local re_bracket='^(.*)[[:space:]]+\[([tThH][^]]*|!|[bBoOfFpPaA][0-9]*|[cCxX])\](.*)$'; while :; do before="$s"; if [[ "$s" =~ $re_region ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; elif [[ "$s" =~ $re_meta ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[7]}"; elif [[ "$s" =~ $re_bracket ]]; then s="${BASH_REMATCH[1]}${BASH_REMATCH[3]}"; else break; fi; done; trim_set "$s"; s="$HOT_RESULT"; while [[ "$s" == *"  "* ]]; do s="${s//  / }"; done; s="${s% -}"; s="${s% _}"; trim_set "$s"; s="$HOT_RESULT"; [ -z "$s" ] && s="$original"; HOT_RESULT="$s"; }
-suffix_for_set() { local region="$1" kind="$2" suffix=""; [ "$region" != "USA" ] && [ "$region" != "Unknown" ] && suffix=" [$region]"; [ "$region" = "Unknown" ] && suffix=" [Unknown Region]"; [ "$kind" != "Retail/Standard" ] && suffix="$suffix [$kind]"; HOT_RESULT="$suffix"; }
+suffix_for_set() { local region="$1" kind="$2" suffix=""; { [ "$STRIP_PARENT_REGION_TAG" = 0 ] || ! parent_region_matches "$region"; } && [ "$region" != "Unknown" ] && suffix=" [$region]"; [ "$region" = "Unknown" ] && suffix=" [Unknown Region]"; [ "$kind" != "Retail/Standard" ] && suffix="$suffix [$kind]"; HOT_RESULT="$suffix"; }
 location_status_set() { local current="${1,,}" expected="${2,,}"; if [ -z "$expected" ]; then HOT_RESULT=Unknown; return; fi; if [ "$current" = "$expected" ]; then HOT_RESULT=OK; return; fi; case "$expected" in nes) case "$current" in nes|fds|famicom) HOT_RESULT='OK (compatible folder)'; return;; esac ;; gameboy) case "$current" in gameboy|game\ boy|gb|gbc|gameboycolor|game\ boy\ color) HOT_RESULT='OK (compatible folder)'; return;; esac ;; snes) case "$current" in snes|sfc|sgb|supergameboy|super\ game\ boy) HOT_RESULT='OK (compatible folder)'; return;; esac ;; n64) case "$current" in n64|nintendo64|nintendo\ 64) HOT_RESULT='OK (compatible folder)'; return;; esac ;; esac; HOT_RESULT=MISFILED; }
 location_status() { local current="${1,,}" expected="${2,,}"; [ -z "$expected" ] && { echo "Unknown"; return; }; [ "$current" = "$expected" ] && { echo "OK"; return; }; case "$expected" in nes) case "$current" in nes|fds|famicom) echo "OK (compatible folder)"; return;; esac ;; gameboy) case "$current" in gameboy|game\ boy|gb|gbc|gameboycolor|game\ boy\ color) echo "OK (compatible folder)"; return;; esac ;; snes) case "$current" in snes|sfc|sgb|supergameboy|super\ game\ boy) echo "OK (compatible folder)"; return;; esac ;; n64) case "$current" in n64|nintendo64|nintendo\ 64) echo "OK (compatible folder)"; return;; esac ;; esac; echo "MISFILED"; }
 expected_unmatched_class() {
@@ -498,10 +443,14 @@ curated_destination_set() {
   local folder="$1" category="$2" region="${3:-Unknown}" region_folder=""
   [ -n "$folder" ] || { HOT_RESULT="Unknown"; return; }
   # Release type has priority over geography. Ordinary retail is organized by
-  # resolved No-Intro region, while USA retail remains the clean parent list.
-  if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi
+  # resolved No-Intro region, with the selected region in the parent list.
+  if [ "$category" != "Retail/Standard" ]; then
+    if [ "$GROUP_SPECIAL_RELEASES" = 1 ]; then HOT_RESULT="$folder/!$category"; else HOT_RESULT="$folder"; fi; return
+  fi
+  if parent_region_matches "$region"; then HOT_RESULT="$folder"; return; fi
+  case "$region" in Unknown|"") [ "$GROUP_UNKNOWN_REGION" = 1 ] || { HOT_RESULT="$folder"; return; } ;; *) [ "$GROUP_OTHER_REGIONS" = 1 ] || { HOT_RESULT="$folder"; return; } ;; esac
   case "$region" in
-    USA) HOT_RESULT="$folder"; return ;;
+    USA) region_folder="USA" ;;
     Japan) region_folder="Japan" ;;
     Europe) region_folder="Europe" ;;
     World) region_folder="World" ;;
@@ -748,7 +697,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # every run. This keeps Fast Audit byte-for-byte equivalent to Full
       # Verification while still avoiding hash and DAT-record decoding work.
       special_release_category_set "$meta_release" "$meta_license" "$dat_rom $dat_name"; special_category="$HOT_RESULT"
-      if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then retail_stem="$canonical_stem"; retail_stem="$(printf '%s' "$retail_stem" | sed -E 's/[[:space:]]+\((USA|US|U)\)//g; s/[[:space:]]+/ /g; s/^[[:space:]]+|[[:space:]]+$//g')"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && [ "$region" = "USA" ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
+      if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then retail_stem="$canonical_stem"; retail_stem="$(strip_parent_tag "$retail_stem")"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
       curated_destination_set "$meta_folder" "$special_category" "$region"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"; printf '%s\t%s\t%s\n' "${meta_system:-$system}" "$dat_name" "$special_category" >> "$WORK.release_rows"
@@ -777,7 +726,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   if [ "$authoritative" -ne 1 ]; then
     proposed="$file"
     if should_hash "$system" "$ext"; then
-      curated_destination="$system/!Unknown Region"
+      if [ "$GROUP_UNKNOWN_REGION" = 1 ]; then curated_destination="$system/!Unknown Region"; else curated_destination="$system"; fi
     else
       curated_destination="Unknown"
     fi
@@ -901,7 +850,7 @@ fi
 [ -z "$INTEGRITY_NOTES" ] && INTEGRITY_NOTES="none"
 
 {
-  echo "MiSTer Game Library Audit Bundle v1.4"; echo "Generated: $(date)"; echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."; echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."; echo "============================================================"; echo; echo "[RUN SUMMARY]"; echo "Report scope: FULL LIBRARY"; echo "Audit mode: $AUDIT_MODE"; echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"; echo "Files discovered: $GAME_SCAN_COUNT"; echo "Games/discs cataloged: $TOTAL"; echo "BIOS/support files skipped: $SKIPPED"; echo "Pre-DAT collision rows: $PRE_COLLISION_ROWS"; echo "Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS"; echo "Blocking collision rows: $COLLISIONS"; echo "Save matches: $SAVE_MATCHES"; echo "Files with SHA-1 available: $HASHED"; echo "Hashes reused from cache: $HASH_REUSED"; echo "Hashes calculated this run: $HASH_CALCULATED"; echo "Unsupported-format hashes skipped: $HASH_SKIPPED"; echo "Hash database source: $HASH_DB_SOURCE"; echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"; echo "Exporter build SHA-1: $RUNTIME_BUILD_SHA1"; echo "Audit integrity verdict: $AUDIT_VERDICT"; echo "Apply recommendation: $APPLY_RECOMMENDATION"; echo "Hash records indexed: $HASH_INDEX_COUNT"; echo "Persistent DAT index: ${DAT_CACHE_STATUS:-Unavailable}"; echo "Hash records skipped for absent systems: ${HASH_DB_SKIPPED_SYSTEM_RECORDS:-0}"; echo "Exact DAT SHA-1 matches: $DAT_MATCHED"; echo; echo "[AUDIT_METADATA]"; echo "schema_version=$AUDIT_SCHEMA_VERSION"; echo "exporter_version=1.4"; echo "build_sha1=$RUNTIME_BUILD_SHA1"; echo "audit_mode=$AUDIT_MODE"; echo "database_sha1=$HASH_DB_FINGERPRINT"; echo "metadata_layer=$METADATA_LAYER_STATUS"; echo "library_files=$GAME_SCAN_COUNT"; echo "cataloged_files=$TOTAL"; echo "self_check=$SELF_CHECK_STATUS"; echo "integrity_verdict=$AUDIT_VERDICT"; echo "apply_recommendation=$APPLY_RECOMMENDATION"; echo "integrity_notes=$INTEGRITY_NOTES"; echo; echo "[DATABASE COVERAGE]"; echo "DAT-eligible ROMs: $HASH_ELIGIBLE"; echo "Matched: $DAT_MATCHED"; echo "Unmatched: $((HASHED-DAT_MATCHED))"; if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi; echo "Other/unsupported files cataloged: $HASH_SKIPPED"; echo; echo "[LIBRARY COMPLETION]"; echo "Regions: $COMPLETION_REGION_LABEL"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi; echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."; tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"; echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"; done; echo "Missing-title detail: missing_library_titles.csv"; echo; echo "[CACHE HEALTH]"; echo "Entries loaded: $CACHE_ENTRIES_LOADED"; echo "Entries reused: $HASH_REUSED"; echo "Unchanged library records: $DISCOVERY_UNCHANGED"; echo "New library records: $DISCOVERY_ADDED"; echo "Modified library records: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED))"; echo "Deleted library records: $DISCOVERY_REMOVED"; echo "Delta records analyzed: $DISCOVERY_CHANGED_COUNT"; echo "Classification entries loaded: $CLASS_CACHE_ENTRIES_LOADED"; echo "Classification hits: $CLASS_CACHE_HITS"; echo "Classification misses/refreshed: $CLASS_CACHE_MISSES"; echo "DAT/classification row metadata reused: $ROW_METADATA_REUSED"; echo "DAT/classification row metadata refreshed: $ROW_METADATA_REFRESHED"; echo "Entries refreshed: $CACHE_REFRESHED"; echo "Entries not reused/expired: $CACHE_NOT_REUSED"; echo "Cache hit rate: $CACHE_HIT_RATE%"; echo "Database fingerprint: $HASH_DB_FINGERPRINT"; echo; echo "[PER-SYSTEM PROCESSING]"; for sys in "${!SYSTEM_FILES[@]}"; do echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"; done | LC_ALL=C sort; echo; echo "[TIMING]"; echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"; echo "save_index_seconds=$((SAVE_END-SAVE_START))"; echo "database_cache_seconds=$((DB_END-DB_START))"; echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"; echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"; echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"; echo "total_seconds_so_far=$(( SECONDS-AUDIT_START_SECONDS ))"; echo
+  echo "MiSTer Game Library Audit Bundle v1.4"; echo "Generated: $(date)"; echo "READ-ONLY AUDIT REPORT - no ROM or save data is embedded."; echo "FULL LIBRARY REPORT - audit mode: $AUDIT_MODE."; echo "============================================================"; echo; echo "[RUN SUMMARY]"; echo "Parent folder region: $PARENT_REGION"; echo "Report scope: FULL LIBRARY"; echo "Audit mode: $AUDIT_MODE"; echo "Cache mode: $([ "$USE_HASH_CACHE" -eq 1 ] && echo "Incremental processing only" || echo "Bypassed for hash verification")"; echo "Files discovered: $GAME_SCAN_COUNT"; echo "Games/discs cataloged: $TOTAL"; echo "BIOS/support files skipped: $SKIPPED"; echo "Pre-DAT collision rows: $PRE_COLLISION_ROWS"; echo "Canonical DAT variant rows resolved safely: $RESOLVED_COLLISIONS"; echo "Blocking collision rows: $COLLISIONS"; echo "Save matches: $SAVE_MATCHES"; echo "Files with SHA-1 available: $HASHED"; echo "Hashes reused from cache: $HASH_REUSED"; echo "Hashes calculated this run: $HASH_CALCULATED"; echo "Unsupported-format hashes skipped: $HASH_SKIPPED"; echo "Hash database source: $HASH_DB_SOURCE"; echo "MiSTer-aware metadata layer: $METADATA_LAYER_STATUS"; echo "Exporter build SHA-1: $RUNTIME_BUILD_SHA1"; echo "Audit integrity verdict: $AUDIT_VERDICT"; echo "Apply recommendation: $APPLY_RECOMMENDATION"; echo "Hash records indexed: $HASH_INDEX_COUNT"; echo "Persistent DAT index: ${DAT_CACHE_STATUS:-Unavailable}"; echo "Hash records skipped for absent systems: ${HASH_DB_SKIPPED_SYSTEM_RECORDS:-0}"; echo "Exact DAT SHA-1 matches: $DAT_MATCHED"; echo; echo "[AUDIT_METADATA]"; echo "preferences=$PREFERENCES_SIGNATURE"; echo "parent_region=$PARENT_REGION"; echo "schema_version=$AUDIT_SCHEMA_VERSION"; echo "exporter_version=1.4"; echo "build_sha1=$RUNTIME_BUILD_SHA1"; echo "audit_mode=$AUDIT_MODE"; echo "database_sha1=$HASH_DB_FINGERPRINT"; echo "metadata_layer=$METADATA_LAYER_STATUS"; echo "library_files=$GAME_SCAN_COUNT"; echo "cataloged_files=$TOTAL"; echo "self_check=$SELF_CHECK_STATUS"; echo "integrity_verdict=$AUDIT_VERDICT"; echo "apply_recommendation=$APPLY_RECOMMENDATION"; echo "integrity_notes=$INTEGRITY_NOTES"; echo; echo "[DATABASE COVERAGE]"; echo "DAT-eligible ROMs: $HASH_ELIGIBLE"; echo "Matched: $DAT_MATCHED"; echo "Unmatched: $((HASHED-DAT_MATCHED))"; if [ "$HASHED" -gt 0 ]; then awk -v a="$DAT_MATCHED" -v b="$HASHED" 'BEGIN{printf "Match rate: %.2f%%\n", (a*100)/b}'; else echo "Match rate: 0.00%"; fi; echo "Other/unsupported files cataloged: $HASH_SKIPPED"; echo; echo "[LIBRARY COMPLETION]"; echo "Regions: $COMPLETION_REGION_LABEL"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then echo "Scope: Retail releases only"; else echo "Scope: All release types"; fi; echo "World releases count toward USA, Europe, and Japan when COMPLETION_INCLUDE_WORLD=1."; tail -n +2 "$STAGE_COMPLETION" | while IFS=',' read -r c_sys c_owned c_total c_missing c_pct rest; do c_sys="${c_sys#\"}"; c_sys="${c_sys%\"}"; c_owned="${c_owned#\"}"; c_owned="${c_owned%\"}"; c_total="${c_total#\"}"; c_total="${c_total%\"}"; c_missing="${c_missing#\"}"; c_missing="${c_missing%\"}"; c_pct="${c_pct#\"}"; c_pct="${c_pct%\"}"; echo "$c_sys | owned=$c_owned | reference=$c_total | missing=$c_missing | completion=$c_pct%"; done; echo "Missing-title detail: missing_library_titles.csv"; echo; echo "[CACHE HEALTH]"; echo "Entries loaded: $CACHE_ENTRIES_LOADED"; echo "Entries reused: $HASH_REUSED"; echo "Unchanged library records: $DISCOVERY_UNCHANGED"; echo "New library records: $DISCOVERY_ADDED"; echo "Modified library records: $((DISCOVERY_CHANGED_COUNT-DISCOVERY_ADDED))"; echo "Deleted library records: $DISCOVERY_REMOVED"; echo "Delta records analyzed: $DISCOVERY_CHANGED_COUNT"; echo "Classification entries loaded: $CLASS_CACHE_ENTRIES_LOADED"; echo "Classification hits: $CLASS_CACHE_HITS"; echo "Classification misses/refreshed: $CLASS_CACHE_MISSES"; echo "DAT/classification row metadata reused: $ROW_METADATA_REUSED"; echo "DAT/classification row metadata refreshed: $ROW_METADATA_REFRESHED"; echo "Entries refreshed: $CACHE_REFRESHED"; echo "Entries not reused/expired: $CACHE_NOT_REUSED"; echo "Cache hit rate: $CACHE_HIT_RATE%"; echo "Database fingerprint: $HASH_DB_FINGERPRINT"; echo; echo "[PER-SYSTEM PROCESSING]"; for sys in "${!SYSTEM_FILES[@]}"; do echo "$sys | files=${SYSTEM_FILES[$sys]} | dat_eligible=${SYSTEM_ELIGIBLE[$sys]:-0} | matched=${SYSTEM_MATCHED[$sys]:-0} | unmatched=${SYSTEM_UNMATCHED[$sys]:-0} | processing_seconds=${SYSTEM_SECONDS[$sys]:-0}"; done | LC_ALL=C sort; echo; echo "[TIMING]"; echo "discovery_seconds=$((DISCOVERY_END-DISCOVERY_START))"; echo "save_index_seconds=$((SAVE_END-SAVE_START))"; echo "database_cache_seconds=$((DB_END-DB_START))"; echo "classification_seconds=$((CLASSIFY_END-CLASSIFY_START))"; echo "parallel_full_verify_hash_seconds=$FULL_VERIFY_PARALLEL_SECONDS"; echo "report_processing_seconds=$(( $(date +%s)-REPORT_START ))"; echo "total_seconds_so_far=$(( SECONDS-AUDIT_START_SECONDS ))"; echo
   for report in game_library.txt library_catalog.csv dat_matches.csv unmatched_hashes.csv needs_review.csv support_files.csv release_families.csv disc_media.csv hash_duplicates.csv location_audit.csv library_completion.csv missing_library_titles.csv proposed_renames.csv proposed_save_renames.csv; do echo "============================================================"; echo "[BEGIN $report]"; echo "============================================================"; if [ -f "$STAGE_DIR/$report" ]; then cat "$STAGE_DIR/$report"; else echo "(report not generated)"; fi; echo; echo "[END $report]"; echo; done
 } > "$STAGE_BUNDLE"
 

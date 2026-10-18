@@ -1,5 +1,8 @@
 # Rename Workflow
 
+> Folder and filename rules below describe the default INI settings. Change
+> `PARENT_REGION` and other preferences in `MiSTer_Audit.ini` to customize them.
+
 Renaming is intentionally separate from auditing. `MiSTer_Audit.sh` only proposes changes; `MiSTer_Audit.sh` v1.4 is the mutation path.
 
 ## Audit handshake

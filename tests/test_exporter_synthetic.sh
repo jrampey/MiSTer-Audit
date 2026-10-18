@@ -242,7 +242,7 @@ grep -Fq 'Japan) region_folder="Japan"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Jap
 grep -Fq 'Europe) region_folder="Europe"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Europe retail routing missing"
 grep -Fq 'World) region_folder="World"' "$TEST_BIN/MiSTer_Audit.sh" || fail "World retail routing missing"
 grep -Fq '*) region_folder="Other Regions"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Other-region retail routing missing"
-grep -Fq 'if [ "$category" != "Retail/Standard" ]; then HOT_RESULT="$folder/!$category"; return; fi' "$TEST_BIN/MiSTer_Audit.sh" || fail "special release precedence missing"
+# Special-release precedence under alternative regions is exercised by test_preferences.py.
 
 # Virtual Console regression: VC ROM images are a distinct curated release type. Classification must inspect both canonical ROM filename and canonical title because No-Intro sources may carry the VC qualifier in either field.
 grep -Fq '*virtual\ console*) HOT_RESULT="Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console category classification missing"

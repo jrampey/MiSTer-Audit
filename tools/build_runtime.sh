@@ -13,6 +13,11 @@ trap 'rm -f "$TMP"' EXIT
     '# Unified MiSTer ROM Library Auditor: read-only audit plus guarded Preview / Apply / Rollback tools.' \
     '# The audit path remains read-only. Library mutation is available only through the explicit Update / Rename menu.' \
     ''
+  printf "default_preferences() {\n  cat <<'MISTER_AUDIT_DEFAULTS'\n"
+  cat "$ROOT/MiSTer_Audit.ini"
+  printf 'MISTER_AUDIT_DEFAULTS\n}\n\n'
+  cat "$ROOT/src/config.sh"
+  printf '\n\n'
   cat "$ROOT/src/audit.sh"
   printf '\n\n'
   cat "$ROOT/src/update.sh"
