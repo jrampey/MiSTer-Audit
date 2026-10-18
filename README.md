@@ -1,5 +1,8 @@
 # 🎮 MiSTer ROM Library Auditor
 
+> Folder and filename rules below describe the default INI settings. Change
+> `PARENT_REGION` and other preferences in `MiSTer_Audit.ini` to customize them.
+
 Audit, identify, organize, and safely clean up your MiSTer FPGA ROM library using No-Intro hashes and MiSTer-aware metadata.
 
 > **Current release: v1.4**
@@ -282,3 +285,41 @@ No-Intro-identified Virtual Console ROM images are treated as a distinct `Virtua
 - Apply safely removes empty MiSTer-Audit-managed category/region folders after file moves using empty-only directory removal; system roots, non-empty folders, and unrelated/user-created folders are never deleted.
 
 - Runtime source integrity: the unified `MiSTer_Audit.sh` is generated from `src/audit.sh`, `src/update.sh`, and `src/main.sh`; CI verifies generated-runtime synchronization and Bash syntax before distribution.
+
+
+## Configurable preferences
+
+`/media/fat/Scripts/MiSTer_Audit.ini` is the user-editable preferences file.
+The unified script creates it on first launch from the bundled template; Update All
+continues to distribute the script and hash database and does not overwrite the INI.
+Existing `AUDIT_POLICY.conf` completion settings are migrated on first creation.
+The INI takes precedence thereafter. Missing keys use the documented defaults;
+invalid regions, boolean values, or unknown keys stop the operation with an error.
+The file is parsed as data and is never sourced as shell code.
+
+The defaults preserve USA retail in the parent console folder, `!` folders for
+other regions and special release types (including Virtual Console), a separate
+`!World` folder, hash/DAT-based region identity, paired-save renaming, and empty-only
+managed-folder cleanup. Folder organization uses shared categories, never genres or
+one directory per game. Unidentified ROMs remain unknown regardless of their names.
+
+To put European retail in the parent folder, change `PARENT_REGION=USA` to
+`PARENT_REGION=Europe`. Supported values are USA, Europe, Japan, World, Canada,
+Australia, Korea, and Brazil; US, EU and JP aliases are accepted. Authoritative
+multi-region entries containing the selected region qualify for the parent folder.
+USA retail then goes into `!USA`. Special-release classification takes priority.
+
+Other switches in the commented INI control World-in-parent behavior, special,
+other-region and unknown-region grouping, preferred-region tag removal, paired
+save renaming, empty-directory cleanup, and completion eligibility. Boolean values
+are `0` or `1`. `COMPLETION_REGIONS=PARENT` follows the parent region by default;
+an explicit comma-separated list keeps completion scope independent. World counts
+for USA/Europe/Japan completion by default, even while stored in `!World`.
+Retail-only completion excludes Virtual Console and other non-retail types.
+Prototype/beta/demo switches apply only when retail-only is disabled.
+
+After editing preferences, run an audit (Fast is sufficient), review Preview, then
+Apply. The audit records the effective preferences; Preview and Apply reject a
+stale configuration, including a change made while the confirmation prompt is open.
+Fast Audit refreshes region-dependent classifications while retaining ROM hashes.
+Explicit Apply confirmation, collision checks, and rollback remain safety invariants.

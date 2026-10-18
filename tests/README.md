@@ -40,3 +40,5 @@ The shell harness refuses to run unless `CI=true` and refuses to overlay an exis
 ### Runtime structure guard
 
 `tools/build_runtime.sh --check` now verifies generated/runtime byte synchronization, Bash syntax, singleton entry-point definitions, a single final dispatch block, and that no stray content follows the final dispatch. MiSTer compatibility CI also runs ShellCheck as advisory lint so new warnings are visible without blocking publication.
+
+`python3 tests/test_preferences.py` checks INI creation/preservation, legacy migration, regional routing and filenames, Fast Audit hash reuse, completion-region labels, stale-preview rejection, switches, CRLF/aliases, and invalid settings against synthetic hash identities.
