@@ -312,7 +312,7 @@ dat_lookup() { local h="${1,,}"; [ -n "${DAT_RECORD_BY_SHA[$h]+x}" ] || return 0
 
 declare -A COMPLETION_REFERENCE_KEYS COMPLETION_OWNED_KEYS
 declare -A COMPLETION_TOTAL_BY_SYSTEM COMPLETION_OWNED_BY_SYSTEM
-declare -A COMPLETION_TITLE_REGION COMPLETION_TITLE_RELEASE COMPLETION_TITLE_LICENSE
+declare -A COMPLETION_TITLE_REGION COMPLETION_TITLE_RELEASE COMPLETION_TITLE_LICENSE COMPLETION_DISPLAY_TITLE
 completion_region_selected() {
   local meta="${1,,}" selected normalized; normalized="${meta// /}"
   for selected in "${COMPLETION_REGIONS[@]}"; do
@@ -321,20 +321,67 @@ completion_region_selected() {
     if [ "$COMPLETION_INCLUDE_WORLD" -eq 1 ] && [ "$normalized" = "world" ]; then case "$selected" in usa|europe|japan) return 0 ;; esac; fi
   done; return 1
 }
-completion_release_selected() { local release="${1,,}" license="${2,,}" name="${3,,}"; case "$release $name" in *prototype*|*proto*) [ "$COMPLETION_INCLUDE_PROTOTYPES" = 1 ] || return 1 ;; *beta*) [ "$COMPLETION_INCLUDE_BETA" = 1 ] || return 1 ;; *demo*|*sample*) [ "$COMPLETION_INCLUDE_DEMOS" = 1 ] || return 1 ;; esac; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then case "$name" in *virtual\ console*) return 1 ;; esac; case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac; case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac; fi; return 0; }
+# Completion is keyed by original game identity, never by individual DAT dump.
+# Keep this independent of ROM filenames: only hash-resolved DAT metadata reaches here.
+completion_identity() {
+  local title="$1" stem tag
+  stem="$title"
+  # No-Intro trailing qualifiers describe region, languages, revisions and media,
+  # not a new game. Preserve subtitles and punctuation in the actual game name.
+  while [[ "$stem" =~ [[:space:]]\\([^()]*\\)$ ]]; do
+    stem="${stem% (*}"
+  done
+  stem="${stem,,}"
+  stem="${stem//[[:space:]]/ }"
+  HOT_RESULT="$stem"
+}
+completion_release_selected() {
+  local release="${1,,}" license="${2,,}" name="${3,,}"
+  case "$release $name" in
+    *prototype*|*proto*) [ "$COMPLETION_INCLUDE_PROTOTYPES" = 1 ] || return 1 ;;
+    *beta*) [ "$COMPLETION_INCLUDE_BETA" = 1 ] || return 1 ;;
+    *demo*|*sample*) [ "$COMPLETION_INCLUDE_DEMOS" = 1 ] || return 1 ;;
+  esac
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then
+    case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac
+    case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac
+    # Repackaged / later platform distributions and diagnostic media are not
+    # original console retail releases, even when a DAT marks them Retail.
+    case "$name" in *virtual\ console*) return 1 ;; esac
+    case "$name" in
+      *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*) return 1 ;;
+    esac
+  fi
+  return 0
+}
 completion_record_eligible() { completion_region_selected "$1" && completion_release_selected "$2" "$3" "$4"; }
 build_completion_reference() {
   local h sys title region release license key
   for h in "${!DAT_RECORD_BY_SHA[@]}"; do
     dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; sys="$DAT_SYSTEM"; title="$DAT_TITLE"; region="$DAT_REGION"; release="$DAT_RELEASE"; license="$DAT_LICENSE"
-    [ -n "$sys" ] && [ -n "$title" ] || continue; completion_record_eligible "$region" "$release" "$license" "$title" || continue; key="$sys|$title"
-    if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then COMPLETION_REFERENCE_KEYS["$key"]=1; COMPLETION_TOTAL_BY_SYSTEM["$sys"]=$(( ${COMPLETION_TOTAL_BY_SYSTEM["$sys"]:-0} + 1 )); COMPLETION_TITLE_REGION["$key"]="$region"; COMPLETION_TITLE_RELEASE["$key"]="$release"; COMPLETION_TITLE_LICENSE["$key"]="$license"; fi
+    [ -n "$sys" ] && [ -n "$title" ] || continue
+    completion_record_eligible "$region" "$release" "$license" "$title" || continue
+    completion_identity "$title"; key="$sys|$HOT_RESULT"
+    if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then
+      COMPLETION_REFERENCE_KEYS["$key"]=1
+      COMPLETION_TOTAL_BY_SYSTEM["$sys"]=$(( ${COMPLETION_TOTAL_BY_SYSTEM["$sys"]:-0} + 1 ))
+      COMPLETION_TITLE_REGION["$key"]="$region"
+      COMPLETION_TITLE_RELEASE["$key"]="$release"
+      COMPLETION_TITLE_LICENSE["$key"]="$license"
+      COMPLETION_DISPLAY_TITLE["$key"]="$title"
+    fi
   done
 }
 record_completion_owned() {
   local sys="$1" title="$2" region="$3" release="$4" license="$5" key
-  [ -n "$sys" ] && [ -n "$title" ] || return 0; completion_record_eligible "$region" "$release" "$license" "$title" || return 0; key="$sys|$title"; [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
-  if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then COMPLETION_OWNED_KEYS["$key"]=1; COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 )); fi
+  [ -n "$sys" ] && [ -n "$title" ] || return 0
+  completion_record_eligible "$region" "$release" "$license" "$title" || return 0
+  completion_identity "$title"; key="$sys|$HOT_RESULT"
+  [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
+  if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
+    COMPLETION_OWNED_KEYS["$key"]=1
+    COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 ))
+  fi
 }
 load_hash_cache() {
   local old_format="" old_db="" p sig sha normalized_sha ds dn dr dsrc ms mc mf mr mrel ml rc rr rk rp ls k v
@@ -761,7 +808,7 @@ COMPLETION_REGION_LABEL="$(IFS=', '; echo "${COMPLETION_REGIONS[*]}")"
 printf '%s\n' '"system","owned_titles","reference_titles","missing_titles","completion_percent","regions","scope"' > "$STAGE_COMPLETION"
 printf '%s\n' '"system","canonical_title","region","release_type","license_status"' > "$STAGE_MISSING_COMPLETION"
 while IFS= read -r c_sys; do [ -n "$c_sys" ] || continue; present_matches=0; for present_sys in "${!SYSTEM_MATCHED[@]}"; do [ "$(canonical_dat_system "$present_sys")" = "$c_sys" ] && present_matches=$((present_matches + ${SYSTEM_MATCHED[$present_sys]:-0})); done; [ "$present_matches" -gt 0 ] || continue; c_total="${COMPLETION_TOTAL_BY_SYSTEM[$c_sys]:-0}"; c_owned="${COMPLETION_OWNED_BY_SYSTEM[$c_sys]:-0}"; c_missing=$((c_total-c_owned)); c_pct="$(awk -v a="$c_owned" -v b="$c_total" 'BEGIN{if(b>0) printf "%.2f", (a*100)/b; else printf "0.00"}')"; if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then c_scope="Retail releases"; else c_scope="All release types"; fi; csv_row "$STAGE_COMPLETION" "$c_sys" "$c_owned" "$c_total" "$c_missing" "$c_pct" "$COMPLETION_REGION_LABEL" "$c_scope"; done < <(printf '%s\n' "${!COMPLETION_TOTAL_BY_SYSTEM[@]}" | LC_ALL=C sort)
-for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue; c_sys="${c_key%%|*}"; present_matches=0; for present_sys in "${!SYSTEM_MATCHED[@]}"; do [ "$(canonical_dat_system "$present_sys")" = "$c_sys" ] && present_matches=$((present_matches + ${SYSTEM_MATCHED[$present_sys]:-0})); done; [ "$present_matches" -gt 0 ] || continue; c_title="${c_key#*|}"; csv_row "$STAGE_MISSING_COMPLETION" "$c_sys" "$c_title" "${COMPLETION_TITLE_REGION[$c_key]:-}" "${COMPLETION_TITLE_RELEASE[$c_key]:-}" "${COMPLETION_TITLE_LICENSE[$c_key]:-}"; done
+for c_key in "${!COMPLETION_REFERENCE_KEYS[@]}"; do [ -n "${COMPLETION_OWNED_KEYS[$c_key]+x}" ] && continue; c_sys="${c_key%%|*}"; present_matches=0; for present_sys in "${!SYSTEM_MATCHED[@]}"; do [ "$(canonical_dat_system "$present_sys")" = "$c_sys" ] && present_matches=$((present_matches + ${SYSTEM_MATCHED[$present_sys]:-0})); done; [ "$present_matches" -gt 0 ] || continue; c_title="${COMPLETION_DISPLAY_TITLE[$c_key]:-${c_key#*|}}"; csv_row "$STAGE_MISSING_COMPLETION" "$c_sys" "$c_title" "${COMPLETION_TITLE_REGION[$c_key]:-}" "${COMPLETION_TITLE_RELEASE[$c_key]:-}" "${COMPLETION_TITLE_LICENSE[$c_key]:-}"; done
 { head -n 1 "$STAGE_MISSING_COMPLETION"; tail -n +2 "$STAGE_MISSING_COMPLETION" | LC_ALL=C sort; } > "$STAGE_MISSING_COMPLETION.tmp" && mv -f "$STAGE_MISSING_COMPLETION.tmp" "$STAGE_MISSING_COMPLETION"
 
 # Keep advisory release-family reporting outside cache control flow.

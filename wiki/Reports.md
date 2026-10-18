@@ -32,3 +32,7 @@ Reports are generated in a staging directory first. Complete replacements are th
 ## ROM-type reporting
 
 The normalized ROM types are `Retail/Standard`, `Homebrew`, `Unlicensed`, `Aftermarket`, `Prototype`, `Beta`, `Demo/Sample`, `Translation`, and `Hack/Modified`. `game_library.txt` prints the full taxonomy. Retail/Standard stays at the parent system folder; every non-retail type uses exactly `<system>/<ROM type>`—never a gameplay-genre folder and never a folder per ROM.
+
+### Original retail completion identity
+
+The `library_completion.csv` and `missing_library_titles.csv` reports count unique original retail game identities, not each DAT revision or region-tagged variant. The identity is derived from the hash-matched canonical DAT title after removing trailing parenthesized qualifiers. Known later distribution releases and test/BIOS media are excluded from original-retail counts. The missing-title list retains a representative canonical DAT title for each unowned game. This does not rename or move ROMs.

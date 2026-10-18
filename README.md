@@ -323,3 +323,5 @@ Apply. The audit records the effective preferences; Preview and Apply reject a
 stale configuration, including a change made while the confirmation prompt is open.
 Fast Audit refreshes region-dependent classifications while retaining ROM hashes.
 Explicit Apply confirmation, collision checks, and rollback remain safety invariants.
+
+Completion reporting groups hash-verified DAT releases by original game identity, ignoring trailing DAT qualifiers (region, language and revision). Original retail counts exclude identified later-platform distributions and diagnostic media; each eligible game contributes at most one owned title.
