@@ -554,13 +554,13 @@ completion_release_selected() {
 }
 completion_record_eligible() { completion_region_selected "$1" && completion_release_selected "$2" "$3" "$4"; }
 build_completion_reference() {
-  local h sys title region release license key
+  local h sys title rom region release license key reference_release
   for h in "${!DAT_RECORD_BY_SHA[@]}"; do
-    dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; sys="$DAT_SYSTEM"; title="$DAT_TITLE"; region="$DAT_REGION"; release="$DAT_RELEASE"; license="$DAT_LICENSE"
+    dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; sys="$DAT_SYSTEM"; title="$DAT_TITLE"; rom="$DAT_ROM"; region="$DAT_REGION"; release="$DAT_RELEASE"; license="$DAT_LICENSE"
     [ -n "$sys" ] && [ -n "$title" ] || continue
     reference_release="$release"
     [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]] && reference_release="Retail/Standard"
-    completion_record_eligible "$region" "$reference_release" "$license" "$title" || continue
+    completion_record_eligible "$region" "$reference_release" "$license" "$rom $title" || continue
     game_identity_key_set "$sys" "$title"; key="$HOT_RESULT"
     [ "${HISTORY_STATUS[$key]:-}" != NO ] || continue
     if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then
@@ -587,7 +587,7 @@ build_completion_reference() {
   done
 }
 record_completion_owned() {
-  local sys="$1" title="$2" region="$3" release="$4" license="$5" key
+  local sys="$1" title="$2" region="$3" release="$4" license="$5" rom="${6:-}" key eligible_release
   [ -n "$sys" ] && [ -n "$title" ] || return 0
   game_identity_key_set "$sys" "$title"; key="$HOT_RESULT"
   [ "${HISTORY_STATUS[$key]:-}" != NO ] || return 0
@@ -596,9 +596,9 @@ record_completion_owned() {
   eligible_release="$release"
   if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]]; then eligible_release="Retail/Standard"; fi
   if [ "${HISTORY_STATUS[$key]:-}" = YES ]; then
-    completion_release_selected "$eligible_release" "$license" "$title" || return 0
+    completion_release_selected "$eligible_release" "$license" "$rom $title" || return 0
   else
-    completion_record_eligible "$region" "$eligible_release" "$license" "$title" || return 0
+    completion_record_eligible "$region" "$eligible_release" "$license" "$rom $title" || return 0
   fi
   [ -n "$key" ] && [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
   if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
@@ -1053,7 +1053,7 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
         fi
       fi
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [[ "$special_category" == "Retail/Standard" || "$special_category" == Revision || "$special_category" == "Alternate Retail" ]] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then retail_stem="$canonical_stem"; retail_stem="$(strip_parent_tag "$retail_stem")"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [[ "$special_category" == "Retail/Standard" || "$special_category" == Revision || "$special_category" == "Alternate Retail" ]] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
-      curated_destination_set "$meta_folder" "$special_category" "${curation_route_region:-$region}"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
+      curated_destination_set "$meta_folder" "$special_category" "${curation_route_region:-$region}"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license" "$dat_rom"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       expected_curation_path="$GAMES/$curated_destination"
       actual_curation_path="${p%/*}"
