@@ -44,7 +44,7 @@ def match_system(dat_filename: str) -> str | None:
     for prefix, system in DAT_SYSTEMS.items():
         if base.startswith(prefix + " ("):
             suffix = base[len(prefix) + 2:]
-            if re.fullmatch(r"\\d{8}-\\d{6}\\)\\.dat", suffix):
+            if re.fullmatch(r"\d{8}-\d{6}\)\.dat", suffix):
                 return system
     return None
 
