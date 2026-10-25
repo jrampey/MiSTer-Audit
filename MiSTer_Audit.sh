@@ -534,21 +534,18 @@ game_identity_key_set() {
   fi
 }
 completion_release_selected() {
-  local release="${1,,}" license="${2,,}" name="${3,,}"
-  case "$release $name" in
-    *prototype*|*proto*) [ "$COMPLETION_INCLUDE_PROTOTYPES" = 1 ] || return 1 ;;
-    *beta*) [ "$COMPLETION_INCLUDE_BETA" = 1 ] || return 1 ;;
-    *demo*|*sample*) [ "$COMPLETION_INCLUDE_DEMOS" = 1 ] || return 1 ;;
+  local release="${1,,}" license="${2,,}" name="${3,,}" category
+  special_release_category_set "$release" "$license" "$name"
+  category="$HOT_RESULT"
+  case "$category" in
+    Prototype) [ "$COMPLETION_RETAIL_ONLY" != 1 ] && [ "$COMPLETION_INCLUDE_PROTOTYPES" = 1 ] || return 1 ;;
+    Beta) [ "$COMPLETION_RETAIL_ONLY" != 1 ] && [ "$COMPLETION_INCLUDE_BETA" = 1 ] || return 1 ;;
+    Demo/Sample) [ "$COMPLETION_RETAIL_ONLY" != 1 ] && [ "$COMPLETION_INCLUDE_DEMOS" = 1 ] || return 1 ;;
   esac
   if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then
     case "$release" in retail/standard|retail|standard) ;; *) return 1 ;; esac
+    case "$category" in Retail/Standard|Revision) ;; *) return 1 ;; esac
     case "$license" in *unlicensed*|unl|*homebrew*|*aftermarket*) return 1 ;; esac
-    # Repackaged / later platform distributions and diagnostic media are not
-    # original console retail releases, even when a DAT marks them Retail.
-    case "$name" in *virtual\ console*) return 1 ;; esac
-    case "$name" in
-      *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*|*"pirate"*|*"wide-boy"*|*"wide boy"*|*"zelda collection"*|*"piko interactive"*) return 1 ;;
-    esac
   fi
   return 0
 }
@@ -696,23 +693,41 @@ expected_unmatched_class() {
 
 special_release_category_set() {
   local release="${1,,}" license="${2,,}" name="${3,,}"
-  case "$license $release $name" in
-    *virtual\ console*) HOT_RESULT="Virtual Console" ;;
-    *homebrew*) HOT_RESULT="Homebrew" ;;
-    *unlicensed*|*" unl"*|*"unl "*) HOT_RESULT="Unlicensed" ;;
-    *aftermarket*) HOT_RESULT="Aftermarket" ;;
-    *prototype*|*" proto"*|*"proto "*) HOT_RESULT="Prototype" ;;
-    *beta*) HOT_RESULT="Beta" ;;
-    *demo*|*sample*) HOT_RESULT="Demo/Sample" ;;
-    *translation*|*translated*) HOT_RESULT="Translation" ;;
-    *hack*|*modified*|*improvement*|*redux*|*randomizer*) HOT_RESULT="Hack/Modified" ;;
-    *"piko interactive"*|*"zelda collection"*|*"switch online"*|*"gamecube"*|*"game cube"*|*"limited run games"*) HOT_RESULT="Reissue/Compilation" ;;
-    *"pirate"*) HOT_RESULT="Unofficial/Pirate" ;;
-    *"wide-boy"*|*"wide boy"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"diagnostic"*) HOT_RESULT="Development/Diagnostic" ;;
-    *"not for resale"*|*"kiosk"*) HOT_RESULT="Non-Retail" ;;
-    *) case "$release" in revision|rev|revision/*) HOT_RESULT="Revision" ;; *) HOT_RESULT="Retail/Standard" ;; esac ;;
-  esac
+  # Match DAT metadata and explicit edition tags, never arbitrary substrings
+  # of retail game names (e.g., Demolition or Pirates!).
+  if [[ "$release" == *"virtual console"* || "$name" == *"(virtual console"* || "$name" == *"[virtual console"* ]]; then
+    HOT_RESULT="Virtual Console"
+  elif [[ "$name" == *"(piko interactive"* || "$name" == *"(zelda collection"* || "$name" == *"(switch online"* || "$name" == *"(nintendo switch online"* || "$name" == *"(gamecube"* || "$name" == *"(game cube"* || "$name" == *"(limited run games"* || "$release" == *"reissue"* || "$release" == *"compilation"* ]]; then
+    HOT_RESULT="Reissue/Compilation"
+  elif [[ "$name" == *"wide-boy"* || "$name" == *"wide boy"* || "$name" == *"test cartridge"* || "$name" == *"test program"* || "$name" == *"pif ("* || "$release" == *"diagnostic"* ]]; then
+    HOT_RESULT="Development/Diagnostic"
+  elif [[ "$name" == *"(pirate)"* || "$name" == *"(pirate "* || "$name" == *"[pirate]"* || "$release" == *"pirate"* ]]; then
+    HOT_RESULT="Unofficial/Pirate"
+  elif [[ "$name" == *"(not for resale"* || "$name" == *"(kiosk"* || "$release" == *"non-retail"* ]]; then
+    HOT_RESULT="Non-Retail"
+  elif [[ "$license" == *"homebrew"* || "$release" == *"homebrew"* || "$name" == *"(homebrew"* ]]; then
+    HOT_RESULT="Homebrew"
+  elif [[ "$license" == *"unlicensed"* || "$license" == unl || "$release" == *"unlicensed"* || "$name" == *"(unl)"* || "$name" == *"(unlicensed"* ]]; then
+    HOT_RESULT="Unlicensed"
+  elif [[ "$license" == *"aftermarket"* || "$release" == *"aftermarket"* || "$name" == *"(aftermarket"* ]]; then
+    HOT_RESULT="Aftermarket"
+  elif [[ "$release" == *"prototype"* || "$release" == "proto" || "$name" == *"(prototype"* || "$name" == *"(proto "* || "$name" == *"(proto)"* ]]; then
+    HOT_RESULT="Prototype"
+  elif [[ "$release" == *"beta"* || "$name" == *"(beta"* ]]; then
+    HOT_RESULT="Beta"
+  elif [[ "$release" == *"demo"* || "$release" == *"sample"* || "$name" == *"(demo"* || "$name" == *"(sample"* ]]; then
+    HOT_RESULT="Demo/Sample"
+  elif [[ "$release" == *"translation"* || "$release" == *"translated"* || "$name" == *"(translation"* || "$name" == *"(translated"* || "$name" == *"[t+"* ]]; then
+    HOT_RESULT="Translation"
+  elif [[ "$release" == *"hack"* || "$release" == *"modified"* || "$name" == *"(hack"* || "$name" == *"(improvement"* || "$name" == *"(redux"* || "$name" == *"(randomizer"* || "$name" == *"[h+"* ]]; then
+    HOT_RESULT="Hack/Modified"
+  elif [[ "$release" == revision || "$release" == rev || "$release" == revision/* || "$name" == *"(rev "* || "$name" == *"(revision "* ]]; then
+    HOT_RESULT="Revision"
+  else
+    HOT_RESULT="Retail/Standard"
+  fi
 }
+
 curated_destination_set() {
   local folder="$1" category="$2" region="${3:-Unknown}" region_folder=""
   [ -n "$folder" ] || { HOT_RESULT="Unknown"; return; }
