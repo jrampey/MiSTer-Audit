@@ -25,6 +25,21 @@ validate_audit(){
  [[ "$verdict" == "PASS WITH WARNINGS" && ( "$recommendation" == "APPLY WITH SKIPS" || "$recommendation" == "SAFE TO PREVIEW (COLLISIONS SKIPPED)" ) && "$notes_trimmed" == *collision* ]]&&collision_only=1
  echo "Audit compatibility check"; echo "-------------------------"; echo "Schema:               ${schema:-MISSING}"; echo "Exporter version:     ${exporter_version:-MISSING}"; echo "Self-check:           ${self_check:-MISSING}"; echo "Metadata layer:       ${metadata_layer:-MISSING}"; echo "Integrity verdict:    ${verdict:-MISSING}"; echo "Apply recommendation: ${recommendation:-MISSING}"; echo "Integrity notes:      ${notes:-MISSING}"
  [[ "$schema" == "$EXPECTED_SCHEMA" ]]||{ echo "ERROR: Expected audit schema $EXPECTED_SCHEMA."; errors=1; }; [[ "$exporter_version" == "$EXPECTED_EXPORTER_VERSION" ]]||{ echo "ERROR: Expected exporter v$EXPECTED_EXPORTER_VERSION."; errors=1; }; [[ "$self_check" == PASS ]]||{ echo "ERROR: Auditor startup self-check did not pass."; errors=1; }; [[ "$metadata_layer" == MiSTer-aware ]]||{ echo "ERROR: MiSTer-aware metadata layer was not validated."; errors=1; }; [[ -n "$build_sha" && "$build_sha" != UNAVAILABLE ]]||{ echo "ERROR: Audit exporter build fingerprint is missing."; errors=1; }; [[ -n "$database_sha" && "$database_sha" != missing && "$database_sha" != UNAVAILABLE ]]||{ echo "ERROR: Audit database fingerprint is missing."; errors=1; }
+ # Recheck historical source fingerprints even when the exporter and DAT are unchanged.
+ for historical_name in historical_us_retail.tsv game_identity_aliases.tsv historical_console_eras.tsv; do
+  case "$historical_name" in
+   historical_us_retail.tsv) historical_field=historical_manifest_sha1 ;;
+   game_identity_aliases.tsv) historical_field=historical_alias_sha1 ;;
+   historical_console_eras.tsv) historical_field=historical_era_sha1 ;;
+  esac
+  expected_history="$(audit_meta "$historical_field")"
+  current_history="MISSING"
+  [ ! -f "$SCRIPT_DIR/$historical_name" ] || current_history="$(hash_file "$SCRIPT_DIR/$historical_name")"
+  if [[ -z "$expected_history" || "$expected_history" != "$current_history" ]]; then
+   echo "ERROR: $historical_name changed since the audit. Re-run audit."
+   errors=1
+  fi
+ done
  if [[ "$mode" == apply ]]; then
   if [[ "$verdict" == FAIL ]]; then echo "ERROR: Apply is blocked by integrity_verdict=FAIL."; errors=1; elif [[ "$verdict" == PASS ]]; then [[ "$recommendation" != "DO NOT APPLY" ]]||{ echo "ERROR: Auditor explicitly recommends DO NOT APPLY."; errors=1; }; elif ((collision_only)); then echo "WARNING: Audit contains collision-only warnings; blocking rows will be skipped automatically."; else echo "ERROR: Apply warnings are not limited to skippable collision rows."; errors=1; fi
   [[ -f "$RUNTIME" ]]||{ echo "ERROR: Current exporter not found."; errors=1; }; if [[ -f "$RUNTIME" ]]; then current_exporter_sha="$(hash_file "$RUNTIME")"; [[ "$current_exporter_sha" == "$build_sha" && "$current_exporter_sha" != UNAVAILABLE ]]||{ echo "ERROR: Exporter changed since this audit. Re-run audit."; errors=1; }; fi
