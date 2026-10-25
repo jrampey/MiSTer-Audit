@@ -479,7 +479,7 @@ completion_release_selected() {
     # original console retail releases, even when a DAT marks them Retail.
     case "$name" in *virtual\ console*) return 1 ;; esac
     case "$name" in
-      *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*) return 1 ;;
+      *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*|*"pirate"*|*"wide-boy"*|*"wide boy"*|*"zelda collection"*|*"piko interactive"*) return 1 ;;
     esac
   fi
   return 0
