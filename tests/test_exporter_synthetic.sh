@@ -192,20 +192,20 @@ grep -Eq '"(Homebrew|Unlicensed)","SNES/!(Homebrew|Unlicensed)"' "$AUDIT/propose
 # remains directly in the system folder. Never create genre or per-ROM directories.
 python3 - "$AUDIT/proposed_renames.csv" <<'PY'
 import csv, sys
-allowed = {"Homebrew", "Unlicensed", "Aftermarket", "Prototype", "Beta", "Demo/Sample", "Translation", "Hack/Modified"}
+allowed = {"Homebrew", "Unlicensed", "Aftermarket", "Prototype", "Beta", "Demo/Sample", "Translation", "Hack/Modified", "Revision", "Alternate Retail", "Reissue/Compilation", "Unofficial/Pirate", "Development/Diagnostic", "Non-Retail", "Historical Exclusion"}
 with open(sys.argv[1], newline="") as f:
     for row in csv.DictReader(f):
         category = row.get("special_release_category", "")
         destination = row.get("curated_destination", "")
         system = row.get("system", "")
         if category == "Retail/Standard":
-            if destination not in ("", "Unknown", system, f"{system}/!Unknown Region"):
+            if destination not in ("", "Unknown", system, f"{system}/!Unknown Region", *(f"{system}/!{r}" for r in ("World", "Japan", "Europe", "Canada", "Australia", "Korea", "Brazil", "Other Regions"))):
                 raise SystemExit(f"ERROR: retail ROM routed outside system root: {destination}")
             continue
         if category not in allowed:
             raise SystemExit(f"ERROR: non-ROM-type curated category: {category}")
         parts = destination.split("/")
-        if len(parts) != 2 or parts[0] != system or parts[1] != "!" + category:
+        if len(parts) != 2 or parts[0] != system or parts[1] != "!" + category.replace("/", "-"):
             raise SystemExit(f"ERROR: curated destination must be exactly <system>/<ROM type>: {destination}")
 PY
 grep -Fq '"special_release_category","curated_destination"' "$AUDIT/dat_matches.csv" || fail "DAT match report missing ROM-type reporting columns"
