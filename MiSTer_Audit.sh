@@ -533,7 +533,9 @@ build_completion_reference() {
   for h in "${!DAT_RECORD_BY_SHA[@]}"; do
     dat_unpack "${DAT_RECORD_BY_SHA[$h]}"; sys="$DAT_SYSTEM"; title="$DAT_TITLE"; region="$DAT_REGION"; release="$DAT_RELEASE"; license="$DAT_LICENSE"
     [ -n "$sys" ] && [ -n "$title" ] || continue
-    completion_record_eligible "$region" "$release" "$license" "$title" || continue
+    reference_release="$release"
+    [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]] && reference_release="Retail/Standard"
+    completion_record_eligible "$region" "$reference_release" "$license" "$title" || continue
     game_identity_key_set "$sys" "$title"; key="$HOT_RESULT"
     [ "${HISTORY_STATUS[$key]:-}" != NO ] || continue
     if [ -z "${COMPLETION_REFERENCE_KEYS[$key]+x}" ]; then
@@ -676,7 +678,11 @@ special_release_category_set() {
     *demo*|*sample*) HOT_RESULT="Demo/Sample" ;;
     *translation*|*translated*) HOT_RESULT="Translation" ;;
     *hack*|*modified*|*improvement*|*redux*|*randomizer*) HOT_RESULT="Hack/Modified" ;;
-    *) HOT_RESULT="Retail/Standard" ;;
+    *"piko interactive"*|*"zelda collection"*|*"switch online"*|*"gamecube"*|*"game cube"*|*"limited run games"*) HOT_RESULT="Reissue/Compilation" ;;
+    *"pirate"*) HOT_RESULT="Unofficial/Pirate" ;;
+    *"wide-boy"*|*"wide boy"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"diagnostic"*) HOT_RESULT="Development/Diagnostic" ;;
+    *"not for resale"*|*"kiosk"*) HOT_RESULT="Non-Retail" ;;
+    *) case "$release" in revision|rev|revision/*) HOT_RESULT="Revision" ;; *) HOT_RESULT="Retail/Standard" ;; esac ;;
   esac
 }
 curated_destination_set() {
@@ -923,12 +929,12 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
         dat_status="No match"
       fi
     else
-      if [ "$USE_HASH_CACHE" -eq 0 ] && [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi
+      if [ -n "${PREHASH_SHA_BY_PATH[$p]:-}" ]; then sha1="${PREHASH_SHA_BY_PATH[$p]}"; else sha1="$(hash_file "$p")"; fi
       [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ] && HASH_CALCULATED=$((HASH_CALCULATED+1)); dat_status="No match"
     fi
   else HASH_SKIPPED=$((HASH_SKIPPED+1)); fi
   if [ -n "$sha1" ] && [ "$sha1" != "UNAVAILABLE" ]; then
-    HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >&17; hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "$cached_normalized_sha" ]; then matched_hkey="${cached_normalized_sha,,}"; elif [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
+    HASHED=$((HASHED+1)); printf '%s\t%s\t%s\t%s\t%s\n' "${sha1,,}" "$system" "$p" "$file" "$clean" >&17; hkey="${sha1,,}"; file_size="${sig%%|*}"; if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then matched_hkey="$hkey"; elif [ -n "$cached_normalized_sha" ] && [ -n "${DAT_RECORD_BY_SHA[${cached_normalized_sha,,}]+x}" ]; then matched_hkey="${cached_normalized_sha,,}"; else matched_hkey="$(normalized_dat_hash "$p" "$ext" "$hkey" "$file_size")"; fi; if [ "$matched_hkey" != "$hkey" ]; then hkey="$matched_hkey"; sha1="$matched_hkey"; dat_status="Normalized SHA-1"; fi
     if [ -n "${DAT_RECORD_BY_SHA[$hkey]+x}" ]; then
       if [ "$row_metadata_reused" -eq 0 ]; then
         dat_unpack "${DAT_RECORD_BY_SHA[$hkey]}"; dat_name="$DAT_TITLE"; dat_rom="$DAT_ROM"; dat_source="$DAT_SOURCE"; meta_system="$DAT_SYSTEM"; meta_core="$DAT_CORE"; meta_folder="$DAT_FOLDER"; meta_region="$DAT_REGION"; meta_release="$DAT_RELEASE"; meta_license="$DAT_LICENSE"
@@ -937,8 +943,20 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
       # every run. This keeps Fast Audit byte-for-byte equivalent to Full
       # Verification while still avoiding hash and DAT-record decoding work.
       special_release_category_set "$meta_release" "$meta_license" "$dat_rom $dat_name"; special_category="$HOT_RESULT"
+      game_identity_key_set "${meta_system:-$system}" "$dat_name"; curation_key="$HOT_RESULT"
+      curation_route_region="$meta_region"
+      if [ "${HISTORY_STATUS[$curation_key]:-}" = NO ] && { [ "$special_category" = "Retail/Standard" ] || [ "$special_category" = Revision ]; }; then
+        special_category="Historical Exclusion"
+      elif [ -n "${PREFERRED_PATH_BY_GAME[$curation_key]:-}" ] && { [ "$special_category" = "Retail/Standard" ] || [ "$special_category" = Revision ]; }; then
+        if [ "${PREFERRED_PATH_BY_GAME[$curation_key]}" = "$p" ]; then
+          special_category="Retail/Standard"
+          if [ "$meta_region" = World ] && [ "${HISTORY_STATUS[$curation_key]:-}" = YES ]; then curation_route_region="$PARENT_REGION"; fi
+        elif parent_region_matches "$meta_region" || { [ "$meta_region" = World ] && [ "${HISTORY_STATUS[$curation_key]:-}" = YES ]; }; then
+          if [[ "${meta_release,,}" == *revision* ]]; then special_category="Revision"; else special_category="Alternate Retail"; fi
+        fi
+      fi
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then retail_stem="$canonical_stem"; retail_stem="$(strip_parent_tag "$retail_stem")"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [ "$special_category" = "Retail/Standard" ] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
-      curated_destination_set "$meta_folder" "$special_category" "$region"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
+      curated_destination_set "$meta_folder" "$special_category" "${curation_route_region:-$region}"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
       csv_row "$STAGE_LOCATION_AUDIT" "$system" "$p" "$dat_name" "$meta_system" "$meta_core" "$meta_folder" "$special_category" "$curated_destination" "$loc_status"; printf '%s\t%s\t%s\n' "${meta_system:-$system}" "$dat_name" "$special_category" >> "$WORK.release_rows"
     else SYSTEM_UNMATCHED["$system"]=$(( ${SYSTEM_UNMATCHED["$system"]:-0} + 1 )); unmatched_class="$(expected_unmatched_class "$file" "$kind")"; csv_row "$STAGE_DAT_UNMATCHED" "$sha1" "$system" "$p" "$file" "$unmatched_class"; csv_row "$STAGE_REVIEW_QUEUE" "$system" "$p" "$file" "$system" "$unmatched_class" "Check DAT coverage, normalization and file format; verify SHA-1 before assigning ownership"; fi
