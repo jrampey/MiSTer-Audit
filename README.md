@@ -355,3 +355,14 @@ Verified No-Intro ROM revisions count as ownership of the original retail title 
 - `parent_integrity.csv` explicitly lists physically misfiled DAT-verified retail or alternate ROMs. `historical_retail_review.csv` identifies all DAT-derived candidates that lack independently sourced eligibility; `system_retail_coverage.csv` includes consoles whose retail completion cannot yet be measured. These reports are advisory and preserve read-only audit behavior.
 - Curated category names containing a slash are rendered as safe single folder names (for example, `!Demo-Sample`, not `!Demo/Sample`), preserving the one-shared-folder-per-type rule.
 - **Historical precision warning:** These three TSV manifests deliberately ship without assumed catalog facts. Correct historical percentages require evidence-complete U.S. original-era lists, including disc media catalogs where applicable; DAT-derived completion is a provisional estimate, never silently certified.
+
+
+### Importing No-Intro identity links offline
+
+A desktop maintainer can build an alias table using the user's own No-Intro DAT ZIP:
+
+```bash
+python3 tools/import_no_intro_identities.py No-Intro.zip --output game_identity_aliases.tsv
+```
+
+The importer uses No-Intro `id`/`cloneofid` to connect known dump variants, skips conflicting normalized names, and never assigns a U.S. release date or historical retail eligibility. Review generated aliases and commit the table before Update All distributes it; do not run Python on the MiSTer Pi. These identity links improve title deduplication but are **not** evidence of a historical retail release.
