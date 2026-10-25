@@ -18,3 +18,7 @@ The current release is **v1.4**. A single unified `MiSTer_Audit.sh` runtime prov
 Authoritative DAT matches provide canonical naming and ROM-type classification. Retail/Standard ROMs remain in the parent system folder; Homebrew, Unlicensed, Aftermarket, Prototype, Beta, Demo/Sample, Translation, and Hack/Modified ROMs use one shared category folder per type. These are ROM release/status categories, not gameplay genres, and there is no per-ROM folder layer.
 
 Update All distributes exactly two files under `/media/fat/Scripts/`: `MiSTer_Audit.sh` and `mister_hash_database.tsv`.
+
+### Original-retail completion reconciliation
+
+Verified No-Intro ROM revisions count as ownership of the original retail title (rather than as separate missing games). The original-retail reference excludes pirate releases, Wide-Boy development software, Zelda Collection editions, and Piko Interactive later editions. Completion remains hash/DAT-based and does not infer ownership from filenames. A fresh full audit is required to refresh reported totals.
