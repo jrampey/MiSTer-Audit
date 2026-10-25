@@ -29,7 +29,8 @@ with tempfile.TemporaryDirectory() as temp:
         aliases, ambiguous, files = extract(z)
 assert files == 1
 assert len(aliases) == 2
-assert aliases[("N64", "test game")][1] == "nointro:1"
-assert aliases[("N64", "regional different name")][1] == "nointro:1"
+assert aliases[("N64", "test game")][1].startswith("nointro:1:")
+assert aliases[("N64", "regional different name")][1].startswith("nointro:1:")
+assert aliases[("N64", "test game")][1] != aliases[("N64", "regional different name")][1]
 assert ("N64", "ambiguous") in ambiguous
-print("No-Intro clone IDs group revisions and regional names without inferring dates")
+print("No-Intro revisions group, but differently named clone families never merge automatically")
