@@ -882,6 +882,65 @@ if [ "$USE_HASH_CACHE" -eq 0 ]; then
   fi
   FULL_VERIFY_PARALLEL_SECONDS=$((SECONDS-pv_start))
 fi
+# Select exactly one DAT-verified original retail representative per title.
+# Prefer parent region, then newest official revision, then lexical path.
+declare -A PREFERRED_PATH_BY_GAME PREFERRED_SCORE_BY_GAME PREFERRED_SHA_BY_GAME
+declare -A PREFERRED_COPIES_BY_GAME PREFERRED_REGION_BY_GAME
+CURATION_ELIGIBLE_FILES=0
+while IFS=$'\t' read -r pick_system pick_path pick_file pick_ext pick_stem pick_clean pick_region pick_kind pick_sig pick_proposed; do
+  [ -n "$pick_path" ] || continue
+  should_hash "$pick_system" "$pick_ext" || continue
+  pick_cache="$pick_path|$pick_sig"
+  pick_sha="${PREHASH_SHA_BY_PATH[$pick_path]:-${CACHE_SHA[$pick_cache]:-}}"
+  if [ -z "$pick_sha" ]; then
+    pick_sha="$(hash_file "$pick_path")"
+    PREHASH_SHA_BY_PATH["$pick_path"]="$pick_sha"
+  fi
+  [[ "${pick_sha,,}" =~ ^[0-9a-f]{40}$ ]] || continue
+  pick_sha="${pick_sha,,}"
+  pick_matched="$pick_sha"
+  if [ -z "${DAT_RECORD_BY_SHA[$pick_matched]+x}" ]; then
+    pick_cached_norm="${CACHE_NORMALIZED_SHA[$pick_cache]:-}"
+    if [ -n "$pick_cached_norm" ] && [ -n "${DAT_RECORD_BY_SHA[$pick_cached_norm]+x}" ]; then
+      pick_matched="$pick_cached_norm"
+    else
+      pick_size="${pick_sig%%|*}"
+      pick_matched="$(normalized_dat_hash "$pick_path" "$pick_ext" "$pick_sha" "$pick_size")"
+    fi
+  fi
+  [ -n "${DAT_RECORD_BY_SHA[$pick_matched]+x}" ] || continue
+  dat_unpack "${DAT_RECORD_BY_SHA[$pick_matched]}"
+  pick_release="$DAT_RELEASE"
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${pick_release,,}" == *revision* ]]; then pick_release="Retail/Standard"; fi
+  completion_release_selected "$pick_release" "$DAT_LICENSE" "$DAT_ROM $DAT_TITLE" || continue
+  game_identity_key_set "$DAT_SYSTEM" "$DAT_TITLE"; pick_key="$HOT_RESULT"
+  [ "${HISTORY_STATUS[$pick_key]:-}" != NO ] || continue
+  if parent_region_matches "$DAT_REGION"; then
+    pick_region_score=100000
+  elif [ "$DAT_REGION" = World ] && [ "${HISTORY_STATUS[$pick_key]:-}" = YES ]; then
+    pick_region_score=50000
+  else
+    continue
+  fi
+  pick_rev=0
+  pick_version="$DAT_ROM $DAT_TITLE"
+  if [[ "$pick_version" =~ \\(Rev[[:space:]._-]*([0-9]+)\\) ]]; then
+    pick_rev=$((10#${BASH_REMATCH[1]}))
+  elif [[ "$pick_version" =~ \\(Rev[[:space:]._-]*([A-Z])\\) ]]; then
+    pick_rev=$(LC_CTYPE=C printf '%d' "'${BASH_REMATCH[1]}")
+    pick_rev=$((pick_rev-64))
+  fi
+  pick_score=$((pick_region_score+pick_rev))
+  CURATION_ELIGIBLE_FILES=$((CURATION_ELIGIBLE_FILES+1))
+  PREFERRED_COPIES_BY_GAME["$pick_key"]=$(( ${PREFERRED_COPIES_BY_GAME[$pick_key]:-0}+1 ))
+  pick_prior="${PREFERRED_SCORE_BY_GAME[$pick_key]:--1}"
+  if [ "$pick_score" -gt "$pick_prior" ] || { [ "$pick_score" -eq "$pick_prior" ] && [[ "$pick_path" < "${PREFERRED_PATH_BY_GAME[$pick_key]:-~}" ]]; }; then
+    PREFERRED_PATH_BY_GAME["$pick_key"]="$pick_path"
+    PREFERRED_SCORE_BY_GAME["$pick_key"]="$pick_score"
+    PREFERRED_SHA_BY_GAME["$pick_key"]="$pick_matched"
+    PREFERRED_REGION_BY_GAME["$pick_key"]="$DAT_REGION"
+  fi
+done < "$PLAN"
 REPORT_START=$(date +%s)
 
 cat > "$STAGE_OUT" <<EOF2
