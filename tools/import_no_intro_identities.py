@@ -6,6 +6,7 @@ Use a trusted DAT archive and review ambiguous identities before publishing.
 """
 import argparse
 import csv
+import hashlib
 import io
 import re
 import sys
@@ -66,8 +67,13 @@ def extract(z: zipfile.ZipFile):
             identity = game.attrib.get("cloneofid") or game.attrib.get("id")
             if not name or not identity or not normalize_title(name):
                 continue
-            normalized_key = (system, normalize_title(name))
-            stable_id = f"nointro:{identity}"
+            normalized_title = normalize_title(name)
+            normalized_key = (system, normalized_title)
+            # No-Intro clone families can include distinct retail games (e.g.
+            # similarly named numbered sequels). Never collapse different game
+            # names based solely on cloneofid: cross-name links require review.
+            title_digest = hashlib.sha1(normalized_title.encode("utf-8")).hexdigest()[:12]
+            stable_id = f"nointro:{identity}:{title_digest}"
             previous = aliases.get(normalized_key)
             if previous and previous[1] != stable_id:
                 ambiguous.add(normalized_key)
@@ -98,7 +104,7 @@ def main() -> int:
     print(
         f"Processed {files} DATs; wrote {len(aliases)} identity aliases; "
         f"skipped {len(ambiguous)} ambiguous normalized titles. "
-        "Historical US retail eligibility remains UNVERIFIED.",
+        "Differently named clone members are NOT automatically merged; historical US retail eligibility remains UNVERIFIED.",
         file=sys.stderr,
     )
     return 0
