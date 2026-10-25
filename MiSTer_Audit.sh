@@ -505,7 +505,14 @@ build_completion_reference() {
 record_completion_owned() {
   local sys="$1" title="$2" region="$3" release="$4" license="$5" key
   [ -n "$sys" ] && [ -n "$title" ] || return 0
-  # A verified revision is an owned copy of the original retail game, not a\n  # separate reference title. Apply the same retail exclusions to its name.\n  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [ "${release,,}" = "revision" ]; then\n    completion_record_eligible "$region" "Retail/Standard" "$license" "$title" || return 0\n  else\n    completion_record_eligible "$region" "$release" "$license" "$title" || return 0\n  fi\n  completion_identity "$title"; key="$sys|$HOT_RESULT"\n  [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
+  # Verified DAT revisions count as the same original retail game.
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]]; then
+    completion_record_eligible "$region" "Retail/Standard" "$license" "$title" || return 0
+  else
+    completion_record_eligible "$region" "$release" "$license" "$title" || return 0
+  fi
+  completion_identity "$title"; key="$sys|$HOT_RESULT"
+  [ -n "$key" ] && [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
   if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
     COMPLETION_OWNED_KEYS["$key"]=1
     COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 ))
