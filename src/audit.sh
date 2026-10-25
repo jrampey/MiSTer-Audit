@@ -459,14 +459,17 @@ build_completion_reference() {
 record_completion_owned() {
   local sys="$1" title="$2" region="$3" release="$4" license="$5" key
   [ -n "$sys" ] && [ -n "$title" ] || return 0
-  # Verified DAT revisions count as the same original retail game.
-  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]]; then
-    completion_record_eligible "$region" "Retail/Standard" "$license" "$title" || return 0
-  else
-    completion_record_eligible "$region" "$release" "$license" "$title" || return 0
-  fi
   game_identity_key_set "$sys" "$title"; key="$HOT_RESULT"
   [ "${HISTORY_STATUS[$key]:-}" != NO ] || return 0
+  # A sourced original US World release remains owned even if optional
+  # provisional DAT World-region completion is disabled in preferences.
+  eligible_release="$release"
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]]; then eligible_release="Retail/Standard"; fi
+  if [ "${HISTORY_STATUS[$key]:-}" = YES ]; then
+    completion_release_selected "$eligible_release" "$license" "$title" || return 0
+  else
+    completion_record_eligible "$region" "$eligible_release" "$license" "$title" || return 0
+  fi
   [ -n "$key" ] && [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
   if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
     COMPLETION_OWNED_KEYS["$key"]=1
