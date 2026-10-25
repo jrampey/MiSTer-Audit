@@ -73,6 +73,39 @@ printf '2' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
 [ -f "$BUNDLE" ] || fail "audit bundle was not published"
 [ -f "$CATALOG" ] || fail "catalog CSV was not published"
 
+[ -f "$AUDIT/release_families.csv" ] || fail "release-family CSV was not published"
+python3 - "$AUDIT/release_families.csv" "$AUDIT/dat_matches.csv" <<'PY'
+import csv, sys
+with open(sys.argv[1], newline='') as f:
+    families = list(csv.DictReader(f))
+with open(sys.argv[2], newline='') as f:
+    matched = list(csv.DictReader(f))
+if not families:
+    raise SystemExit('release-family report is empty despite DAT matches')
+if len(families) > len(matched):
+    raise SystemExit('release-family grouping produced too many rows')
+required = {'system', 'canonical_title', 'owned_release_count', 'retail_count', 'special_count', 'release_categories'}
+if set(families[0]) != required:
+    raise SystemExit('release-family CSV header malformed')
+for row in families:
+    if None in row or any(v is None for v in row.values()):
+        raise SystemExit('release-family CSV has invalid column structure')
+    if not row['system'].strip() or not row['canonical_title'].strip():
+        raise SystemExit('release-family CSV missing identity')
+    for key in ('owned_release_count', 'retail_count', 'special_count'):
+        if not row[key].isdigit():
+            raise SystemExit(f'release-family numeric field corrupt: {key}')
+    if int(row['owned_release_count']) != int(row['retail_count']) + int(row['special_count']):
+        raise SystemExit('release-family total does not reconcile')
+if not any('Canonical Variant' in row['canonical_title'] for row in families):
+    raise SystemExit('revision family missing from report')
+print(f'Validated {len(families)} well-formed release families')
+PY
+grep -Fq 'Completion reference: bundled hash database' "$BUNDLE" || fail "completion denominator provenance missing"
+grep -Fq 'Unmatched identities: hash-eligible' "$BUNDLE" || fail "unmatched identity limitation missing"
+grep -Fq 'Collision interpretation:' "$BUNDLE" || fail "collision safety explanation missing"
+
+
 after_games=$(find "$ROOT/games" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
 after_saves=$(find "$ROOT/saves" -type f -printf '%P\t%s\n' | LC_ALL=C sort | sha256sum | awk '{print $1}')
 [ "$before_games" = "$after_games" ] || fail "game library changed during read-only audit"
