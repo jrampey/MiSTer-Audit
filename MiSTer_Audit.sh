@@ -461,7 +461,7 @@ completion_identity() {
   stem="$title"
   # No-Intro trailing qualifiers describe region, languages, revisions and media,
   # not a new game. Preserve subtitles and punctuation in the actual game name.
-  while [[ "$stem" =~ [[:space:]]\\([^()]*\\)$ ]]; do
+  while [[ "$stem" =~ [[:space:]]\([^()]*\)$ ]]; do
     stem="${stem% (*}"
   done
   stem="${stem,,}"
