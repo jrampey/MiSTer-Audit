@@ -262,3 +262,7 @@ Fast Audit refreshes region-dependent classifications while retaining ROM hashes
 Explicit Apply confirmation, collision checks, and rollback remain safety invariants.
 
 Completion reporting: use canonical DAT game identity (excluding trailing parenthesized DAT qualifiers) to count one original retail title per game. Do not count later-platform reissues, kiosk/test/diagnostic/BIOS media, or multiple revisions as separate retail games. Hash/DAT identification remains authoritative.
+
+### Original-retail completion reconciliation
+
+Verified No-Intro ROM revisions count as ownership of the original retail title (rather than as separate missing games). The original-retail reference excludes pirate releases, Wide-Boy development software, Zelda Collection editions, and Piko Interactive later editions. Completion remains hash/DAT-based and does not infer ownership from filenames. A fresh full audit is required to refresh reported totals.

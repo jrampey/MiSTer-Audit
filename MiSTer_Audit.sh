@@ -479,7 +479,7 @@ completion_release_selected() {
     # original console retail releases, even when a DAT marks them Retail.
     case "$name" in *virtual\ console*) return 1 ;; esac
     case "$name" in
-      *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*) return 1 ;;
+      *"virtual console"*|*"switch online"*|*"nintendo switch online"*|*"lodgeNet"*|*"lodgenet"*|*"gamecube"*|*"game cube"*|*"limited run games"*|*"test cartridge"*|*"test program"*|*"pif ("*|*"bios"*|*"diagnostic"*|*"not for resale"*|*"kiosk"*|*"pirate"*|*"wide-boy"*|*"wide boy"*|*"zelda collection"*|*"piko interactive"*) return 1 ;;
     esac
   fi
   return 0
@@ -505,9 +505,14 @@ build_completion_reference() {
 record_completion_owned() {
   local sys="$1" title="$2" region="$3" release="$4" license="$5" key
   [ -n "$sys" ] && [ -n "$title" ] || return 0
-  completion_record_eligible "$region" "$release" "$license" "$title" || return 0
+  # Verified DAT revisions count as the same original retail game.
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ] && [[ "${release,,}" == *revision* ]]; then
+    completion_record_eligible "$region" "Retail/Standard" "$license" "$title" || return 0
+  else
+    completion_record_eligible "$region" "$release" "$license" "$title" || return 0
+  fi
   completion_identity "$title"; key="$sys|$HOT_RESULT"
-  [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
+  [ -n "$key" ] && [ -n "${COMPLETION_REFERENCE_KEYS[$key]+x}" ] || return 0
   if [ -z "${COMPLETION_OWNED_KEYS[$key]+x}" ]; then
     COMPLETION_OWNED_KEYS["$key"]=1
     COMPLETION_OWNED_BY_SYSTEM["$sys"]=$(( ${COMPLETION_OWNED_BY_SYSTEM["$sys"]:-0} + 1 ))
