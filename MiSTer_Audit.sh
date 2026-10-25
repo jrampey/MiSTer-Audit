@@ -1020,7 +1020,7 @@ fi
 if [ -s "$WORK.release_rows" ]; then
   family_expected=$(awk -F '\t' '{seen[$1 SUBSEP $2]=1} END {for (k in seen) n++; print n+0}' "$WORK.release_rows")
   family_actual=$(awk 'END {print NR-1}' "$STAGE_RELEASE_FAMILIES")
-  family_bad=$(awk -F, 'NR>1 && (NF!=6 || $1 !~ /^"/ || $2 !~ /^"/ || $3 !~ /^"[0-9]+"$/ || $4 !~ /^"[0-9]+"$/ || $5 !~ /^"[0-9]+"$/) {n++} END {print n+0}' "$STAGE_RELEASE_FAMILIES")
+  family_bad=$(awk -F '\",\"' 'NR>1 && (NF!=6 || $1 !~ /^"/ || $3 !~ /^[0-9]+$/ || $4 !~ /^[0-9]+$/ || $5 !~ /^[0-9]+$/ || $6 !~ /"$/) {n++} END {print n+0}' "$STAGE_RELEASE_FAMILIES")
 else
   family_expected=0; family_actual=0; family_bad=0
 fi
