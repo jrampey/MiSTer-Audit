@@ -7,6 +7,7 @@ on:
       - mister_hash_database.tsv
       - game_identity_aliases.tsv
       - historical_us_retail.tsv
+      - historical_console_eras.tsv
       - .github/workflows/distributed-files.yml
       - .github/workflows/publish-downloader.yml
       - .github/workflows/synthetic-library-test.yml
