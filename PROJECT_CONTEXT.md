@@ -266,3 +266,11 @@ Completion reporting: use canonical DAT game identity (excluding trailing parent
 ### Original-retail completion reconciliation
 
 Verified No-Intro ROM revisions count as ownership of the original retail title (rather than as separate missing games). The original-retail reference excludes pirate releases, Wide-Boy development software, Zelda Collection editions, and Piko Interactive later editions. Completion remains hash/DAT-based and does not infer ownership from filenames. A fresh full audit is required to refresh reported totals.
+
+
+### Library analysis integrity (v1.4)
+- Release-family CSV uses correctly escaped quoted fields and reconciles the number of distinct DAT-matched system/title families. Invalid release-family rows cause an audit FAIL and disable Apply.
+- The synthetic Full Verification suite validates release-family fields, numeric counts, and totals.
+- Completion reference totals are based on the filtered bundled hash database, **not** an externally certified count of original retail releases. An incomplete or outdated DAT can change the denominator.
+- Unknown or unmatched ROM hashes are never assigned retail ownership solely from a filename. Review `unmatched_hashes.csv` and `needs_review.csv` and extend verified hash coverage when warranted.
+- Blocking collision rows represent conflicting destinations; Apply skips them. They are not proof that physical ROM files are duplicates.
