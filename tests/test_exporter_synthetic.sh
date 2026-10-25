@@ -32,6 +32,14 @@ TEST_BIN="$ROOT/test-bin"
 mkdir -p "$TEST_BIN"
 cp ./MiSTer_Audit.sh "$TEST_BIN/MiSTer_Audit.sh"
 cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
+cp ./game_identity_aliases.tsv "$TEST_BIN/game_identity_aliases.tsv"
+cp ./historical_us_retail.tsv "$TEST_BIN/historical_us_retail.tsv"
+cp ./historical_console_eras.tsv "$TEST_BIN/historical_console_eras.tsv"
+printf 'SNES\t1991-01-01\t2000-12-31\thttps://example.org/ci-fixture\n' >> "$TEST_BIN/historical_console_eras.tsv"
+# Fixture-only history, not a claim about actual SNES release dates.
+printf 'SNES\tCanonical Variant (USA)\tSNES-CANONICAL-VARIANT\n' >> "$TEST_BIN/game_identity_aliases.tsv"
+printf 'SNES\tSNES-CANONICAL-VARIANT\tCanonical Variant\tYES\t1994-01-01\tSNES\thttps://example.org/ci-fixture\n' >> "$TEST_BIN/historical_us_retail.tsv"
+
 
 # Add one synthetic DAT identity used by two source filenames. This mirrors the
 # real Super Noah's Ark 3D canonical collision without including ROM data.
@@ -72,6 +80,36 @@ printf '2' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
 
 [ -f "$BUNDLE" ] || fail "audit bundle was not published"
 [ -f "$CATALOG" ] || fail "catalog CSV was not published"
+
+[ -f "$AUDIT/curation_preferred.csv" ] || fail "preferred-retail report missing"
+[ -f "$AUDIT/disc_sets.csv" ] || fail "disc-set inventory missing"
+python3 - "$CATALOG" "$AUDIT/curation_preferred.csv" "$AUDIT/library_completion.csv" <<'PY'
+import csv,sys
+def read(p):
+    with open(p,newline='') as f: return list(csv.DictReader(f))
+catalog,preferred,completion=map(read,sys.argv[1:])
+variant=[r for r in catalog if r['dat_canonical_name'].startswith('Canonical Variant (USA)')]
+if len(variant)!=2: raise SystemExit(f'expected two synthetic revisions; got {len(variant)}')
+parent=[r for r in variant if r['special_release_category']=='Retail/Standard']
+alternates=[r for r in variant if r['special_release_category']=='Revision']
+if len(parent)!=1 or len(alternates)!=1:
+    raise SystemExit(f'preferred revision selection failed: {[(r["original_filename"],r["special_release_category"]) for r in variant]}')
+if '(Rev 2)' not in parent[0]['dat_canonical_name'] or parent[0]['curated_destination'] != 'SNES':
+    raise SystemExit('latest verified revision not selected as parent copy')
+if alternates[0]['curated_destination']!='SNES/!Revision':
+    raise SystemExit('nonpreferred revision not routed to shared revision folder')
+prefs=[r for r in preferred if r['game_id']=='SNES-CANONICAL-VARIANT']
+if len(prefs)!=1 or prefs[0]['eligible_copies']!='2' or prefs[0]['alternate_copies']!='1':
+    raise SystemExit('curation preferred summary failed to reconcile')
+snes=[r for r in completion if r['system']=='SNES']
+if len(snes)!=1 or int(snes[0]['historically_verified_titles'])<1:
+    raise SystemExit('historical manifest evidence was not reflected in completion report')
+print('Preferred rev2, alternate rev1, and historical manifest fixture validated')
+PY
+grep -Fq 'Historically sourced decisions: 1' "$BUNDLE" || fail "historical manifest load result missing"
+grep -Fq 'Disc-media groups:' "$BUNDLE" || fail "disc sets not inventoried"
+grep -Fq 'disc media: set-aware routing not yet verified' "$TEST_BIN/MiSTer_Audit.sh" || fail "disc media mutation guard missing"
+
 
 [ -f "$AUDIT/release_families.csv" ] || fail "release-family CSV was not published"
 python3 - "$AUDIT/release_families.csv" "$AUDIT/dat_matches.csv" <<'PY'
@@ -154,20 +192,20 @@ grep -Eq '"(Homebrew|Unlicensed)","SNES/!(Homebrew|Unlicensed)"' "$AUDIT/propose
 # remains directly in the system folder. Never create genre or per-ROM directories.
 python3 - "$AUDIT/proposed_renames.csv" <<'PY'
 import csv, sys
-allowed = {"Homebrew", "Unlicensed", "Aftermarket", "Prototype", "Beta", "Demo/Sample", "Translation", "Hack/Modified"}
+allowed = {"Homebrew", "Unlicensed", "Aftermarket", "Prototype", "Beta", "Demo/Sample", "Translation", "Hack/Modified", "Revision", "Alternate Retail", "Reissue/Compilation", "Unofficial/Pirate", "Development/Diagnostic", "Non-Retail", "Historical Exclusion"}
 with open(sys.argv[1], newline="") as f:
     for row in csv.DictReader(f):
         category = row.get("special_release_category", "")
         destination = row.get("curated_destination", "")
         system = row.get("system", "")
         if category == "Retail/Standard":
-            if destination not in ("", "Unknown", system, f"{system}/!Unknown Region"):
+            if destination not in ("", "Unknown", system, f"{system}/!Unknown Region", *(f"{system}/!{r}" for r in ("World", "Japan", "Europe", "Canada", "Australia", "Korea", "Brazil", "Other Regions"))):
                 raise SystemExit(f"ERROR: retail ROM routed outside system root: {destination}")
             continue
         if category not in allowed:
             raise SystemExit(f"ERROR: non-ROM-type curated category: {category}")
         parts = destination.split("/")
-        if len(parts) != 2 or parts[0] != system or parts[1] != "!" + category:
+        if len(parts) != 2 or parts[0] != system or parts[1] != "!" + category.replace("/", "-"):
             raise SystemExit(f"ERROR: curated destination must be exactly <system>/<ROM type>: {destination}")
 PY
 grep -Fq '"special_release_category","curated_destination"' "$AUDIT/dat_matches.csv" || fail "DAT match report missing ROM-type reporting columns"
@@ -278,9 +316,9 @@ grep -Fq '*) region_folder="Other Regions"' "$TEST_BIN/MiSTer_Audit.sh" || fail 
 # Special-release precedence under alternative regions is exercised by test_preferences.py.
 
 # Virtual Console regression: VC ROM images are a distinct curated release type. Classification must inspect both canonical ROM filename and canonical title because No-Intro sources may carry the VC qualifier in either field.
-grep -Fq '*virtual\ console*) HOT_RESULT="Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console category classification missing"
+grep -Fq 'HOT_RESULT="Virtual Console"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console category classification missing"
 grep -Fq 'special_release_category_set "$meta_release" "$meta_license" "$dat_rom $dat_name"' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console classification does not inspect both canonical DAT identity fields"
-grep -Fq 'case "$name" in *virtual\ console*) return 1 ;; esac' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console variants still count toward retail completion"
+grep -Fq 'case "$category" in Retail/Standard|Revision)' "$TEST_BIN/MiSTer_Audit.sh" || fail "Virtual Console variants still count toward retail completion"
 
 # Apply cleanup regression: only known MiSTer-Audit category buckets may be pruned,
 # and cleanup must use rmdir so non-empty directories are never deleted.

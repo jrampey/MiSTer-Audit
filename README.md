@@ -23,7 +23,7 @@ db_url = https://raw.githubusercontent.com/jrampey/MiSTer-Audit/main/db.json
 
 3. Save `downloader.ini`.
 4. Run **Update All** on the MiSTer.
-5. Update All installs `MiSTer_Audit.sh` and `mister_hash_database.tsv` under `/media/fat/Scripts/`.
+5. Update All installs `MiSTer_Audit.sh`, `mister_hash_database.tsv`, plus the identity, retail-eligibility and console-era manifests under `/media/fat/Scripts/`.
 6. Run `MiSTer_Audit` from the MiSTer Scripts menu and choose **Run library audit**.
 
 > **Start with the auditor.** `MiSTer_Audit.sh` does not rename, move, or delete ROMs or saves. Review the generated audit before using the unified runtime's Preview / Apply workflow.
@@ -93,7 +93,7 @@ Rollback uses the latest rename manifest, requires typing `ROLLBACK` exactly, an
 
 ## MiSTer Downloader / Update All
 
-The repository publishes a validated MiSTer Downloader `db.json` that manages only the two distributed files under `/media/fat/Scripts/`.
+The repository publishes a validated MiSTer Downloader `db.json` that manages five distributed files under `/media/fat/Scripts/`.
 
 Register the database in `/media/fat/downloader.ini` with:
 
@@ -337,3 +337,32 @@ Verified No-Intro ROM revisions count as ownership of the original retail title 
 - Completion reference totals are based on the filtered bundled hash database, **not** an externally certified count of original retail releases. An incomplete or outdated DAT can change the denominator.
 - Unknown or unmatched ROM hashes are never assigned retail ownership solely from a filename. Review `unmatched_hashes.csv` and `needs_review.csv` and extend verified hash coverage when warranted.
 - Blocking collision rows represent conflicting destinations; Apply skips them. They are not proof that physical ROM files are duplicates.
+
+
+## Original-era U.S. retail curation (v1.4 architecture)
+- The auditor selects one **hash/DAT-verified** retail ROM per original game identity for the preferred region. It prefers the configured parent region, then the highest recognized official revision, then a stable path tie-break. The selected copy is proposed for the system parent; other official revisions go to shared `!Revision`, and otherwise equivalent copies go to `!Alternate Retail`. This changes curation proposals, not the ROMs during audit.
+- `game_identity_aliases.tsv` associates variant DAT names with stable per-platform game IDs. Columns: `system<TAB>canonical_title<TAB>game_id`. Where absent, a normalized name-based provisional ID remains, so cross-name aliases still need review.
+- `historical_us_retail.tsv` contains researched eligibility overrides: `system<TAB>game_id<TAB>canonical_title<TAB>status<TAB>us_release_date<TAB>evidence_url`. Use `YES` only with an original-platform U.S. retail date and public evidence; use `NO` to exclude documented nonoriginal/non-U.S. releases (use `-` as the date placeholder). Both files are distributed to `/media/fat/Scripts/` by Update All. They ship header-only rather than claiming an unsourced historical checklist.
+- A `YES`-verified World-region original release can be promoted to the parent when appropriate; unsourced World releases follow `WORLD_IN_PARENT`. `NO` entries are excluded from historical completion and from the parent curation candidate set.
+- `library_completion.csv` retains the DAT-derived estimate and now separately reports independently sourced historical entries and explicitly labels provisional coverage. Until a historically complete sourced U.S. retail game manifest has been assembled for a console, **do not interpret the provisional denominator as a historically certified original retail release count**.
+- `curation_preferred.csv` identifies the chosen ROM, alternate count, current folder, target parent, and historical evidence status. `disc_sets.csv` inventories disc media groups. No certified disc-based completion percentage is claimed in the absence of an original-era retail manifest and disc identity catalog.
+- Preview/Apply skips individual CUE/BIN, CHD, ISO and related disc/playlist media until set-aware move logic exists; separating component files could corrupt playability. Saves can be renamed by basename in their existing save directory but are never arbitrarily moved into game-curation folders.
+- Confirm the preview and any collisions before Apply. The original audit is read-only; rollback continues to operate for safe moves.
+
+### Strict historical era evidence and diagnostic outputs
+- `historical_console_eras.tsv` declares sourced `system<TAB>original_us_start<TAB>original_us_end<TAB>evidence_url` dates. A positive `historical_us_retail.tsv` decision is accepted only when its documented U.S. release date is inside that console's sourced original U.S. commercial era and `original_platform` matches `system`. Invalid historical rows force an audit FAIL and block Apply.
+- The auditor records SHA-1 fingerprints for the history, alias and console-era files. Preview/Apply refuses stale audits if any of those sources changes after an audit.
+- `parent_integrity.csv` explicitly lists physically misfiled DAT-verified retail or alternate ROMs. `historical_retail_review.csv` identifies all DAT-derived candidates that lack independently sourced eligibility; `system_retail_coverage.csv` includes consoles whose retail completion cannot yet be measured. These reports are advisory and preserve read-only audit behavior.
+- Curated category names containing a slash are rendered as safe single folder names (for example, `!Demo-Sample`, not `!Demo/Sample`), preserving the one-shared-folder-per-type rule.
+- **Historical precision warning:** These three TSV manifests deliberately ship without assumed catalog facts. Correct historical percentages require evidence-complete U.S. original-era lists, including disc media catalogs where applicable; DAT-derived completion is a provisional estimate, never silently certified.
+
+
+### Importing No-Intro identity links offline
+
+A desktop maintainer can build an alias table using the user's own No-Intro DAT ZIP:
+
+```bash
+python3 tools/import_no_intro_identities.py No-Intro.zip --output game_identity_aliases.tsv
+```
+
+The importer uses No-Intro `id`/`cloneofid` to connect known dump variants, skips conflicting normalized names, and never assigns a U.S. release date or historical retail eligibility. Review generated aliases and commit the table before Update All distributes it; do not run Python on the MiSTer Pi. These identity links improve title deduplication but are **not** evidence of a historical retail release.

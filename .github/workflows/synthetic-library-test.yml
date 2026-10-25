@@ -8,6 +8,9 @@ on:
       - MiSTer_Audit.sh
       - tests/test_exporter_synthetic.sh
       - tests/build_synthetic_library.py
+      - tests/test_no_intro_identity_import.py
+      - tests/test_retail_classification.py
+      - tools/import_no_intro_identities.py
       - .github/workflows/synthetic-library-test.yml
   workflow_dispatch:
 
@@ -29,6 +32,12 @@ jobs:
           bash -n MiSTer_Audit.sh
           bash -n tests/test_exporter_synthetic.sh
           python3 -m py_compile tests/build_synthetic_library.py
+
+      - name: Validate No-Intro game identity imports
+        run: python3 tests/test_no_intro_identity_import.py
+
+      - name: Validate original retail title/edition classification
+        run: python3 tests/test_retail_classification.py
 
       - name: Test configurable preferences
         run: python3 tests/test_preferences.py
