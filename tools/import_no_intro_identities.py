@@ -18,11 +18,11 @@ DAT_SYSTEMS = {
     "Nintendo - Nintendo 64 (BigEndian)": "N64",
     "Nintendo - Nintendo Entertainment System (Headerless)": "NES",
     "Nintendo - Super Nintendo Entertainment System": "SNES",
-    "Nintendo - Game Boy": "GameBoy",
-    "Nintendo - Game Boy Color": "GameBoyColor",
+    "Nintendo - Game Boy": "GAMEBOY",
+    "Nintendo - Game Boy Color": "GBC",
     "Nintendo - Game Boy Advance": "GBA",
     "Nintendo - Virtual Boy": "VirtualBoy",
-    "Nintendo - Family Computer Disk System (FDS)": "FDS",
+    "Nintendo - Family Computer Disk System (FDS)": "NES",
     "Sega - Mega Drive - Genesis": "MegaDrive",
     "Sega - Master System - Mark III": "SMS",
     "Atari - Atari 2600": "Atari2600",
@@ -43,7 +43,9 @@ def match_system(dat_filename: str) -> str | None:
     base = Path(dat_filename).name
     for prefix, system in DAT_SYSTEMS.items():
         if base.startswith(prefix + " ("):
-            return system
+            suffix = base[len(prefix) + 2:]
+            if re.fullmatch(r"\\d{8}-\\d{6}\\)\\.dat", suffix):
+                return system
     return None
 
 
