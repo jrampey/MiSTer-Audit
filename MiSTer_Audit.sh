@@ -1067,6 +1067,13 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
           if [[ "${meta_release,,}" == *revision* ]]; then special_category="Revision"; else special_category="Alternate Retail"; fi
         fi
       fi
+      # Foreign-region retail revisions follow geography rather than the home
+      # region's !Revision bucket. Preferred-region alternates remain !Revision.
+      if [ "$special_category" = Revision ] && ! parent_region_matches "$meta_region"; then
+        if [ "$meta_region" != World ] || [ "${HISTORY_STATUS[$curation_key]:-}" != YES ]; then
+          special_category="Retail/Standard"
+        fi
+      fi
       if [ -n "$dat_rom" ]; then canonical_file="${dat_rom##*/}"; canonical_stem="${canonical_file%.*}"; [ -n "$canonical_stem" ] && { clean_title_set "$canonical_stem"; clean="$HOT_RESULT"; }; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [[ "$special_category" == "Retail/Standard" || "$special_category" == Revision || "$special_category" == "Alternate Retail" ]] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then retail_stem="$canonical_stem"; retail_stem="$(strip_parent_tag "$retail_stem")"; [ -n "$retail_stem" ] || retail_stem="$clean"; proposed="$retail_stem.$ext"; else proposed="$canonical_file"; fi; elif [ -n "$dat_name" ]; then clean="$(clean_title "$dat_name")"; [ -n "$meta_region" ] && region="$meta_region"; kind="$special_category"; if [[ "$special_category" == "Retail/Standard" || "$special_category" == Revision || "$special_category" == "Alternate Retail" ]] && parent_region_matches "$region" && [ "$STRIP_PARENT_REGION_TAG" = 1 ]; then proposed="$clean.$ext"; else suffix_for_set "$region" "$kind"; proposed="$clean$HOT_RESULT.$ext"; fi; fi
       curated_destination_set "$meta_folder" "$special_category" "${curation_route_region:-$region}"; curated_destination="$HOT_RESULT"; location_status_set "$system" "$meta_folder"; loc_status="$HOT_RESULT"; [ "$row_metadata_reused" -eq 0 ] && ROW_METADATA_REFRESHED=$((ROW_METADATA_REFRESHED+1)); record_completion_owned "${meta_system:-$system}" "$dat_name" "$meta_region" "$meta_release" "$meta_license" "$dat_rom"; [ "$dat_status" = "Normalized SHA-1" ] || dat_status="Exact SHA-1"; DAT_MATCHED=$((DAT_MATCHED+1)); SYSTEM_MATCHED["$system"]=$(( ${SYSTEM_MATCHED["$system"]:-0} + 1 ))
       csv_row "$STAGE_DAT_MATCH" "$sha1" "$system" "$p" "$file" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination"
