@@ -794,9 +794,9 @@ while IFS=$'\t' read -r pick_system pick_path pick_file pick_ext pick_stem pick_
   fi
   pick_rev=0
   pick_version="$DAT_ROM $DAT_TITLE"
-  if [[ "$pick_version" =~ \\(Rev[[:space:]._-]*([0-9]+)\\) ]]; then
+  if [[ "$pick_version" =~ \(Rev[[:space:]._-]*([0-9]+)\) ]]; then
     pick_rev=$((10#${BASH_REMATCH[1]}))
-  elif [[ "$pick_version" =~ \\(Rev[[:space:]._-]*([A-Z])\\) ]]; then
+  elif [[ "$pick_version" =~ \(Rev[[:space:]._-]*([A-Z])\) ]]; then
     pick_rev=$(LC_CTYPE=C printf '%d' "'${BASH_REMATCH[1]}")
     pick_rev=$((pick_rev-64))
   fi
