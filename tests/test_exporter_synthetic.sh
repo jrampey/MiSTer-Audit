@@ -34,9 +34,11 @@ cp ./MiSTer_Audit.sh "$TEST_BIN/MiSTer_Audit.sh"
 cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
 cp ./game_identity_aliases.tsv "$TEST_BIN/game_identity_aliases.tsv"
 cp ./historical_us_retail.tsv "$TEST_BIN/historical_us_retail.tsv"
+cp ./historical_console_eras.tsv "$TEST_BIN/historical_console_eras.tsv"
+printf 'SNES\t1991-01-01\t2000-12-31\thttps://example.org/ci-fixture\n' >> "$TEST_BIN/historical_console_eras.tsv"
 # Fixture-only history, not a claim about actual SNES release dates.
 printf 'SNES\tCanonical Variant (USA)\tSNES-CANONICAL-VARIANT\n' >> "$TEST_BIN/game_identity_aliases.tsv"
-printf 'SNES\tSNES-CANONICAL-VARIANT\tCanonical Variant\tYES\t1994-01-01\thttps://example.org/ci-fixture\n' >> "$TEST_BIN/historical_us_retail.tsv"
+printf 'SNES\tSNES-CANONICAL-VARIANT\tCanonical Variant\tYES\t1994-01-01\tSNES\thttps://example.org/ci-fixture\n' >> "$TEST_BIN/historical_us_retail.tsv"
 
 
 # Add one synthetic DAT identity used by two source filenames. This mirrors the
