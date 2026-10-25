@@ -716,7 +716,7 @@ curated_destination_set() {
   # Release type has priority over geography. Ordinary retail is organized by
   # resolved No-Intro region, with the selected region in the parent list.
   if [ "$category" != "Retail/Standard" ]; then
-    if [ "$GROUP_SPECIAL_RELEASES" = 1 ]; then HOT_RESULT="$folder/!$category"; else HOT_RESULT="$folder"; fi; return
+    if [ "$GROUP_SPECIAL_RELEASES" = 1 ]; then category="${category//\//-}"; HOT_RESULT="$folder/!$category"; else HOT_RESULT="$folder"; fi; return
   fi
   if parent_region_matches "$region"; then HOT_RESULT="$folder"; return; fi
   case "$region" in Unknown|"") [ "$GROUP_UNKNOWN_REGION" = 1 ] || { HOT_RESULT="$folder"; return; } ;; *) [ "$GROUP_OTHER_REGIONS" = 1 ] || { HOT_RESULT="$folder"; return; } ;; esac
