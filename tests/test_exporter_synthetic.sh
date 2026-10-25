@@ -32,6 +32,12 @@ TEST_BIN="$ROOT/test-bin"
 mkdir -p "$TEST_BIN"
 cp ./MiSTer_Audit.sh "$TEST_BIN/MiSTer_Audit.sh"
 cp ./mister_hash_database.tsv "$TEST_BIN/mister_hash_database.tsv"
+cp ./game_identity_aliases.tsv "$TEST_BIN/game_identity_aliases.tsv"
+cp ./historical_us_retail.tsv "$TEST_BIN/historical_us_retail.tsv"
+# Fixture-only history, not a claim about actual SNES release dates.
+printf 'SNES\tCanonical Variant (USA)\tSNES-CANONICAL-VARIANT\n' >> "$TEST_BIN/game_identity_aliases.tsv"
+printf 'SNES\tSNES-CANONICAL-VARIANT\tCanonical Variant\tYES\t1994-01-01\thttps://example.org/ci-fixture\n' >> "$TEST_BIN/historical_us_retail.tsv"
+
 
 # Add one synthetic DAT identity used by two source filenames. This mirrors the
 # real Super Noah's Ark 3D canonical collision without including ROM data.
@@ -72,6 +78,36 @@ printf '2' | bash "$TEST_BIN/MiSTer_Audit.sh" audit
 
 [ -f "$BUNDLE" ] || fail "audit bundle was not published"
 [ -f "$CATALOG" ] || fail "catalog CSV was not published"
+
+[ -f "$AUDIT/curation_preferred.csv" ] || fail "preferred-retail report missing"
+[ -f "$AUDIT/disc_sets.csv" ] || fail "disc-set inventory missing"
+python3 - "$CATALOG" "$AUDIT/curation_preferred.csv" "$AUDIT/library_completion.csv" <<'PY'
+import csv,sys
+def read(p):
+    with open(p,newline='') as f: return list(csv.DictReader(f))
+catalog,preferred,completion=map(read,sys.argv[1:])
+variant=[r for r in catalog if r['dat_canonical_name'].startswith('Canonical Variant (USA)')]
+if len(variant)!=2: raise SystemExit(f'expected two synthetic revisions; got {len(variant)}')
+parent=[r for r in variant if r['special_release_category']=='Retail/Standard']
+alternates=[r for r in variant if r['special_release_category']=='Revision']
+if len(parent)!=1 or len(alternates)!=1:
+    raise SystemExit(f'preferred revision selection failed: {[(r["original_filename"],r["special_release_category"]) for r in variant]}')
+if '(Rev 2)' not in parent[0]['dat_canonical_name'] or parent[0]['curated_destination'] != 'SNES':
+    raise SystemExit('latest verified revision not selected as parent copy')
+if alternates[0]['curated_destination']!='SNES/!Revision':
+    raise SystemExit('nonpreferred revision not routed to shared revision folder')
+prefs=[r for r in preferred if r['game_id']=='SNES-CANONICAL-VARIANT']
+if len(prefs)!=1 or prefs[0]['eligible_copies']!='2' or prefs[0]['alternate_copies']!='1':
+    raise SystemExit('curation preferred summary failed to reconcile')
+snes=[r for r in completion if r['system']=='SNES']
+if len(snes)!=1 or int(snes[0]['historically_verified_titles'])<1:
+    raise SystemExit('historical manifest evidence was not reflected in completion report')
+print('Preferred rev2, alternate rev1, and historical manifest fixture validated')
+PY
+grep -Fq 'Historically sourced decisions: 1' "$BUNDLE" || fail "historical manifest load result missing"
+grep -Fq 'Disc-media groups:' "$BUNDLE" || fail "disc sets not inventoried"
+grep -Fq 'disc media: set-aware routing not yet verified' "$TEST_BIN/MiSTer_Audit.sh" || fail "disc media mutation guard missing"
+
 
 [ -f "$AUDIT/release_families.csv" ] || fail "release-family CSV was not published"
 python3 - "$AUDIT/release_families.csv" "$AUDIT/dat_matches.csv" <<'PY'
