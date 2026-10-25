@@ -48,6 +48,7 @@ jobs:
           add_file mister_hash_database.tsv Scripts/mister_hash_database.tsv
           add_file game_identity_aliases.tsv Scripts/game_identity_aliases.tsv
           add_file historical_us_retail.tsv Scripts/historical_us_retail.tsv
+          add_file historical_console_eras.tsv Scripts/historical_console_eras.tsv
           curl -fsSL https://raw.githubusercontent.com/MiSTer-devel/Distribution_MiSTer/main/.github/db_operator.py -o "$BUILD_DIR/db_operator.py"
           DB_ID="jrampey/MiSTer-Audit" DB_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/db.json" BASE_FILES_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/%s/" EXTERNAL_FILES="$CSV" DB_JSON_NAME=db.json python3 "$BUILD_DIR/db_operator.py" build "$STAGE_DIR"
           cp "$STAGE_DIR/db.json" "$GITHUB_WORKSPACE/db.json"
@@ -56,7 +57,7 @@ jobs:
           import hashlib,json,os
           from pathlib import Path
           db=json.loads(Path('db.json').read_text()); sha=os.environ['PUBLISH_SHA']
-          expected={'Scripts/MiSTer_Audit.sh':'MiSTer_Audit.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv','Scripts/game_identity_aliases.tsv':'game_identity_aliases.tsv','Scripts/historical_us_retail.tsv':'historical_us_retail.tsv'}
+          expected={'Scripts/MiSTer_Audit.sh':'MiSTer_Audit.sh','Scripts/mister_hash_database.tsv':'mister_hash_database.tsv','Scripts/game_identity_aliases.tsv':'game_identity_aliases.tsv','Scripts/historical_us_retail.tsv':'historical_us_retail.tsv','Scripts/historical_console_eras.tsv':'historical_console_eras.tsv'}
           for target,source in expected.items():
               data=Path(source).read_bytes(); e=db['files'][target]
               assert e['size']==len(data) and e['hash']==hashlib.md5(data).hexdigest(), target
