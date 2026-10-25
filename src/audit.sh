@@ -995,14 +995,25 @@ while IFS=$'\t' read -r -u 3 system p file ext stem clean region kind sig fallba
   save_count=0; save_key="${stem,,}"
   if [ -n "$save_key" ] && [ -n "${SAVES_BY_STEM[$save_key]:-}" ]; then while IFS= read -r sp; do [ -z "$sp" ] && continue; sf="${sp##*/}"; sext="${sf##*.}"; proposed_save="${proposed%.*}.$sext"; csv_row "$STAGE_SAVE_REN" "$system" "$p" "$sp" "$proposed_save" "Exact original basename" "REVIEW ONLY" "$special_category" "$curated_destination"; save_count=$((save_count+1)); SAVE_MATCHES=$((SAVE_MATCHES+1)); done <<< "${SAVES_BY_STEM[$save_key]}"; fi
 
+  count_disc_entry=0
   case "${ext,,}" in
-    cue|bin|iso|chd|ccd|img|sub|mdf|mds|m3u|gdi|cdi|nrg|pbp)
-      disc_key="$system|${p%/*}"
-      DISC_COUNT_BY_DIR["$disc_key"]=$(( ${DISC_COUNT_BY_DIR[$disc_key]:-0}+1 ))
-      [ "${ext,,}" != cue ] || DISC_CUE_BY_DIR["$disc_key"]=$(( ${DISC_CUE_BY_DIR[$disc_key]:-0}+1 ))
-      [ "${ext,,}" != m3u ] || DISC_PLAYLIST_BY_DIR["$disc_key"]=$(( ${DISC_PLAYLIST_BY_DIR[$disc_key]:-0}+1 ))
+    cue|iso|chd|ccd|img|sub|mdf|mds|m3u|gdi|cdi|nrg|pbp) count_disc_entry=1 ;;
+    bin)
+      case "${system,,}" in psx|ps1|playstation|segacd|megacd|saturn|dreamcast|neogeocd|pcecd|tgfxcd) count_disc_entry=1 ;; esac
+      if [ "$count_disc_entry" -eq 0 ]; then
+        for disc_cue in "${p%/*}"/*.cue "${p%/*}"/*.CUE; do
+          [ -f "$disc_cue" ] || continue
+          grep -Fqi -- "$file" "$disc_cue" && { count_disc_entry=1; break; }
+        done
+      fi
       ;;
   esac
+  if [ "$count_disc_entry" -eq 1 ]; then
+    disc_key="$system|${p%/*}"
+    DISC_COUNT_BY_DIR["$disc_key"]=$(( ${DISC_COUNT_BY_DIR[$disc_key]:-0}+1 ))
+    [ "${ext,,}" != cue ] || DISC_CUE_BY_DIR["$disc_key"]=$(( ${DISC_CUE_BY_DIR[$disc_key]:-0}+1 ))
+    [ "${ext,,}" != m3u ] || DISC_PLAYLIST_BY_DIR["$disc_key"]=$(( ${DISC_PLAYLIST_BY_DIR[$disc_key]:-0}+1 ))
+  fi
   disc_media_set "$ext"; media_type="$HOT_RESULT"; if [ -n "$media_type" ]; then disc_status="Inventory only"; case "$dat_status" in "Exact SHA-1"|"Normalized SHA-1") disc_status="DAT identified" ;; esac; csv_row "$STAGE_DISC_REPORT" "$system" "$p" "$file" "$media_type" "$dat_status" "$dat_name" "$special_category" "$disc_status"; fi
   printf '[%s] %s | Region: %s | Type: %s | Saves: %s | File: %s | Collision: %s\n' "$system" "$clean" "$region" "$kind" "$save_count" "$file" "$collision" >> "$STAGE_OUT"
   csv_row "$STAGE_CSV" "$system" "$clean" "$region" "$kind" "$file" "$proposed" "$p" "$save_count" "$collision" "$sha1" "$dat_status" "$dat_name" "$dat_rom" "$dat_source" "$meta_system" "$meta_core" "$meta_folder" "$meta_region" "$meta_release" "$meta_license" "$special_category" "$curated_destination" "$loc_status"
