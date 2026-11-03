@@ -405,6 +405,13 @@ game_identity_key_set() {
 }
 completion_release_selected() {
   local release="${1,,}" license="${2,,}" name="${3,,}" category
+  # LodgeNet hotel-system maintenance utilities are not original retail games.
+  # Keep DAT/hash identification intact; exclude only from retail completion.
+  if [ "$COMPLETION_RETAIL_ONLY" -eq 1 ]; then
+    case "$name" in
+      *"eeprom & sram erase program"*"lodgenet"*|*"eeprom & sram erase program"*) return 1 ;;
+    esac
+  fi
   special_release_category_set "$release" "$license" "$name"
   category="$HOT_RESULT"
   case "$category" in
